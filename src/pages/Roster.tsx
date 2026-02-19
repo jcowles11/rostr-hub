@@ -52,23 +52,38 @@ export default function Roster() {
     return p.last_name.toLowerCase().includes(q) || p.first_name.toLowerCase().includes(q);
   });
 
+  const [adding, setAdding] = useState(false);
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!coach) return;
-    const { error } = await supabase.from("players").insert({
-      program_id: coach.program_id,
-      first_name: newPlayer.first_name,
-      last_name: newPlayer.last_name,
-      grade: newPlayer.grade ? parseInt(newPlayer.grade) : null,
-      positions: newPlayer.positions ? newPlayer.positions.split(",").map((s) => s.trim()) : [],
-    });
-    if (error) {
-      toast.error("Failed to add player");
-    } else {
-      toast.success("Player added!");
-      setNewPlayer({ first_name: "", last_name: "", grade: "", positions: "" });
-      setAddOpen(false);
-      fetchPlayers();
+    if (!coach || adding) return;
+    if (!newPlayer.first_name.trim() || !newPlayer.last_name.trim()) {
+      toast.error("First and last name are required");
+      return;
+    }
+    setAdding(true);
+    try {
+      const { error } = await supabase.from("players").insert({
+        program_id: coach.program_id,
+        first_name: newPlayer.first_name.trim(),
+        last_name: newPlayer.last_name.trim(),
+        grade: newPlayer.grade ? parseInt(newPlayer.grade) : null,
+        positions: newPlayer.positions ? newPlayer.positions.split(",").map((s) => s.trim()).filter(Boolean) : [],
+      });
+      if (error) {
+        console.error("Add player error:", error);
+        toast.error(`Failed to add player: ${error.message}`);
+      } else {
+        toast.success("Player added!");
+        setNewPlayer({ first_name: "", last_name: "", grade: "", positions: "" });
+        setAddOpen(false);
+        fetchPlayers();
+      }
+    } catch (err: any) {
+      console.error("Add player exception:", err);
+      toast.error("Something went wrong adding the player");
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -150,7 +165,7 @@ export default function Roster() {
                       <Input value={newPlayer.positions} onChange={(e) => setNewPlayer({ ...newPlayer, positions: e.target.value })} placeholder="SS, OF" className="tap-target h-12 rounded-xl" />
                     </div>
                   </div>
-                  <Button type="submit" className="w-full tap-target h-12 font-bold rounded-xl gradient-primary border-0">Add Player</Button>
+                  <Button type="submit" disabled={adding} className="w-full tap-target h-12 font-bold rounded-xl gradient-primary border-0">{adding ? "Adding..." : "Add Player"}</Button>
                 </form>
               </DialogContent>
             </Dialog>
