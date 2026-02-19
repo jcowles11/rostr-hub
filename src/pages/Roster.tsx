@@ -96,6 +96,26 @@ export default function Roster() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="tap-target text-white/80 hover:text-white hover:bg-white/10"
+              title="Auto-assign player numbers"
+              onClick={async () => {
+                const unnumbered = players.filter((p) => !p.player_number);
+                if (unnumbered.length === 0) { toast.info("All players already have numbers"); return; }
+                const maxNum = Math.max(0, ...players.filter((p) => p.player_number).map((p) => p.player_number!));
+                let nextNum = maxNum + 1;
+                const updates = unnumbered.map((p) => ({ id: p.id, player_number: nextNum++ }));
+                for (const u of updates) {
+                  await supabase.from("players").update({ player_number: u.player_number }).eq("id", u.id);
+                }
+                toast.success(`Assigned numbers to ${updates.length} player${updates.length !== 1 ? "s" : ""}`);
+                fetchPlayers();
+              }}
+            >
+              <Users className="h-5 w-5" />
+            </Button>
             <Button variant="ghost" size="icon" className="tap-target text-white/80 hover:text-white hover:bg-white/10" onClick={copyRegLink} title="Share registration link">
               <Share2 className="h-5 w-5" />
             </Button>

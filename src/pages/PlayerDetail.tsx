@@ -119,11 +119,22 @@ export default function PlayerDetail() {
       {/* Player hero card */}
       <div className="page-hero mb-5">
         <div className="flex items-center gap-4">
-          {player.player_number && (
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 text-2xl font-extrabold text-white">
-              {player.player_number}
-            </div>
-          )}
+          <button
+            onClick={() => {
+              const num = prompt("Enter player number:", player.player_number?.toString() || "");
+              if (num === null) return;
+              const parsed = num.trim() === "" ? null : parseInt(num);
+              if (num.trim() !== "" && (isNaN(parsed!) || parsed! < 0)) { toast.error("Invalid number"); return; }
+              supabase.from("players").update({ player_number: parsed }).eq("id", player.id).then(({ error }) => {
+                if (error) toast.error("Failed to update");
+                else { setPlayer({ ...player, player_number: parsed }); toast.success("Player number updated"); }
+              });
+            }}
+            className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 text-2xl font-extrabold text-white hover:bg-white/30 transition-colors cursor-pointer"
+            title="Tap to edit player number"
+          >
+            {player.player_number ?? "—"}
+          </button>
           <div>
             <h1 className="text-2xl font-extrabold text-white">
               {player.last_name}, {player.first_name}
