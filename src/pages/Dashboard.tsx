@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Star, AlertTriangle, Eye, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { aggregateValues } from "@/lib/metrics";
+import { aggregateValues, computePercentiles } from "@/lib/metrics";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +42,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [players, setPlayers] = useState<PlayerRow[]>([]);
   const [metrics, setMetrics] = useState<MetricInfo[]>([]);
+  const [percentiles, setPercentiles] = useState<Map<string, number>>(new Map());
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<"name" | "score">("score");
@@ -104,6 +105,7 @@ export default function Dashboard() {
       });
 
       setPlayers(enriched);
+      setPercentiles(computePercentiles(enriched, metricsList));
       setLoading(false);
     };
     fetchData();
@@ -121,14 +123,12 @@ export default function Dashboard() {
     if (selectedMetric !== ALL_METRICS) {
       return p.scores.get(selectedMetric) ?? null;
     }
-    // Composite average of all metric scores
-    if (p.scores.size === 0) return null;
-    const vals = Array.from(p.scores.values());
-    return vals.reduce((a, b) => a + b, 0) / vals.length;
+    // Percentile-based composite
+    return percentiles.get(p.id) ?? null;
   };
 
   const currentMetricInfo = metrics.find((m) => m.id === selectedMetric);
-  const isTimed = selectedMetric === ALL_METRICS ? false : currentMetricInfo?.metric_type === "timed";
+  const isTimed = selectedMetric !== ALL_METRICS && currentMetricInfo?.metric_type === "timed";
 
   const filtered = players
     .filter((p) => {
@@ -277,7 +277,7 @@ export default function Dashboard() {
                   <div className="text-right">
                     <p className="text-xl font-extrabold">{displayScore.toFixed(1)}</p>
                     <p className="text-[10px] text-muted-foreground font-medium">
-                      {selectedMetric === ALL_METRICS ? "avg" : currentMetricInfo?.unit || ""}
+                      {selectedMetric === ALL_METRICS ? "pctl" : currentMetricInfo?.unit || ""}
                     </p>
                   </div>
                 )}
