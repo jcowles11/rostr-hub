@@ -46,6 +46,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<"name" | "score">("score");
   const [selectedMetric, setSelectedMetric] = useState(ALL_METRICS);
+  const [filterMode, setFilterMode] = useState<"all" | "evaluated" | "not_evaluated">("all");
 
   useEffect(() => {
     if (!coach) return;
@@ -132,7 +133,10 @@ export default function Dashboard() {
   const filtered = players
     .filter((p) => {
       const q = search.toLowerCase();
-      return p.last_name.toLowerCase().includes(q) || p.first_name.toLowerCase().includes(q);
+      if (!p.last_name.toLowerCase().includes(q) && !p.first_name.toLowerCase().includes(q)) return false;
+      if (filterMode === "evaluated") return p.evalCount > 0;
+      if (filterMode === "not_evaluated") return p.evalCount === 0;
+      return true;
     })
     .sort((a, b) => {
       if (sortBy === "score") {
@@ -149,6 +153,7 @@ export default function Dashboard() {
 
   const totalEvals = players.reduce((acc, p) => acc + p.evalCount, 0);
   const playersWithScores = players.filter((p) => p.evalCount > 0).length;
+  const playersWithoutScores = players.length - playersWithScores;
 
   const flagIcon = (flag: string) => {
     if (flag === "standout") return <Star className="h-3.5 w-3.5 text-secondary fill-secondary" />;
@@ -165,19 +170,28 @@ export default function Dashboard() {
       {/* Gradient hero */}
       <div className="page-hero mb-5">
         <h1 className="text-2xl font-extrabold text-white tracking-tight">Dashboard</h1>
-        <div className="flex items-center gap-4 mt-3">
-          <div className="glass-card px-3 py-2 flex-1 text-center">
+        <div className="flex items-center gap-2 mt-3">
+          <button
+            onClick={() => setFilterMode("all")}
+            className={cn("glass-card px-3 py-2 flex-1 text-center transition-all", filterMode === "all" ? "ring-2 ring-white/60" : "opacity-70 hover:opacity-100")}
+          >
             <p className="text-2xl font-extrabold text-white">{players.length}</p>
-            <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider">Players</p>
-          </div>
-          <div className="glass-card px-3 py-2 flex-1 text-center">
-            <p className="text-2xl font-extrabold text-white">{totalEvals}</p>
-            <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider">Scores</p>
-          </div>
-          <div className="glass-card px-3 py-2 flex-1 text-center">
+            <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider">All Players</p>
+          </button>
+          <button
+            onClick={() => setFilterMode("evaluated")}
+            className={cn("glass-card px-3 py-2 flex-1 text-center transition-all", filterMode === "evaluated" ? "ring-2 ring-white/60" : "opacity-70 hover:opacity-100")}
+          >
             <p className="text-2xl font-extrabold text-white">{playersWithScores}</p>
             <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider">Evaluated</p>
-          </div>
+          </button>
+          <button
+            onClick={() => setFilterMode("not_evaluated")}
+            className={cn("glass-card px-3 py-2 flex-1 text-center transition-all", filterMode === "not_evaluated" ? "ring-2 ring-white/60" : "opacity-70 hover:opacity-100")}
+          >
+            <p className="text-2xl font-extrabold text-white">{playersWithoutScores}</p>
+            <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider">Not Evaluated</p>
+          </button>
         </div>
       </div>
 
