@@ -277,7 +277,7 @@ export default function Dashboard() {
                   <div className="text-right">
                     <p className="text-xl font-extrabold">{displayScore.toFixed(1)}</p>
                     <p className="text-[10px] text-muted-foreground font-medium">
-                      {selectedMetric === ALL_METRICS ? "pctl" : currentMetricInfo?.unit || ""}
+                      {selectedMetric === ALL_METRICS ? "overall" : currentMetricInfo?.unit || ""}
                     </p>
                   </div>
                 )}
