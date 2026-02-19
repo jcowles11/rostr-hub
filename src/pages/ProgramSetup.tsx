@@ -19,9 +19,9 @@ const DEFAULT_METRICS = [
   { name: "Arm Velocity (OF)", unit: "mph", category: "fielding" as const, metric_type: "measured" as const, sort_order: 5 },
   { name: "Arm Velocity (C)", unit: "mph", category: "fielding" as const, metric_type: "measured" as const, sort_order: 6 },
   { name: "Fastball Velo", unit: "mph", category: "pitching" as const, metric_type: "measured" as const, sort_order: 7 },
-  { name: "Fielding", unit: "1-10", category: "fielding" as const, metric_type: "rated" as const, min_value: 1, max_value: 10, sort_order: 8 },
-  { name: "Hitting", unit: "1-10", category: "hitting" as const, metric_type: "rated" as const, min_value: 1, max_value: 10, sort_order: 9 },
-  { name: "Hustle/Attitude", unit: "1-5", category: "other" as const, metric_type: "rated" as const, min_value: 1, max_value: 5, sort_order: 10 },
+  { name: "Fielding", unit: "20-80", category: "fielding" as const, metric_type: "rated" as const, min_value: 20, max_value: 80, sort_order: 8 },
+  { name: "Hitting", unit: "20-80", category: "hitting" as const, metric_type: "rated" as const, min_value: 20, max_value: 80, sort_order: 9 },
+  { name: "Hustle/Attitude", unit: "20-80", category: "other" as const, metric_type: "rated" as const, min_value: 20, max_value: 80, sort_order: 10 },
 ];
 
 export default function ProgramSetup() {
