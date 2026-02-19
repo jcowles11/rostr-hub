@@ -1,6 +1,7 @@
 import { ReactNode, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Users, ClipboardList, BarChart3, Layers, Settings, ChevronDown, Plus, Trash2 } from "lucide-react";
+import rostrLogo from "@/assets/rostr-logo.png";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -56,56 +57,60 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {/* Program switcher header */}
       {allCoaches.length > 0 && (
         <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur-2xl">
-          <div className="mx-auto flex max-w-lg items-center justify-center px-4 py-2.5">
-            <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-bold transition-colors hover:bg-muted focus:outline-none">
-                {coach?.logo_url && (
-                  <img src={coach.logo_url} alt="" className="h-5 w-5 rounded-md object-cover shrink-0" />
-                )}
-                <span className="truncate max-w-[200px]">{coach?.program_name || "Select Program"}</span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="center" className="w-56 bg-popover border shadow-lg z-50">
-                {allCoaches.map((c) => (
-                  <DropdownMenuItem
-                    key={c.id}
-                    onClick={() => {
-                      switchProgram(c.id);
-                      navigate("/");
-                    }}
-                    className={cn(
-                      "cursor-pointer font-medium group",
-                      c.id === coach?.id && "bg-accent"
-                    )}
-                  >
-                    <span className="truncate flex-1 flex items-center gap-1.5">
-                      {c.logo_url && <img src={c.logo_url} alt="" className="h-4 w-4 rounded object-cover shrink-0" />}
-                      {c.program_name}
-                    </span>
-                    {c.id === coach?.id && (
-                      <span className="text-xs text-primary font-bold">✓</span>
-                    )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteTarget({ id: c.program_id, name: c.program_name || "this program" });
+          <div className="mx-auto flex max-w-lg items-center px-4 py-2.5">
+            <img src={rostrLogo} alt="Rostr" className="h-7 w-7 rounded-lg object-cover shrink-0" />
+            <div className="flex-1 flex justify-center">
+              <DropdownMenu>
+                <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-bold transition-colors hover:bg-muted focus:outline-none">
+                  {coach?.logo_url && (
+                    <img src={coach.logo_url} alt="" className="h-5 w-5 rounded-md object-cover shrink-0" />
+                  )}
+                  <span className="truncate max-w-[200px]">{coach?.program_name || "Select Program"}</span>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" className="w-56 bg-popover border shadow-lg z-50">
+                  {allCoaches.map((c) => (
+                    <DropdownMenuItem
+                      key={c.id}
+                      onClick={() => {
+                        switchProgram(c.id);
+                        navigate("/");
                       }}
-                      className="ml-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-0.5 rounded"
+                      className={cn(
+                        "cursor-pointer font-medium group",
+                        c.id === coach?.id && "bg-accent"
+                      )}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                      <span className="truncate flex-1 flex items-center gap-1.5">
+                        {c.logo_url && <img src={c.logo_url} alt="" className="h-4 w-4 rounded object-cover shrink-0" />}
+                        {c.program_name}
+                      </span>
+                      {c.id === coach?.id && (
+                        <span className="text-xs text-primary font-bold">✓</span>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget({ id: c.program_id, name: c.program_name || "this program" });
+                        }}
+                        className="ml-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-0.5 rounded"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => navigate("/setup")}
+                    className="cursor-pointer font-medium text-primary"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Program
                   </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => navigate("/setup")}
-                  className="cursor-pointer font-medium text-primary"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Program
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="w-7 shrink-0" />
           </div>
         </header>
       )}
