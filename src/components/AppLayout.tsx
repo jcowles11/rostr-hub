@@ -59,6 +59,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <div className="mx-auto flex max-w-lg items-center justify-center px-4 py-2.5">
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-bold transition-colors hover:bg-muted focus:outline-none">
+                {coach?.logo_url && (
+                  <img src={coach.logo_url} alt="" className="h-5 w-5 rounded-md object-cover shrink-0" />
+                )}
                 <span className="truncate max-w-[200px]">{coach?.program_name || "Select Program"}</span>
                 <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
               </DropdownMenuTrigger>
@@ -75,7 +78,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                       c.id === coach?.id && "bg-accent"
                     )}
                   >
-                    <span className="truncate flex-1">{c.program_name}</span>
+                    <span className="truncate flex-1 flex items-center gap-1.5">
+                      {c.logo_url && <img src={c.logo_url} alt="" className="h-4 w-4 rounded object-cover shrink-0" />}
+                      {c.program_name}
+                    </span>
                     {c.id === coach?.id && (
                       <span className="text-xs text-primary font-bold">✓</span>
                     )}
