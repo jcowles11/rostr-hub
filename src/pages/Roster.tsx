@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import rostrLogo from "@/assets/rostr-logo.png";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -169,7 +170,7 @@ export default function Roster() {
       <div className="space-y-2 stagger-list">
         {loading ? (
           <div className="py-12 text-center">
-            <div className="mx-auto mb-3 h-12 w-12 rounded-2xl gradient-primary flex items-center justify-center text-2xl animate-pulse-soft">⚾</div>
+            <img src={rostrLogo} alt="Loading" className="mx-auto mb-3 h-12 w-12 rounded-2xl animate-pulse-soft object-cover" />
             <p className="text-muted-foreground">Loading players...</p>
           </div>
         ) : filtered.length === 0 ? (

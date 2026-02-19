@@ -1,4 +1,5 @@
 import { useState } from "react";
+import rostrLogo from "@/assets/rostr-logo.png";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -79,9 +80,7 @@ export default function ProgramSetup() {
     <div className="auth-bg">
       <div className="w-full max-w-md animate-scale-in">
         <div className="text-center mb-8 animate-slide-up">
-          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl gradient-primary text-4xl shadow-glow">
-            ⚾
-          </div>
+          <img src={rostrLogo} alt="Rostr" className="mx-auto mb-4 h-20 w-20 rounded-3xl shadow-glow object-cover" />
           <h1 className="text-3xl font-extrabold tracking-tight">Set Up Your Program</h1>
           <p className="mt-1 text-muted-foreground">Create your baseball program to start managing tryouts</p>
         </div>

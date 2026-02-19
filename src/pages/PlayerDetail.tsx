@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import rostrLogo from "@/assets/rostr-logo.png";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -106,7 +107,7 @@ export default function PlayerDetail() {
 
   if (!player) return (
     <div className="flex min-h-[60vh] items-center justify-center">
-      <div className="mx-auto h-12 w-12 rounded-2xl gradient-primary flex items-center justify-center text-2xl animate-pulse-soft">⚾</div>
+      <img src={rostrLogo} alt="Loading" className="mx-auto h-12 w-12 rounded-2xl animate-pulse-soft object-cover" />
     </div>
   );
 

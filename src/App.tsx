@@ -1,3 +1,4 @@
+import rostrLogo from "@/assets/rostr-logo.png";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -26,7 +27,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center animate-scale-in">
-          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl gradient-primary text-4xl shadow-glow animate-pulse-soft">⚾</div>
+          <img src={rostrLogo} alt="Rostr" className="mx-auto mb-4 h-20 w-20 rounded-3xl shadow-glow animate-pulse-soft object-cover" />
           <p className="text-muted-foreground font-medium">Loading...</p>
         </div>
       </div>
