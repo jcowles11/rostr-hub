@@ -29,6 +29,7 @@ export default function Roster() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<"alpha" | "number">("alpha");
   const [newPlayer, setNewPlayer] = useState({ first_name: "", last_name: "", grade: "", positions: "" });
 
   const fetchPlayers = async () => {
@@ -47,10 +48,19 @@ export default function Roster() {
     fetchPlayers();
   }, [coach]);
 
-  const filtered = players.filter((p) => {
-    const q = search.toLowerCase();
-    return p.last_name.toLowerCase().includes(q) || p.first_name.toLowerCase().includes(q);
-  });
+  const filtered = players
+    .filter((p) => {
+      const q = search.toLowerCase();
+      return p.last_name.toLowerCase().includes(q) || p.first_name.toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      if (sortBy === "number") {
+        const aNum = a.player_number ?? Infinity;
+        const bNum = b.player_number ?? Infinity;
+        return aNum - bNum;
+      }
+      return a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name);
+    });
 
   const [adding, setAdding] = useState(false);
 
@@ -173,14 +183,25 @@ export default function Roster() {
         </div>
       </div>
 
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search players..."
-          className="pl-10 tap-target text-base h-12 rounded-xl"
-        />
+      <div className="flex gap-2 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search players..."
+            className="pl-10 tap-target text-base h-12 rounded-xl"
+          />
+        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          className="tap-target h-12 w-12 rounded-xl shrink-0"
+          title={sortBy === "alpha" ? "Sort by number" : "Sort alphabetically"}
+          onClick={() => setSortBy(sortBy === "alpha" ? "number" : "alpha")}
+        >
+          {sortBy === "alpha" ? <span className="font-bold text-sm">A-Z</span> : <span className="font-bold text-sm">#</span>}
+        </Button>
       </div>
 
       <div className="space-y-2 stagger-list">

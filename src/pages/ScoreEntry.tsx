@@ -37,6 +37,7 @@ export default function ScoreEntry() {
   const [recentScores, setRecentScores] = useState<{ player: Player; metric: string; value: string }[]>([]);
   const [stationMode, setStationMode] = useState(false);
   const [stationIndex, setStationIndex] = useState(0);
+  const [sortBy, setSortBy] = useState<"alpha" | "number">("alpha");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -60,7 +61,14 @@ export default function ScoreEntry() {
       const numStr = p.player_number != null ? String(p.player_number) : "";
       return fullName.includes(q) || reverseName.includes(q) || numStr.includes(q);
     })
-    .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
+    .sort((a, b) => {
+      if (sortBy === "number") {
+        const aNum = a.player_number ?? Infinity;
+        const bNum = b.player_number ?? Infinity;
+        return aNum - bNum;
+      }
+      return a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name);
+    });
 
   const currentMetric = metrics.find((m) => m.id === selectedMetric);
 
@@ -153,9 +161,31 @@ export default function ScoreEntry() {
 
       {stationMode ? (
         <div className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-            <Input value={search} onChange={(e) => { setSearch(e.target.value); setStationIndex(0); }} placeholder="Filter players..." className="pl-10 tap-target text-base h-12 rounded-xl" />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={(e) => { setSearch(e.target.value); setStationIndex(0); }} placeholder="Filter players..." className="pl-10 tap-target text-base h-12 rounded-xl" />
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              className="tap-target h-12 w-12 rounded-xl shrink-0"
+              title={sortBy === "alpha" ? "Sort by number" : "Sort alphabetically"}
+              onClick={() => setSortBy(sortBy === "alpha" ? "number" : "alpha")}
+            >
+              {sortBy === "alpha" ? <span className="font-bold text-sm">A-Z</span> : <span className="font-bold text-sm">#</span>}
+            </Button>
+          </div>
+          <div>
+            <Button
+              variant="outline"
+              size="icon"
+              className="tap-target h-12 w-12 rounded-xl shrink-0"
+              title={sortBy === "alpha" ? "Sort by number" : "Sort alphabetically"}
+              onClick={() => setSortBy(sortBy === "alpha" ? "number" : "alpha")}
+            >
+              {sortBy === "alpha" ? <span className="font-bold text-sm">A-Z</span> : <span className="font-bold text-sm">#</span>}
+            </Button>
           </div>
 
           {stationPlayer && (
@@ -193,9 +223,20 @@ export default function ScoreEntry() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search players..." className="pl-10 tap-target text-base h-12 rounded-xl" />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search players..." className="pl-10 tap-target text-base h-12 rounded-xl" />
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              className="tap-target h-12 w-12 rounded-xl shrink-0"
+              title={sortBy === "alpha" ? "Sort by number" : "Sort alphabetically"}
+              onClick={() => setSortBy(sortBy === "alpha" ? "number" : "alpha")}
+            >
+              {sortBy === "alpha" ? <span className="font-bold text-sm">A-Z</span> : <span className="font-bold text-sm">#</span>}
+            </Button>
           </div>
 
           {selectedPlayer ? (
