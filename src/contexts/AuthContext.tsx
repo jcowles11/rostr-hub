@@ -208,8 +208,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    let initialLoad = true;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        if (initialLoad) return; // Skip – getSession handles initial load
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
@@ -229,6 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       if (session?.user) await fetchUserRole(session.user.id);
       setLoading(false);
+      initialLoad = false;
     });
 
     return () => subscription.unsubscribe();
