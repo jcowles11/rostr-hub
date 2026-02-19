@@ -14,6 +14,7 @@ interface PlayerWithScores {
   last_name: string;
   grade: number | null;
   positions: string[] | null;
+  player_number: number | null;
   avgScore: number | null;
   evalCount: number;
   flags: string[];
@@ -31,7 +32,7 @@ export default function Dashboard() {
     if (!coach) return;
     const fetchData = async () => {
       const [pRes, eRes, nRes, mRes] = await Promise.all([
-        supabase.from("players").select("id, first_name, last_name, grade, positions").eq("program_id", coach.program_id).order("last_name"),
+        supabase.from("players").select("id, first_name, last_name, grade, positions, player_number").eq("program_id", coach.program_id).order("last_name"),
         supabase.from("evaluations").select("player_id, metric_id, value, created_at").eq("program_id", coach.program_id).order("created_at"),
         supabase.from("player_notes").select("player_id, flag").eq("program_id", coach.program_id).not("flag", "is", null),
         supabase.from("metrics").select("id, metric_type, aggregation").eq("program_id", coach.program_id),
@@ -142,7 +143,10 @@ export default function Dashboard() {
             <button key={p.id} onClick={() => navigate(`/player/${p.id}`)} className="flex w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/50">
               <div>
                 <div className="flex items-center gap-2">
-                  <p className="font-semibold">{p.last_name}, {p.first_name}</p>
+                  <p className="font-semibold">
+                    {p.player_number && <span className="text-primary mr-1">#{p.player_number}</span>}
+                    {p.last_name}, {p.first_name}
+                  </p>
                   {p.flags.map((f) => (
                     <span key={f}>{flagIcon(f)}</span>
                   ))}
