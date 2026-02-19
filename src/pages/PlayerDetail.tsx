@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Star, AlertTriangle, Eye, MessageSquare, Send, Phone, HeartPulse, Pencil, Trash2, Plus, Check, X } from "lucide-react";
+import PlayerPhotoUpload from "@/components/PlayerPhotoUpload";
 import { aggregateValues, AGGREGATION_LABELS } from "@/lib/metrics";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ interface Player {
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
   medical_notes: string | null;
+  photo_url: string | null;
 }
 
 interface Evaluation {
@@ -157,22 +159,35 @@ export default function PlayerDetail() {
       {/* Player hero card */}
       <div className="page-hero mb-5">
         <div className="flex items-center gap-4">
-          <button
-            onClick={() => {
-              const num = prompt("Enter player number:", player.player_number?.toString() || "");
-              if (num === null) return;
-              const parsed = num.trim() === "" ? null : parseInt(num);
-              if (num.trim() !== "" && (isNaN(parsed!) || parsed! < 0)) { toast.error("Invalid number"); return; }
-              supabase.from("players").update({ player_number: parsed }).eq("id", player.id).then(({ error }) => {
-                if (error) toast.error("Failed to update");
-                else { setPlayer({ ...player, player_number: parsed }); toast.success("Player number updated"); }
-              });
-            }}
-            className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 text-2xl font-extrabold text-white hover:bg-white/30 transition-colors cursor-pointer"
-            title="Tap to edit player number"
-          >
-            {player.player_number ?? "—"}
-          </button>
+          <div className="relative">
+            <PlayerPhotoUpload
+              playerId={player.id}
+              currentUrl={player.photo_url}
+              onUploaded={async (url) => {
+                await supabase.from("players").update({ photo_url: url }).eq("id", player.id);
+                setPlayer({ ...player, photo_url: url });
+                toast.success("Photo updated");
+              }}
+              size="lg"
+              className="border-2 border-white/30 rounded-full"
+            />
+            <button
+              onClick={() => {
+                const num = prompt("Enter player number:", player.player_number?.toString() || "");
+                if (num === null) return;
+                const parsed = num.trim() === "" ? null : parseInt(num);
+                if (num.trim() !== "" && (isNaN(parsed!) || parsed! < 0)) { toast.error("Invalid number"); return; }
+                supabase.from("players").update({ player_number: parsed }).eq("id", player.id).then(({ error }) => {
+                  if (error) toast.error("Failed to update");
+                  else { setPlayer({ ...player, player_number: parsed }); toast.success("Player number updated"); }
+                });
+              }}
+              className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-[11px] font-extrabold text-white hover:bg-primary/80 transition-colors cursor-pointer shadow-md"
+              title="Tap to edit player number"
+            >
+              {player.player_number ?? "#"}
+            </button>
+          </div>
           <div>
             <h1 className="text-2xl font-extrabold text-white">
               {player.last_name}, {player.first_name}

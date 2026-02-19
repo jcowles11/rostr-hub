@@ -256,6 +256,7 @@ export type Database = {
           jersey_number_preference: number | null
           last_name: string
           medical_notes: string | null
+          photo_url: string | null
           player_number: number | null
           positions: string[] | null
           program_id: string
@@ -272,6 +273,7 @@ export type Database = {
           jersey_number_preference?: number | null
           last_name: string
           medical_notes?: string | null
+          photo_url?: string | null
           player_number?: number | null
           positions?: string[] | null
           program_id: string
@@ -288,6 +290,7 @@ export type Database = {
           jersey_number_preference?: number | null
           last_name?: string
           medical_notes?: string | null
+          photo_url?: string | null
           player_number?: number | null
           positions?: string[] | null
           program_id?: string
