@@ -322,6 +322,7 @@ export type Database = {
           created_by: string
           id: string
           levels: string[]
+          logo_url: string | null
           name: string
           registration_code: string
           results_public: boolean
@@ -333,6 +334,7 @@ export type Database = {
           created_by: string
           id?: string
           levels?: string[]
+          logo_url?: string | null
           name: string
           registration_code?: string
           results_public?: boolean
@@ -344,6 +346,7 @@ export type Database = {
           created_by?: string
           id?: string
           levels?: string[]
+          logo_url?: string | null
           name?: string
           registration_code?: string
           results_public?: boolean

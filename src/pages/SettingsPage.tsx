@@ -2,6 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogOut, Share2, User, Shield } from "lucide-react";
+import ProgramLogoUpload from "@/components/ProgramLogoUpload";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
@@ -39,9 +40,13 @@ export default function SettingsPage() {
       {/* Hero */}
       <div className="page-hero">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 text-white">
-            <User className="h-6 w-6" />
-          </div>
+          {coach?.logo_url ? (
+            <img src={coach.logo_url} alt="Program logo" className="h-12 w-12 rounded-2xl object-cover" />
+          ) : (
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 text-white">
+              <User className="h-6 w-6" />
+            </div>
+          )}
           <div>
             <h1 className="text-xl font-extrabold text-white">{coach?.full_name}</h1>
             <div className="flex items-center gap-1.5">
@@ -51,6 +56,16 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      <Card className="section-card">
+        <CardHeader>
+          <CardTitle className="text-base">Program Logo</CardTitle>
+          <CardDescription>Upload a logo for your program</CardDescription>
+        </CardHeader>
+        <CardContent className="flex justify-center">
+          <ProgramLogoUpload />
+        </CardContent>
+      </Card>
 
       <Card className="section-card">
         <CardContent className="pt-5">
