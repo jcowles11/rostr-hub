@@ -73,9 +73,10 @@ export default {
       },
       boxShadow: {
         "card": "0 1px 3px 0 hsl(var(--foreground) / 0.04), 0 1px 2px -1px hsl(var(--foreground) / 0.04)",
-        "card-hover": "0 4px 12px -2px hsl(var(--foreground) / 0.08), 0 2px 6px -2px hsl(var(--foreground) / 0.04)",
-        "elevated": "0 8px 24px -4px hsl(var(--foreground) / 0.1), 0 2px 8px -2px hsl(var(--foreground) / 0.06)",
-        "nav": "0 -1px 12px 0 hsl(var(--foreground) / 0.06)",
+        "card-hover": "0 8px 24px -4px hsl(var(--foreground) / 0.1), 0 2px 8px -2px hsl(var(--foreground) / 0.06)",
+        "elevated": "0 12px 32px -6px hsl(var(--foreground) / 0.12), 0 4px 12px -2px hsl(var(--foreground) / 0.06)",
+        "nav": "0 -2px 16px 0 hsl(var(--foreground) / 0.08)",
+        "glow": "0 0 20px 4px hsl(var(--primary) / 0.15)",
       },
       keyframes: {
         "accordion-down": {
@@ -87,7 +88,7 @@ export default {
           to: { height: "0" },
         },
         "fade-in": {
-          "0%": { opacity: "0", transform: "translateY(8px)" },
+          "0%": { opacity: "0", transform: "translateY(10px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
         "fade-in-fast": {
@@ -95,12 +96,26 @@ export default {
           "100%": { opacity: "1" },
         },
         "scale-in": {
-          "0%": { opacity: "0", transform: "scale(0.96)" },
+          "0%": { opacity: "0", transform: "scale(0.95)" },
           "100%": { opacity: "1", transform: "scale(1)" },
         },
         "slide-up": {
-          "0%": { opacity: "0", transform: "translateY(16px)" },
+          "0%": { opacity: "0", transform: "translateY(20px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "slide-down": {
+          "0%": { opacity: "0", transform: "translateY(-10px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "pulse-soft": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.7" },
+        },
+        "bounce-in": {
+          "0%": { opacity: "0", transform: "scale(0.3)" },
+          "50%": { transform: "scale(1.05)" },
+          "70%": { transform: "scale(0.95)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
         },
       },
       animation: {
@@ -110,6 +125,9 @@ export default {
         "fade-in-fast": "fade-in-fast 0.2s ease-out",
         "scale-in": "scale-in 0.3s ease-out",
         "slide-up": "slide-up 0.5s ease-out",
+        "slide-down": "slide-down 0.3s ease-out",
+        "pulse-soft": "pulse-soft 2s ease-in-out infinite",
+        "bounce-in": "bounce-in 0.5s ease-out",
       },
     },
   },

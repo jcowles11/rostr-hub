@@ -15,6 +15,7 @@ interface Player {
   last_name: string;
   grade: number | null;
   positions: string[] | null;
+  player_number: number | null;
 }
 
 interface Assignment {
@@ -24,10 +25,10 @@ interface Assignment {
 }
 
 const ASSIGNMENTS = [
-  { value: "varsity", label: "Varsity", color: "bg-primary text-primary-foreground" },
-  { value: "jv", label: "JV", color: "bg-secondary text-secondary-foreground" },
-  { value: "freshman", label: "Freshman", color: "bg-accent text-accent-foreground" },
-  { value: "cut", label: "Cut", color: "bg-destructive text-destructive-foreground" },
+  { value: "varsity", label: "Varsity", color: "gradient-primary text-white", bgLight: "bg-primary/10 text-primary" },
+  { value: "jv", label: "JV", color: "bg-secondary text-secondary-foreground", bgLight: "bg-secondary/10 text-secondary" },
+  { value: "freshman", label: "Freshman", color: "bg-accent text-accent-foreground", bgLight: "bg-accent/10 text-accent" },
+  { value: "cut", label: "Cut", color: "bg-destructive text-destructive-foreground", bgLight: "bg-destructive/10 text-destructive" },
 ];
 
 export default function RosterBoard() {
@@ -41,7 +42,7 @@ export default function RosterBoard() {
   const fetchData = async () => {
     if (!coach) return;
     const [pRes, aRes] = await Promise.all([
-      supabase.from("players").select("id, first_name, last_name, grade, positions").eq("program_id", coach.program_id).order("last_name"),
+      supabase.from("players").select("id, first_name, last_name, grade, positions, player_number").eq("program_id", coach.program_id).order("last_name"),
       supabase.from("roster_assignments").select("id, player_id, assignment").eq("program_id", coach.program_id),
     ]);
     setPlayers(pRes.data || []);
@@ -87,50 +88,67 @@ export default function RosterBoard() {
   };
 
   return (
-    <div className="mx-auto max-w-lg px-4 pt-4">
-      <h1 className="text-2xl font-bold mb-4">Roster Board</h1>
+    <div className="mx-auto max-w-lg px-4 pt-4 animate-fade-in">
+      {/* Hero */}
+      <div className="page-hero mb-5">
+        <h1 className="text-2xl font-extrabold text-white tracking-tight">Roster Board</h1>
+        <p className="text-white/70 text-sm mt-0.5">{players.length} players • {counts.unassigned} unassigned</p>
+      </div>
 
-      {/* Counts */}
+      {/* Filter pills */}
       <div className="flex flex-wrap gap-2 mb-4">
         {ASSIGNMENTS.map((a) => (
-          <button key={a.value} onClick={() => setFilter(f => f === a.value ? "all" : a.value)} className={cn("rounded-full px-3 py-1 text-xs font-medium transition-all", filter === a.value ? a.color : "bg-muted text-muted-foreground")}>
-            {a.label}: {counts[a.value as keyof typeof counts]}
+          <button key={a.value} onClick={() => setFilter(f => f === a.value ? "all" : a.value)} className={cn(
+            "rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200",
+            filter === a.value ? a.color : "bg-card border text-muted-foreground hover:text-foreground"
+          )}>
+            {a.label} ({counts[a.value as keyof typeof counts]})
           </button>
         ))}
-        <button onClick={() => setFilter(f => f === "unassigned" ? "all" : "unassigned")} className={cn("rounded-full px-3 py-1 text-xs font-medium transition-all", filter === "unassigned" ? "bg-foreground text-background" : "bg-muted text-muted-foreground")}>
-          Unassigned: {counts.unassigned}
+        <button onClick={() => setFilter(f => f === "unassigned" ? "all" : "unassigned")} className={cn(
+          "rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200",
+          filter === "unassigned" ? "bg-foreground text-background" : "bg-card border text-muted-foreground hover:text-foreground"
+        )}>
+          Unassigned ({counts.unassigned})
         </button>
       </div>
 
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search players..." className="pl-10 tap-target text-base" />
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search players..." className="pl-10 tap-target text-base h-12 rounded-xl" />
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-2 stagger-list">
         {filtered.map((p) => {
           const assignment = assignments.get(p.id);
           const assignmentInfo = ASSIGNMENTS.find((a) => a.value === assignment?.assignment);
           return (
-            <div key={p.id} className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
-              <div>
-                <p className="font-semibold">{p.last_name}, {p.first_name}</p>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  {p.grade && <span>Grade {p.grade}</span>}
-                  {p.positions?.map((pos) => <Badge key={pos} variant="secondary" className="text-xs">{pos}</Badge>)}
+            <div key={p.id} className="player-card">
+              <div className="flex items-center gap-3">
+                {p.player_number ? (
+                  <span className="number-badge">{p.player_number}</span>
+                ) : (
+                  <span className="number-badge bg-muted text-muted-foreground">—</span>
+                )}
+                <div>
+                  <p className="font-bold text-[15px]">{p.last_name}, {p.first_name}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {p.grade && <span className="text-xs text-muted-foreground">Grade {p.grade}</span>}
+                    {p.positions?.map((pos) => <Badge key={pos} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-medium">{pos}</Badge>)}
+                  </div>
                 </div>
               </div>
               {isHead ? (
                 <Select value={assignment?.assignment || ""} onValueChange={(v) => handleAssign(p.id, v)}>
-                  <SelectTrigger className="w-28 tap-target">
+                  <SelectTrigger className="w-28 tap-target rounded-xl font-semibold text-xs">
                     <SelectValue placeholder="Assign" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl">
                     {ASSIGNMENTS.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               ) : (
-                assignmentInfo && <Badge className={assignmentInfo.color}>{assignmentInfo.label}</Badge>
+                assignmentInfo && <Badge className={cn("rounded-lg font-bold", assignmentInfo.bgLight)}>{assignmentInfo.label}</Badge>
               )}
             </div>
           );
