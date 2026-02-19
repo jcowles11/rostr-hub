@@ -9,11 +9,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { CheckCircle } from "lucide-react";
+import PlayerPhotoUpload from "@/components/PlayerPhotoUpload";
 
 export default function PlayerRegister() {
   const { code } = useParams<{ code: string }>();
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
@@ -53,6 +55,7 @@ export default function PlayerRegister() {
       emergency_contact_name: form.emergency_contact_name || null,
       emergency_contact_phone: form.emergency_contact_phone || null,
       medical_notes: form.medical_notes || null,
+      photo_url: photoUrl,
     });
 
     if (error) {
@@ -91,6 +94,16 @@ export default function PlayerRegister() {
         <Card className="shadow-elevated border-0">
           <CardContent className="pt-6">
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Profile Photo */}
+              <div className="flex flex-col items-center gap-2">
+                <PlayerPhotoUpload
+                  currentUrl={photoUrl}
+                  onUploaded={setPhotoUrl}
+                  size="lg"
+                />
+                <span className="text-xs text-muted-foreground font-medium">Tap to add photo</span>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold">First Name *</Label>

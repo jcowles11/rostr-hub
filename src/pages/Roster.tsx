@@ -19,6 +19,7 @@ interface Player {
   positions: string[] | null;
   jersey_number_preference: number | null;
   player_number: number | null;
+  photo_url: string | null;
 }
 
 export default function Roster() {
@@ -34,7 +35,7 @@ export default function Roster() {
     if (!coach) return;
     const { data } = await supabase
       .from("players")
-      .select("id, first_name, last_name, grade, positions, jersey_number_preference, player_number")
+      .select("id, first_name, last_name, grade, positions, jersey_number_preference, player_number, photo_url")
       .eq("program_id", coach.program_id)
       .order("last_name")
       .order("first_name");
@@ -193,7 +194,9 @@ export default function Roster() {
               className="player-card"
             >
               <div className="flex items-center gap-3">
-                {p.player_number ? (
+                {p.photo_url ? (
+                  <img src={p.photo_url} alt="" className="h-10 w-10 rounded-full object-cover shrink-0" />
+                ) : p.player_number ? (
                   <span className="number-badge">{p.player_number}</span>
                 ) : (
                   <span className="number-badge bg-muted text-muted-foreground">—</span>
