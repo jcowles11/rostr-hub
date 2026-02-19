@@ -1,13 +1,14 @@
 import { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Users, ClipboardList, BarChart3, Settings } from "lucide-react";
+import { Users, ClipboardList, BarChart3, Layers, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { path: "/", icon: Users, label: "Roster" },
   { path: "/score", icon: ClipboardList, label: "Score" },
-  { path: "/dashboard", icon: BarChart3, label: "Dashboard" },
-  { path: "/settings", icon: Settings, label: "Settings" },
+  { path: "/dashboard", icon: BarChart3, label: "Stats" },
+  { path: "/roster-board", icon: Layers, label: "Board" },
+  { path: "/settings", icon: Settings, label: "More" },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -26,12 +27,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 key={path}
                 onClick={() => navigate(path)}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 px-3 py-2 tap-target transition-colors",
+                  "flex flex-col items-center gap-0.5 px-2 py-2 tap-target transition-colors",
                   active ? "text-primary" : "text-muted-foreground"
                 )}
               >
-                <Icon className="h-6 w-6" strokeWidth={active ? 2.5 : 2} />
-                <span className="text-xs font-medium">{label}</span>
+                <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} />
+                <span className="text-[10px] font-medium">{label}</span>
               </button>
             );
           })}
