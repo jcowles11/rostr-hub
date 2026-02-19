@@ -141,6 +141,7 @@ export type Database = {
           program_id: string
           sort_order: number
           unit: string
+          visible_to_players: boolean
         }
         Insert: {
           aggregation?: Database["public"]["Enums"]["aggregation_method"]
@@ -155,6 +156,7 @@ export type Database = {
           program_id: string
           sort_order?: number
           unit?: string
+          visible_to_players?: boolean
         }
         Update: {
           aggregation?: Database["public"]["Enums"]["aggregation_method"]
@@ -169,6 +171,7 @@ export type Database = {
           program_id?: string
           sort_order?: number
           unit?: string
+          visible_to_players?: boolean
         }
         Relationships: [
           {
@@ -260,8 +263,10 @@ export type Database = {
           player_number: number | null
           positions: string[] | null
           program_id: string
+          results_visible: boolean | null
           travel_ball_experience: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -277,8 +282,10 @@ export type Database = {
           player_number?: number | null
           positions?: string[] | null
           program_id: string
+          results_visible?: boolean | null
           travel_ball_experience?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -294,8 +301,10 @@ export type Database = {
           player_number?: number | null
           positions?: string[] | null
           program_id?: string
+          results_visible?: boolean | null
           travel_ball_experience?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -315,6 +324,7 @@ export type Database = {
           levels: string[]
           name: string
           registration_code: string
+          results_public: boolean
           school_name: string
           updated_at: string
         }
@@ -325,6 +335,7 @@ export type Database = {
           levels?: string[]
           name: string
           registration_code?: string
+          results_public?: boolean
           school_name: string
           updated_at?: string
         }
@@ -335,6 +346,7 @@ export type Database = {
           levels?: string[]
           name?: string
           registration_code?: string
+          results_public?: boolean
           school_name?: string
           updated_at?: string
         }
