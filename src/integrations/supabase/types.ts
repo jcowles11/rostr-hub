@@ -340,7 +340,7 @@ export type Database = {
       roster_assignments: {
         Row: {
           assigned_by: string
-          assignment: Database["public"]["Enums"]["roster_assignment"]
+          assignment: string
           created_at: string
           id: string
           notes: string | null
@@ -350,7 +350,7 @@ export type Database = {
         }
         Insert: {
           assigned_by: string
-          assignment: Database["public"]["Enums"]["roster_assignment"]
+          assignment: string
           created_at?: string
           id?: string
           notes?: string | null
@@ -360,7 +360,7 @@ export type Database = {
         }
         Update: {
           assigned_by?: string
-          assignment?: Database["public"]["Enums"]["roster_assignment"]
+          assignment?: string
           created_at?: string
           id?: string
           notes?: string | null

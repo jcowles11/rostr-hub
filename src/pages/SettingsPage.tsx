@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MetricsManager from "@/components/MetricsManager";
+import LevelsManager from "@/components/LevelsManager";
 import CoachManager from "@/components/CoachManager";
 
 export default function SettingsPage() {
@@ -59,6 +60,7 @@ export default function SettingsPage() {
       </Card>
 
       <CoachManager />
+      <LevelsManager />
       <MetricsManager />
 
       <Button variant="destructive" className="w-full tap-target h-12 rounded-xl font-bold" onClick={handleSignOut}>

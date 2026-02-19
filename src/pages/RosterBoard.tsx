@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -24,11 +23,20 @@ interface Assignment {
   assignment: string;
 }
 
-const ASSIGNMENTS = [
-  { value: "varsity", label: "Varsity", color: "gradient-primary text-white", bgLight: "bg-primary/10 text-primary" },
-  { value: "jv", label: "JV", color: "bg-secondary text-secondary-foreground", bgLight: "bg-secondary/10 text-secondary" },
-  { value: "freshman", label: "Freshman", color: "bg-accent text-accent-foreground", bgLight: "bg-accent/10 text-accent" },
-  { value: "cut", label: "Cut", color: "bg-destructive text-destructive-foreground", bgLight: "bg-destructive/10 text-destructive" },
+const LEVEL_COLORS = [
+  "gradient-primary text-white",
+  "bg-secondary text-secondary-foreground",
+  "bg-accent text-accent-foreground",
+  "bg-primary/70 text-white",
+  "bg-destructive text-destructive-foreground",
+];
+
+const LEVEL_BG_LIGHT = [
+  "bg-primary/10 text-primary",
+  "bg-secondary/10 text-secondary",
+  "bg-accent/10 text-accent",
+  "bg-primary/10 text-primary",
+  "bg-destructive/10 text-destructive",
 ];
 
 export default function RosterBoard() {
@@ -38,6 +46,8 @@ export default function RosterBoard() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const isHead = coach?.role === "head_coach";
+
+  const levels = coach?.program_levels || ["Varsity", "JV", "C", "Freshman", "Cut"];
 
   const fetchData = async () => {
     if (!coach) return;
@@ -79,12 +89,14 @@ export default function RosterBoard() {
     return nameMatch && assignments.get(p.id)?.assignment === filter;
   });
 
-  const counts = {
-    varsity: players.filter((p) => assignments.get(p.id)?.assignment === "varsity").length,
-    jv: players.filter((p) => assignments.get(p.id)?.assignment === "jv").length,
-    freshman: players.filter((p) => assignments.get(p.id)?.assignment === "freshman").length,
-    cut: players.filter((p) => assignments.get(p.id)?.assignment === "cut").length,
-    unassigned: players.filter((p) => !assignments.has(p.id)).length,
+  const counts = new Map<string, number>();
+  levels.forEach((l) => counts.set(l, players.filter((p) => assignments.get(p.id)?.assignment === l).length));
+  const unassignedCount = players.filter((p) => !assignments.has(p.id)).length;
+
+  const getLevelColor = (level: string, type: "pill" | "badge") => {
+    const idx = levels.indexOf(level);
+    const arr = type === "pill" ? LEVEL_COLORS : LEVEL_BG_LIGHT;
+    return arr[idx % arr.length];
   };
 
   return (
@@ -92,24 +104,24 @@ export default function RosterBoard() {
       {/* Hero */}
       <div className="page-hero mb-5">
         <h1 className="text-2xl font-extrabold text-white tracking-tight">Roster Board</h1>
-        <p className="text-white/70 text-sm mt-0.5">{players.length} players • {counts.unassigned} unassigned</p>
+        <p className="text-white/70 text-sm mt-0.5">{players.length} players • {unassignedCount} unassigned</p>
       </div>
 
       {/* Filter pills */}
       <div className="flex flex-wrap gap-2 mb-4">
-        {ASSIGNMENTS.map((a) => (
-          <button key={a.value} onClick={() => setFilter(f => f === a.value ? "all" : a.value)} className={cn(
+        {levels.map((level) => (
+          <button key={level} onClick={() => setFilter(f => f === level ? "all" : level)} className={cn(
             "rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200",
-            filter === a.value ? a.color : "bg-card border text-muted-foreground hover:text-foreground"
+            filter === level ? getLevelColor(level, "pill") : "bg-card border text-muted-foreground hover:text-foreground"
           )}>
-            {a.label} ({counts[a.value as keyof typeof counts]})
+            {level} ({counts.get(level) || 0})
           </button>
         ))}
         <button onClick={() => setFilter(f => f === "unassigned" ? "all" : "unassigned")} className={cn(
           "rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200",
           filter === "unassigned" ? "bg-foreground text-background" : "bg-card border text-muted-foreground hover:text-foreground"
         )}>
-          Unassigned ({counts.unassigned})
+          Unassigned ({unassignedCount})
         </button>
       </div>
 
@@ -121,7 +133,7 @@ export default function RosterBoard() {
       <div className="space-y-2 stagger-list">
         {filtered.map((p) => {
           const assignment = assignments.get(p.id);
-          const assignmentInfo = ASSIGNMENTS.find((a) => a.value === assignment?.assignment);
+          const assignedLevel = assignment?.assignment;
           return (
             <div key={p.id} className="player-card">
               <div className="flex items-center gap-3">
@@ -139,16 +151,16 @@ export default function RosterBoard() {
                 </div>
               </div>
               {isHead ? (
-                <Select value={assignment?.assignment || ""} onValueChange={(v) => handleAssign(p.id, v)}>
+                <Select value={assignedLevel || ""} onValueChange={(v) => handleAssign(p.id, v)}>
                   <SelectTrigger className="w-28 tap-target rounded-xl font-semibold text-xs">
                     <SelectValue placeholder="Assign" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl">
-                    {ASSIGNMENTS.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
+                    {levels.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                   </SelectContent>
                 </Select>
               ) : (
-                assignmentInfo && <Badge className={cn("rounded-lg font-bold", assignmentInfo.bgLight)}>{assignmentInfo.label}</Badge>
+                assignedLevel && <Badge className={cn("rounded-lg font-bold", getLevelColor(assignedLevel, "badge"))}>{assignedLevel}</Badge>
               )}
             </div>
           );
