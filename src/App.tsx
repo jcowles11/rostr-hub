@@ -48,6 +48,13 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function SetupRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/auth" replace />;
+  return <ProgramSetup />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -57,7 +64,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
-            <Route path="/setup" element={<ProgramSetup />} />
+            <Route path="/setup" element={<SetupRoute />} />
             <Route path="/register/:code" element={<PlayerRegister />} />
             <Route path="/" element={<ProtectedRoute><Roster /></ProtectedRoute>} />
             <Route path="/score" element={<ProtectedRoute><ScoreEntry /></ProtectedRoute>} />

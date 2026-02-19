@@ -72,8 +72,8 @@ export default function ProgramSetup() {
 
     await refreshCoach();
     toast.success("Program created!");
-    navigate("/");
     setLoading(false);
+    navigate("/");
   };
 
   return (
