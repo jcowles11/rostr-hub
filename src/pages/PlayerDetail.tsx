@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import rostrLogo from "@/assets/rostr-logo.png";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Star, AlertTriangle, Eye, MessageSquare, Send, Phone, HeartPulse } from "lucide-react";
+import { ArrowLeft, Star, AlertTriangle, Eye, MessageSquare, Send, Phone, HeartPulse, Pencil, Trash2, Plus, Check, X } from "lucide-react";
 import { aggregateValues, AGGREGATION_LABELS } from "@/lib/metrics";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -52,6 +52,13 @@ export default function PlayerDetail() {
   const [newNote, setNewNote] = useState("");
   const [newFlag, setNewFlag] = useState<string>("");
   const [coachFilter, setCoachFilter] = useState<string>("all");
+  const [editingEval, setEditingEval] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [addingMetric, setAddingMetric] = useState<string | null>(null);
+  const [addValue, setAddValue] = useState("");
+  const [savingEval, setSavingEval] = useState(false);
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const addInputRef = useRef<HTMLInputElement>(null);
 
   const fetchAll = async () => {
     if (!coach || !id) return;
@@ -103,6 +110,36 @@ export default function PlayerDetail() {
     });
     if (error) toast.error("Failed to add note");
     else { setNewNote(""); setNewFlag(""); fetchAll(); }
+  };
+
+  const handleAddEval = async (metricId: string) => {
+    if (!coach || !id || !addValue) return;
+    setSavingEval(true);
+    const { error } = await supabase.from("evaluations").insert({
+      program_id: coach.program_id,
+      player_id: id,
+      metric_id: metricId,
+      coach_id: coach.id,
+      value: parseFloat(addValue),
+    });
+    if (error) toast.error("Failed to add score");
+    else { setAddingMetric(null); setAddValue(""); toast.success("Score added"); fetchAll(); }
+    setSavingEval(false);
+  };
+
+  const handleUpdateEval = async (evalId: string) => {
+    if (!editValue) return;
+    setSavingEval(true);
+    const { error } = await supabase.from("evaluations").update({ value: parseFloat(editValue) }).eq("id", evalId);
+    if (error) toast.error("Failed to update score");
+    else { setEditingEval(null); toast.success("Score updated"); fetchAll(); }
+    setSavingEval(false);
+  };
+
+  const handleDeleteEval = async (evalId: string) => {
+    const { error } = await supabase.from("evaluations").delete().eq("id", evalId);
+    if (error) toast.error("Failed to delete score");
+    else { toast.success("Score deleted"); fetchAll(); }
   };
 
   if (!player) return (
@@ -167,33 +204,140 @@ export default function PlayerDetail() {
         <CardContent className="space-y-3">
           {metrics.map((m) => {
             const mEvals = evalsByMetric.get(m.id) || [];
-            if (mEvals.length === 0) return null;
             const vals = mEvals.map((e) => e.value);
-            const computed = aggregateValues(vals, m.aggregation as any, m.metric_type as any);
+            const computed = vals.length > 0 ? aggregateValues(vals, m.aggregation as any, m.metric_type as any) : null;
             const label = AGGREGATION_LABELS[m.aggregation] || "Best";
+            const isAdding = addingMetric === m.id;
+
             return (
               <div key={m.id} className="rounded-xl bg-muted/40 p-3.5 transition-colors hover:bg-muted/60">
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <span className="font-semibold text-sm">{m.name}</span>
-                    <span className="text-[10px] text-muted-foreground ml-1.5 font-medium">({label} of {mEvals.length})</span>
+                    {mEvals.length > 0 && (
+                      <span className="text-[10px] text-muted-foreground ml-1.5 font-medium">({label} of {mEvals.length})</span>
+                    )}
                   </div>
-                  <span className="text-xl font-extrabold">{computed?.toFixed(1)} <span className="text-xs font-medium text-muted-foreground">{m.unit}</span></span>
+                  <div className="flex items-center gap-2">
+                    {computed !== null && (
+                      <span className="text-xl font-extrabold">{computed?.toFixed(1)} <span className="text-xs font-medium text-muted-foreground">{m.unit}</span></span>
+                    )}
+                    <button
+                      onClick={() => {
+                        setAddingMetric(isAdding ? null : m.id);
+                        setAddValue("");
+                        setTimeout(() => addInputRef.current?.focus(), 50);
+                      }}
+                      className="rounded-lg p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                      title="Add score"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
+
+                {/* Add new score inline */}
+                {isAdding && (
+                  <div className="flex items-center gap-2 mb-2 animate-fade-in">
+                    <Input
+                      ref={addInputRef}
+                      type="number"
+                      inputMode="decimal"
+                      value={addValue}
+                      onChange={(e) => setAddValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleAddEval(m.id);
+                        if (e.key === "Escape") setAddingMetric(null);
+                      }}
+                      placeholder={m.unit}
+                      className="h-9 w-24 text-center font-bold rounded-lg"
+                    />
+                    <Button
+                      size="sm"
+                      disabled={!addValue || savingEval}
+                      onClick={() => handleAddEval(m.id)}
+                      className="h-9 rounded-lg gradient-primary border-0"
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setAddingMetric(null)}
+                      className="h-9 rounded-lg"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Existing scores */}
                 <div className="flex flex-wrap gap-1.5">
                   {mEvals.map((e) => {
                     const c = getCoach(e.coach_id);
+                    const isEditing = editingEval === e.id;
+                    const isOwnEval = e.coach_id === coach?.id;
+
+                    if (isEditing) {
+                      return (
+                        <span key={e.id} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-white shadow-sm animate-fade-in" style={{ backgroundColor: c?.color || "hsl(var(--primary))" }}>
+                          <Input
+                            ref={editInputRef}
+                            type="number"
+                            inputMode="decimal"
+                            value={editValue}
+                            onChange={(ev) => setEditValue(ev.target.value)}
+                            onKeyDown={(ev) => {
+                              if (ev.key === "Enter") handleUpdateEval(e.id);
+                              if (ev.key === "Escape") setEditingEval(null);
+                            }}
+                            className="h-6 w-16 text-center text-xs font-bold bg-white/20 border-white/30 text-white rounded"
+                            autoFocus
+                          />
+                          <button onClick={() => handleUpdateEval(e.id)} className="hover:bg-white/20 rounded p-0.5"><Check className="h-3 w-3" /></button>
+                          <button onClick={() => setEditingEval(null)} className="hover:bg-white/20 rounded p-0.5"><X className="h-3 w-3" /></button>
+                        </span>
+                      );
+                    }
+
                     return (
-                      <span key={e.id} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: c?.color || "hsl(var(--primary))" }}>
+                      <span
+                        key={e.id}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-white shadow-sm group",
+                          isOwnEval && "cursor-pointer"
+                        )}
+                        style={{ backgroundColor: c?.color || "hsl(var(--primary))" }}
+                        onClick={() => {
+                          if (!isOwnEval) return;
+                          setEditingEval(e.id);
+                          setEditValue(e.value.toString());
+                          setTimeout(() => editInputRef.current?.focus(), 50);
+                        }}
+                      >
                         {c?.full_name?.split(" ")[0] || "?"}: {e.value}
+                        {isOwnEval && (
+                          <>
+                            <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <button
+                              onClick={(ev) => { ev.stopPropagation(); handleDeleteEval(e.id); }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/20 rounded p-0.5"
+                            >
+                              <Trash2 className="h-2.5 w-2.5" />
+                            </button>
+                          </>
+                        )}
                       </span>
                     );
                   })}
                 </div>
+                {mEvals.length === 0 && !isAdding && (
+                  <p className="text-xs text-muted-foreground">No scores yet</p>
+                )}
               </div>
             );
           })}
-          {evalsByMetric.size === 0 && <p className="text-sm text-muted-foreground text-center py-6">No evaluations yet</p>}
+          {metrics.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">No metrics configured</p>}
         </CardContent>
       </Card>
 
