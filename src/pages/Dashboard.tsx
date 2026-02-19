@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Star, AlertTriangle, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { aggregateValues } from "@/lib/metrics";
 
 interface PlayerWithScores {
   id: string;
@@ -29,17 +30,22 @@ export default function Dashboard() {
   useEffect(() => {
     if (!coach) return;
     const fetchData = async () => {
-      const [pRes, eRes, nRes] = await Promise.all([
+      const [pRes, eRes, nRes, mRes] = await Promise.all([
         supabase.from("players").select("id, first_name, last_name, grade, positions").eq("program_id", coach.program_id).order("last_name"),
-        supabase.from("evaluations").select("player_id, value").eq("program_id", coach.program_id),
+        supabase.from("evaluations").select("player_id, metric_id, value, created_at").eq("program_id", coach.program_id).order("created_at"),
         supabase.from("player_notes").select("player_id, flag").eq("program_id", coach.program_id).not("flag", "is", null),
+        supabase.from("metrics").select("id, metric_type, aggregation").eq("program_id", coach.program_id),
       ]);
 
-      const evalsByPlayer = new Map<string, number[]>();
+      const metricsMap = new Map((mRes.data || []).map((m) => [m.id, m]));
+
+      // Group evals by player+metric
+      const evalsByPlayerMetric = new Map<string, Map<string, number[]>>();
       (eRes.data || []).forEach((e) => {
-        const arr = evalsByPlayer.get(e.player_id) || [];
-        arr.push(e.value);
-        evalsByPlayer.set(e.player_id, arr);
+        if (!evalsByPlayerMetric.has(e.player_id)) evalsByPlayerMetric.set(e.player_id, new Map());
+        const pMap = evalsByPlayerMetric.get(e.player_id)!;
+        if (!pMap.has(e.metric_id)) pMap.set(e.metric_id, []);
+        pMap.get(e.metric_id)!.push(e.value);
       });
 
       const flagsByPlayer = new Map<string, Set<string>>();
@@ -51,11 +57,29 @@ export default function Dashboard() {
       });
 
       const enriched: PlayerWithScores[] = (pRes.data || []).map((p) => {
-        const vals = evalsByPlayer.get(p.id) || [];
+        const pMetrics = evalsByPlayerMetric.get(p.id);
+        let totalEvals = 0;
+        let compositeScore: number | null = null;
+
+        if (pMetrics && pMetrics.size > 0) {
+          const metricScores: number[] = [];
+          pMetrics.forEach((vals, metricId) => {
+            totalEvals += vals.length;
+            const metric = metricsMap.get(metricId);
+            const agg = (metric?.aggregation || "best") as "best" | "average" | "latest";
+            const mType = (metric?.metric_type || "measured") as "timed" | "measured" | "rated";
+            const score = aggregateValues(vals, agg, mType);
+            if (score !== null) metricScores.push(score);
+          });
+          if (metricScores.length > 0) {
+            compositeScore = metricScores.reduce((a, b) => a + b, 0) / metricScores.length;
+          }
+        }
+
         return {
           ...p,
-          avgScore: vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null,
-          evalCount: vals.length,
+          avgScore: compositeScore,
+          evalCount: totalEvals,
           flags: Array.from(flagsByPlayer.get(p.id) || []),
         };
       });
