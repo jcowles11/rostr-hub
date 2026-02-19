@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MetricsManager from "@/components/MetricsManager";
 import LevelsManager from "@/components/LevelsManager";
+import VisibilityManager from "@/components/VisibilityManager";
 import CoachManager from "@/components/CoachManager";
 
 export default function SettingsPage() {
@@ -61,6 +62,7 @@ export default function SettingsPage() {
 
       <CoachManager />
       <LevelsManager />
+      <VisibilityManager />
       <MetricsManager />
 
       <Button variant="destructive" className="w-full tap-target h-12 rounded-xl font-bold" onClick={handleSignOut}>

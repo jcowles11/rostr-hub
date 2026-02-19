@@ -16,35 +16,59 @@ import PlayerRegister from "@/pages/PlayerRegister";
 import PlayerDetail from "@/pages/PlayerDetail";
 import RosterBoard from "@/pages/RosterBoard";
 import ExportPage from "@/pages/ExportPage";
+import PlayerDashboard from "@/pages/PlayerDashboard";
+import PlayerLinkPage from "@/pages/PlayerLinkPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, coach, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center animate-scale-in">
-          <img src={rostrLogo} alt="Rostr" className="mx-auto mb-4 h-20 w-20 rounded-3xl shadow-glow animate-pulse-soft object-cover" />
-          <p className="text-muted-foreground font-medium">Loading...</p>
-        </div>
+function LoadingScreen() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-center animate-scale-in">
+        <img src={rostrLogo} alt="Rostr" className="mx-auto mb-4 h-20 w-20 rounded-3xl shadow-glow animate-pulse-soft object-cover" />
+        <p className="text-muted-foreground font-medium">Loading...</p>
       </div>
-    );
+    </div>
+  );
+}
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, coach, userRole, playerInfo, loading } = useAuth();
+
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/auth" replace />;
+
+  // Player users go to player dashboard or link page
+  if (userRole === "player") {
+    return playerInfo ? <Navigate to="/player-dashboard" replace /> : <Navigate to="/player-link" replace />;
   }
 
-  if (!user) return <Navigate to="/auth" replace />;
   if (!coach) return <Navigate to="/setup" replace />;
 
   return <AppLayout>{children}</AppLayout>;
 }
 
+function PlayerRoute({ children }: { children: React.ReactNode }) {
+  const { user, userRole, playerInfo, loading } = useAuth();
+
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/auth" replace />;
+
+  // If player has no linked record, send to link page
+  if (userRole === "player" && playerInfo) return <>{children}</>;
+  if (userRole === null && !loading) return <Navigate to="/player-link" replace />;
+  if (userRole === "coach") return <Navigate to="/" replace />;
+
+  return <Navigate to="/player-link" replace />;
+}
+
 function AuthRoute({ children }: { children: React.ReactNode }) {
-  const { user, coach, loading } = useAuth();
+  const { user, coach, userRole, loading } = useAuth();
   if (loading) return null;
+  if (user && userRole === "player") return <Navigate to="/player-dashboard" replace />;
   if (user && coach) return <Navigate to="/" replace />;
-  if (user && !coach) return <Navigate to="/setup" replace />;
+  if (user && !coach && userRole !== "player") return <Navigate to="/setup" replace />;
   return <>{children}</>;
 }
 
@@ -66,6 +90,8 @@ const App = () => (
             <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
             <Route path="/setup" element={<SetupRoute />} />
             <Route path="/register/:code" element={<PlayerRegister />} />
+            <Route path="/player-dashboard" element={<PlayerRoute><PlayerDashboard /></PlayerRoute>} />
+            <Route path="/player-link" element={<PlayerLinkPage />} />
             <Route path="/" element={<ProtectedRoute><Roster /></ProtectedRoute>} />
             <Route path="/score" element={<ProtectedRoute><ScoreEntry /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
