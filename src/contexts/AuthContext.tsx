@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          setTimeout(() => fetchCoach(session.user.id), 0);
+          await fetchCoach(session.user.id);
         } else {
           setCoach(null);
         }
@@ -78,10 +78,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) fetchCoach(session.user.id);
+      if (session?.user) await fetchCoach(session.user.id);
       setLoading(false);
     });
 
