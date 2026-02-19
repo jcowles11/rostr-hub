@@ -129,6 +129,7 @@ export type Database = {
       }
       metrics: {
         Row: {
+          aggregation: Database["public"]["Enums"]["aggregation_method"]
           category: Database["public"]["Enums"]["metric_category"]
           created_at: string
           id: string
@@ -142,6 +143,7 @@ export type Database = {
           unit: string
         }
         Insert: {
+          aggregation?: Database["public"]["Enums"]["aggregation_method"]
           category?: Database["public"]["Enums"]["metric_category"]
           created_at?: string
           id?: string
@@ -155,6 +157,7 @@ export type Database = {
           unit?: string
         }
         Update: {
+          aggregation?: Database["public"]["Enums"]["aggregation_method"]
           category?: Database["public"]["Enums"]["metric_category"]
           created_at?: string
           id?: string
@@ -475,6 +478,7 @@ export type Database = {
       }
     }
     Enums: {
+      aggregation_method: "best" | "average" | "latest"
       coach_role: "head_coach" | "assistant_coach"
       metric_category: "running" | "hitting" | "fielding" | "pitching" | "other"
       metric_type: "timed" | "measured" | "rated"
@@ -607,6 +611,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      aggregation_method: ["best", "average", "latest"],
       coach_role: ["head_coach", "assistant_coach"],
       metric_category: ["running", "hitting", "fielding", "pitching", "other"],
       metric_type: ["timed", "measured", "rated"],

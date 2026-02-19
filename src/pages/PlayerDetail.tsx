@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Star, AlertTriangle, Eye, MessageSquare, Send } from "lucide-react";
+import { aggregateValues, AGGREGATION_LABELS } from "@/lib/metrics";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +34,7 @@ interface Evaluation {
   created_at: string;
 }
 
-interface Metric { id: string; name: string; unit: string; metric_type: string; category: string; }
+interface Metric { id: string; name: string; unit: string; metric_type: string; category: string; aggregation: string; }
 interface Coach { id: string; full_name: string; color: string; }
 interface Note { id: string; content: string; flag: string | null; coach_id: string; created_at: string; }
 
@@ -55,7 +56,7 @@ export default function PlayerDetail() {
     const [pRes, eRes, mRes, cRes, nRes] = await Promise.all([
       supabase.from("players").select("*").eq("id", id).single(),
       supabase.from("evaluations").select("*").eq("player_id", id),
-      supabase.from("metrics").select("id, name, unit, metric_type, category").eq("program_id", coach.program_id).order("sort_order"),
+      supabase.from("metrics").select("id, name, unit, metric_type, category, aggregation").eq("program_id", coach.program_id).order("sort_order"),
       supabase.from("coaches").select("id, full_name, color").eq("program_id", coach.program_id),
       supabase.from("player_notes").select("id, content, flag, coach_id, created_at").eq("player_id", id).order("created_at", { ascending: false }),
     ]);
@@ -139,12 +140,17 @@ export default function PlayerDetail() {
           {metrics.map((m) => {
             const mEvals = evalsByMetric.get(m.id) || [];
             if (mEvals.length === 0) return null;
-            const avg = mEvals.reduce((s, e) => s + e.value, 0) / mEvals.length;
+            const vals = mEvals.map((e) => e.value);
+            const computed = aggregateValues(vals, m.aggregation as any, m.metric_type as any);
+            const label = AGGREGATION_LABELS[m.aggregation] || "Best";
             return (
               <div key={m.id} className="rounded-lg bg-muted/50 p-3">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-medium text-sm">{m.name}</span>
-                  <span className="text-lg font-bold">{avg.toFixed(1)} <span className="text-xs font-normal text-muted-foreground">{m.unit}</span></span>
+                  <div>
+                    <span className="font-medium text-sm">{m.name}</span>
+                    <span className="text-xs text-muted-foreground ml-1">({label} of {mEvals.length})</span>
+                  </div>
+                  <span className="text-lg font-bold">{computed?.toFixed(1)} <span className="text-xs font-normal text-muted-foreground">{m.unit}</span></span>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {mEvals.map((e) => {

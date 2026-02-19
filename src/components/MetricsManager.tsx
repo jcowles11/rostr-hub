@@ -21,6 +21,7 @@ interface Metric {
   max_value: number | null;
   is_default: boolean;
   sort_order: number;
+  aggregation: string;
 }
 
 export default function MetricsManager() {
@@ -28,7 +29,7 @@ export default function MetricsManager() {
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [newMetric, setNewMetric] = useState({
-    name: "", unit: "", category: "other", metric_type: "measured", min_value: "", max_value: "",
+    name: "", unit: "", category: "other", metric_type: "measured", min_value: "", max_value: "", aggregation: "best",
   });
   const isHead = coach?.role === "head_coach";
 
@@ -52,12 +53,13 @@ export default function MetricsManager() {
       min_value: newMetric.min_value ? parseFloat(newMetric.min_value) : null,
       max_value: newMetric.max_value ? parseFloat(newMetric.max_value) : null,
       sort_order: metrics.length,
+      aggregation: newMetric.aggregation as any,
     });
     if (error) toast.error("Failed to add metric");
     else {
       toast.success("Metric added!");
       setAddOpen(false);
-      setNewMetric({ name: "", unit: "", category: "other", metric_type: "measured", min_value: "", max_value: "" });
+      setNewMetric({ name: "", unit: "", category: "other", metric_type: "measured", min_value: "", max_value: "", aggregation: "best" });
       fetchMetrics();
     }
   };
@@ -119,6 +121,17 @@ export default function MetricsManager() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Multiple Attempts</Label>
+                  <Select value={newMetric.aggregation} onValueChange={(v) => setNewMetric({ ...newMetric, aggregation: v })}>
+                    <SelectTrigger className="tap-target"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="best">Best attempt</SelectItem>
+                      <SelectItem value="average">Average all</SelectItem>
+                      <SelectItem value="latest">Latest only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 {newMetric.metric_type === "rated" && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -151,6 +164,9 @@ export default function MetricsManager() {
                   <Badge className={`text-xs ${categoryColor(m.category)}`}>{m.category}</Badge>
                   <span className="text-xs text-muted-foreground">
                     {m.metric_type === "timed" ? "↓ lower better" : m.metric_type === "measured" ? "↑ higher better" : "scale"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    • {m.aggregation === "best" ? "Best" : m.aggregation === "average" ? "Avg" : "Latest"}
                   </span>
                 </div>
               </div>
