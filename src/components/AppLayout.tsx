@@ -1,8 +1,9 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Users, ClipboardList, BarChart3, Layers, Settings, ChevronDown, Plus } from "lucide-react";
+import { Users, ClipboardList, BarChart3, Layers, Settings, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +11,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const navItems = [
   { path: "/", icon: Users, label: "Roster" },
@@ -22,7 +33,23 @@ const navItems = [
 export default function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { coach, allCoaches, switchProgram } = useAuth();
+  const { coach, allCoaches, switchProgram, deleteProgram } = useAuth();
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const ok = await deleteProgram(deleteTarget.id);
+    if (ok) {
+      toast.success("Program deleted");
+      navigate("/");
+    } else {
+      toast.error("Failed to delete program");
+    }
+    setDeleting(false);
+    setDeleteTarget(null);
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -44,14 +71,23 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                       navigate("/");
                     }}
                     className={cn(
-                      "cursor-pointer font-medium",
+                      "cursor-pointer font-medium group",
                       c.id === coach?.id && "bg-accent"
                     )}
                   >
-                    <span className="truncate">{c.program_name}</span>
+                    <span className="truncate flex-1">{c.program_name}</span>
                     {c.id === coach?.id && (
-                      <span className="ml-auto text-xs text-primary font-bold">✓</span>
+                      <span className="text-xs text-primary font-bold">✓</span>
                     )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTarget({ id: c.program_id, name: c.program_name || "this program" });
+                      }}
+                      className="ml-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-0.5 rounded"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
@@ -105,6 +141,22 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           })}
         </div>
       </nav>
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the program and all its players, scores, metrics, and roster assignments. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleting ? "Deleting..." : "Delete Program"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

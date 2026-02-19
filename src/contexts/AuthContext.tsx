@@ -20,6 +20,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshCoach: () => Promise<void>;
   switchProgram: (coachId: string) => void;
+  deleteProgram: (programId: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -31,6 +32,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   refreshCoach: async () => {},
   switchProgram: () => {},
+  deleteProgram: async () => false,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -115,8 +117,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAllCoaches([]);
   };
 
+  const deleteProgram = async (programId: string): Promise<boolean> => {
+    // Delete all related data, then the program itself
+    const tables = ["evaluations", "player_notes", "roster_assignments", "session_attendance", "tryout_sessions", "players", "metrics", "coaches"] as const;
+    for (const table of tables) {
+      if (table === "session_attendance") {
+        // session_attendance links via tryout_sessions, delete by session ids
+        const { data: sessions } = await supabase.from("tryout_sessions").select("id").eq("program_id", programId);
+        if (sessions && sessions.length > 0) {
+          const sessionIds = sessions.map((s) => s.id);
+          await supabase.from("session_attendance").delete().in("session_id", sessionIds);
+        }
+      } else {
+        await supabase.from(table).delete().eq("program_id", programId);
+      }
+    }
+    const { error } = await supabase.from("programs").delete().eq("id", programId);
+    if (error) return false;
+
+    // Refresh coach list
+    if (user) {
+      await fetchCoaches(user.id);
+    }
+    return true;
+  };
+
   return (
-    <AuthContext.Provider value={{ session, user, coach, allCoaches, loading, signOut, refreshCoach, switchProgram }}>
+    <AuthContext.Provider value={{ session, user, coach, allCoaches, loading, signOut, refreshCoach, switchProgram, deleteProgram }}>
       {children}
     </AuthContext.Provider>
   );
