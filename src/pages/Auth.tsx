@@ -52,7 +52,7 @@ export default function Auth() {
           <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl gradient-primary text-4xl shadow-glow">
             ⚾
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Tryout Manager</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight">Rostr</h1>
           <p className="mt-1 text-muted-foreground">
             {isLogin ? "Welcome back, coach" : "Start managing your tryouts"}
           </p>
