@@ -108,7 +108,7 @@ export default function PlayerDetail() {
   if (!player) return <div className="p-4 text-center text-muted-foreground">Loading...</div>;
 
   return (
-    <div className="mx-auto max-w-lg px-4 pt-4 pb-8">
+    <div className="mx-auto max-w-lg px-4 pt-4 pb-8 animate-fade-in">
       <button onClick={() => navigate(-1)} className="mb-3 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> Back
       </button>

@@ -117,9 +117,9 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="mx-auto max-w-lg px-4 pt-4">
+    <div className="mx-auto max-w-lg px-4 pt-4 animate-fade-in">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <h1 className="page-header">Dashboard</h1>
         <div className="flex gap-1">
           <button onClick={() => setSortBy("name")} className={cn("rounded-md px-3 py-1 text-sm font-medium", sortBy === "name" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
             A-Z
@@ -138,9 +138,9 @@ export default function Dashboard() {
       {loading ? (
         <p className="py-8 text-center text-muted-foreground">Loading...</p>
       ) : (
-        <div className="space-y-1">
+        <div className="space-y-2 stagger-list">
           {filtered.map((p) => (
-            <button key={p.id} onClick={() => navigate(`/player/${p.id}`)} className="flex w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/50">
+            <button key={p.id} onClick={() => navigate(`/player/${p.id}`)} className="player-card">
               <div>
                 <div className="flex items-center gap-2">
                   <p className="font-semibold">
