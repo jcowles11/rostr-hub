@@ -51,10 +51,16 @@ export default function ScoreEntry() {
     });
   }, [coach]);
 
-  const filtered = players.filter((p) => {
-    const q = search.toLowerCase();
-    return p.last_name.toLowerCase().includes(q) || p.first_name.toLowerCase().includes(q);
-  });
+  const filtered = players
+    .filter((p) => {
+      const q = search.toLowerCase().trim();
+      if (!q) return true;
+      const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
+      const reverseName = `${p.last_name} ${p.first_name}`.toLowerCase();
+      const numStr = p.player_number != null ? String(p.player_number) : "";
+      return fullName.includes(q) || reverseName.includes(q) || numStr.includes(q);
+    })
+    .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
 
   const currentMetric = metrics.find((m) => m.id === selectedMetric);
 
