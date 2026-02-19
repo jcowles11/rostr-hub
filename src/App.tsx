@@ -12,6 +12,9 @@ import ScoreEntry from "@/pages/ScoreEntry";
 import Dashboard from "@/pages/Dashboard";
 import SettingsPage from "@/pages/SettingsPage";
 import PlayerRegister from "@/pages/PlayerRegister";
+import PlayerDetail from "@/pages/PlayerDetail";
+import RosterBoard from "@/pages/RosterBoard";
+import ExportPage from "@/pages/ExportPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -58,6 +61,9 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><Roster /></ProtectedRoute>} />
             <Route path="/score" element={<ProtectedRoute><ScoreEntry /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/roster-board" element={<ProtectedRoute><RosterBoard /></ProtectedRoute>} />
+            <Route path="/export" element={<ProtectedRoute><ExportPage /></ProtectedRoute>} />
+            <Route path="/player/:id" element={<ProtectedRoute><PlayerDetail /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

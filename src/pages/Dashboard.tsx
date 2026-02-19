@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ interface PlayerWithScores {
 
 export default function Dashboard() {
   const { coach } = useAuth();
+  const navigate = useNavigate();
   const [players, setPlayers] = useState<PlayerWithScores[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -113,7 +115,7 @@ export default function Dashboard() {
       ) : (
         <div className="space-y-1">
           {filtered.map((p) => (
-            <div key={p.id} className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
+            <button key={p.id} onClick={() => navigate(`/player/${p.id}`)} className="flex w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/50">
               <div>
                 <div className="flex items-center gap-2">
                   <p className="font-semibold">{p.last_name}, {p.first_name}</p>
@@ -135,7 +137,7 @@ export default function Dashboard() {
                   <p className="text-xs text-muted-foreground">avg</p>
                 </div>
               )}
-            </div>
+            </button>
           ))}
         </div>
       )}

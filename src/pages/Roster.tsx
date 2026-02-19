@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ interface Player {
 
 export default function Roster() {
   const { coach } = useAuth();
+  const navigate = useNavigate();
   const [players, setPlayers] = useState<Player[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -147,9 +149,10 @@ export default function Roster() {
           </div>
         ) : (
           filtered.map((p) => (
-            <div
+            <button
               key={p.id}
-              className="flex items-center justify-between rounded-lg border bg-card px-4 py-3 transition-colors hover:bg-muted/50"
+              onClick={() => navigate(`/player/${p.id}`)}
+              className="flex w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/50"
             >
               <div>
                 <p className="font-semibold">
@@ -167,7 +170,7 @@ export default function Roster() {
               {p.jersey_number_preference && (
                 <span className="text-lg font-bold text-muted-foreground">#{p.jersey_number_preference}</span>
               )}
-            </div>
+            </button>
           ))
         )}
       </div>
