@@ -85,9 +85,9 @@ export default function Roster() {
   };
 
   return (
-    <div className="mx-auto max-w-lg px-4 pt-4">
+    <div className="mx-auto max-w-lg px-4 pt-4 animate-fade-in">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Roster</h1>
+        <h1 className="page-header">Roster</h1>
         <div className="flex gap-2">
           <Button variant="outline" size="icon" className="tap-target" onClick={copyRegLink} title="Share registration link">
             <Share2 className="h-5 w-5" />
@@ -138,7 +138,7 @@ export default function Roster() {
         />
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-2 stagger-list">
         {loading ? (
           <p className="py-8 text-center text-muted-foreground">Loading players...</p>
         ) : filtered.length === 0 ? (
@@ -153,7 +153,7 @@ export default function Roster() {
             <button
               key={p.id}
               onClick={() => navigate(`/player/${p.id}`)}
-              className="flex w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/50"
+              className="player-card"
             >
               <div className="flex items-center gap-3">
                 {p.player_number && (

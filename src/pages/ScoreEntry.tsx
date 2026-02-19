@@ -96,9 +96,9 @@ export default function ScoreEntry() {
   const stationPlayer = stationMode ? filtered[stationIndex] : null;
 
   return (
-    <div className="mx-auto max-w-lg px-4 pt-4">
+    <div className="mx-auto max-w-lg px-4 pt-4 animate-fade-in">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Score Entry</h1>
+        <h1 className="page-header">Score Entry</h1>
         <Button
           variant={stationMode ? "default" : "outline"}
           size="sm"
@@ -134,7 +134,7 @@ export default function ScoreEntry() {
           </div>
 
           {stationPlayer && (
-            <div className="rounded-xl border-2 border-primary bg-card p-6 text-center">
+            <div className="rounded-2xl border-2 border-primary bg-card p-6 text-center shadow-elevated animate-scale-in">
               <p className="text-sm text-muted-foreground">Player {stationIndex + 1} of {filtered.length}</p>
               <p className="text-3xl font-bold mt-1">
                 {stationPlayer.player_number && <span className="text-primary">#{stationPlayer.player_number} </span>}
@@ -178,7 +178,7 @@ export default function ScoreEntry() {
           </div>
 
           {selectedPlayer ? (
-            <div className="rounded-xl border-2 border-primary bg-card p-6 text-center">
+            <div className="rounded-2xl border-2 border-primary bg-card p-6 text-center shadow-elevated animate-scale-in">
               <button onClick={() => setSelectedPlayer(null)} className="text-sm text-muted-foreground hover:text-foreground underline">
                 ← Change player
               </button>
@@ -204,12 +204,12 @@ export default function ScoreEntry() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-1 max-h-[50vh] overflow-y-auto">
+            <div className="space-y-2 max-h-[50vh] overflow-y-auto stagger-list">
               {filtered.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => { setSelectedPlayer(p); setValue(""); setTimeout(() => inputRef.current?.focus(), 100); }}
-                  className="flex w-full items-center rounded-lg border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/50 tap-target"
+                  className="player-card tap-target"
                 >
                   <span className="font-semibold">
                     {p.player_number && <span className="text-primary mr-1">#{p.player_number}</span>}

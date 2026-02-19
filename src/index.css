@@ -30,8 +30,8 @@
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 20% 88%;
-    --input: 214 20% 88%;
+    --border: 214 20% 90%;
+    --input: 214 20% 90%;
     --ring: 220 70% 45%;
 
     --radius: 0.75rem;
@@ -105,6 +105,8 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
@@ -112,5 +114,47 @@
 @layer utilities {
   .tap-target {
     @apply min-h-[48px] min-w-[48px];
+  }
+}
+
+/* Refined card & list item styles */
+@layer components {
+  .player-card {
+    @apply flex w-full items-center justify-between rounded-xl border bg-card px-4 py-3.5 text-left
+           shadow-card transition-all duration-200 ease-out
+           hover:shadow-card-hover hover:border-primary/20 hover:-translate-y-[1px]
+           active:scale-[0.99] active:shadow-card;
+  }
+
+  .section-card {
+    @apply rounded-xl border bg-card shadow-card overflow-hidden;
+  }
+
+  .page-header {
+    @apply text-2xl font-bold tracking-tight;
+  }
+
+  .stat-badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold
+           bg-primary/10 text-primary;
+  }
+
+  /* Staggered list animation */
+  .stagger-list > * {
+    @apply animate-fade-in;
+  }
+  .stagger-list > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger-list > *:nth-child(2) { animation-delay: 30ms; }
+  .stagger-list > *:nth-child(3) { animation-delay: 60ms; }
+  .stagger-list > *:nth-child(4) { animation-delay: 90ms; }
+  .stagger-list > *:nth-child(5) { animation-delay: 120ms; }
+  .stagger-list > *:nth-child(6) { animation-delay: 150ms; }
+  .stagger-list > *:nth-child(7) { animation-delay: 180ms; }
+  .stagger-list > *:nth-child(8) { animation-delay: 210ms; }
+  .stagger-list > *:nth-child(9) { animation-delay: 240ms; }
+  .stagger-list > *:nth-child(10) { animation-delay: 270ms; }
+  .stagger-list > *:nth-child(n+11) { animation-delay: 300ms; }
+  .stagger-list > * {
+    animation-fill-mode: both;
   }
 }
