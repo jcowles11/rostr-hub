@@ -28,7 +28,7 @@ export default function ExportPage() {
       supabase.from("players").select("*").eq("program_id", coach.program_id).order("last_name"),
       supabase.from("roster_assignments").select("player_id, assignment").eq("program_id", coach.program_id),
       supabase.from("metrics").select("id, name, unit").eq("program_id", coach.program_id).order("sort_order"),
-      supabase.from("evaluations").select("player_id, metric_id, value").eq("program_id", coach.program_id),
+      supabase.from("evaluations").select("player_id, metric_id, value, created_at").eq("program_id", coach.program_id).order("created_at"),
     ]);
 
     const players = pRes.data || [];
@@ -36,21 +36,47 @@ export default function ExportPage() {
     const metrics = mRes.data || [];
     const evals = eRes.data || [];
 
-    // Compute averages per player per metric
-    const avgMap = new Map<string, Map<string, number[]>>();
+    // Group all attempts per player per metric (in chronological order)
+    const attemptsMap = new Map<string, Map<string, number[]>>();
     evals.forEach((e) => {
-      if (!avgMap.has(e.player_id)) avgMap.set(e.player_id, new Map());
-      const pMap = avgMap.get(e.player_id)!;
+      if (!attemptsMap.has(e.player_id)) attemptsMap.set(e.player_id, new Map());
+      const pMap = attemptsMap.get(e.player_id)!;
       if (!pMap.has(e.metric_id)) pMap.set(e.metric_id, []);
       pMap.get(e.metric_id)!.push(e.value);
     });
 
-    const headers = ["Last Name", "First Name", "Grade", "Positions", ...metrics.map((m) => `${m.name} (${m.unit})`), "Assignment"];
+    // Find max attempt count per metric across all players
+    const maxAttempts = new Map<string, number>();
+    metrics.forEach((m) => {
+      let max = 0;
+      players.forEach((p) => {
+        const count = attemptsMap.get(p.id)?.get(m.id)?.length || 0;
+        if (count > max) max = count;
+      });
+      maxAttempts.set(m.id, max);
+    });
+
+    // Build headers: for each metric, show individual attempts + average
+    const metricHeaders: string[] = [];
+    metrics.forEach((m) => {
+      const max = maxAttempts.get(m.id) || 0;
+      for (let i = 1; i <= max; i++) {
+        metricHeaders.push(`${m.name} #${i} (${m.unit})`);
+      }
+      metricHeaders.push(`${m.name} Avg (${m.unit})`);
+    });
+
+    const headers = ["Last Name", "First Name", "Grade", "Positions", ...metricHeaders, "Assignment"];
     const rows = players.map((p) => {
-      const pAvgs = avgMap.get(p.id);
-      const metricCols = metrics.map((m) => {
-        const vals = pAvgs?.get(m.id);
-        return vals ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : "";
+      const pAttempts = attemptsMap.get(p.id);
+      const metricCols: string[] = [];
+      metrics.forEach((m) => {
+        const vals = pAttempts?.get(m.id) || [];
+        const max = maxAttempts.get(m.id) || 0;
+        for (let i = 0; i < max; i++) {
+          metricCols.push(i < vals.length ? vals[i].toString() : "");
+        }
+        metricCols.push(vals.length > 0 ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : "");
       });
       return [
         p.last_name,
