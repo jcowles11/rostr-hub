@@ -1,7 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { LogOut, Share2 } from "lucide-react";
+import { LogOut, Share2, User, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
@@ -33,16 +33,26 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-lg px-4 pt-4 pb-24 space-y-6">
-      <h1 className="text-2xl font-bold">Settings</h1>
+    <div className="mx-auto max-w-lg px-4 pt-4 pb-24 space-y-5 animate-fade-in">
+      {/* Hero */}
+      <div className="page-hero">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 text-white">
+            <User className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-xl font-extrabold text-white">{coach?.full_name}</h1>
+            <div className="flex items-center gap-1.5">
+              <Shield className="h-3 w-3 text-white/70" />
+              <span className="text-white/70 text-sm">{coach?.role === "head_coach" ? "Head Coach" : "Assistant Coach"}</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">{coach?.program_name}</CardTitle>
-          <CardDescription>{coach?.full_name} • {coach?.role === "head_coach" ? "Head Coach" : "Assistant Coach"}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button variant="outline" className="w-full tap-target" onClick={copyRegLink}>
+      <Card className="section-card">
+        <CardContent className="pt-5">
+          <Button variant="outline" className="w-full tap-target h-12 rounded-xl font-semibold" onClick={copyRegLink}>
             <Share2 className="mr-2 h-4 w-4" /> Copy Player Registration Link
           </Button>
         </CardContent>
@@ -51,7 +61,7 @@ export default function SettingsPage() {
       <CoachManager />
       <MetricsManager />
 
-      <Button variant="destructive" className="w-full tap-target" onClick={handleSignOut}>
+      <Button variant="destructive" className="w-full tap-target h-12 rounded-xl font-bold" onClick={handleSignOut}>
         <LogOut className="mr-2 h-4 w-4" /> Sign Out
       </Button>
     </div>

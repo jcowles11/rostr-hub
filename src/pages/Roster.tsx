@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, UserPlus, Share2 } from "lucide-react";
+import { Search, Plus, UserPlus, Share2, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -86,45 +86,53 @@ export default function Roster() {
 
   return (
     <div className="mx-auto max-w-lg px-4 pt-4 animate-fade-in">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="page-header">Roster</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" size="icon" className="tap-target" onClick={copyRegLink} title="Share registration link">
-            <Share2 className="h-5 w-5" />
-          </Button>
-          <Dialog open={addOpen} onOpenChange={setAddOpen}>
-            <DialogTrigger asChild>
-              <Button size="icon" className="tap-target">
-                <Plus className="h-5 w-5" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Player</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleAdd} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>First Name</Label>
-                  <Input value={newPlayer.first_name} onChange={(e) => setNewPlayer({ ...newPlayer, first_name: e.target.value })} required className="tap-target" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Last Name</Label>
-                  <Input value={newPlayer.last_name} onChange={(e) => setNewPlayer({ ...newPlayer, last_name: e.target.value })} required className="tap-target" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+      {/* Gradient hero header */}
+      <div className="page-hero mb-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">Roster</h1>
+            <p className="text-white/70 text-sm mt-0.5">
+              {players.length} player{players.length !== 1 ? "s" : ""} registered
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="icon" className="tap-target text-white/80 hover:text-white hover:bg-white/10" onClick={copyRegLink} title="Share registration link">
+              <Share2 className="h-5 w-5" />
+            </Button>
+            <Dialog open={addOpen} onOpenChange={setAddOpen}>
+              <DialogTrigger asChild>
+                <Button size="icon" className="tap-target bg-white/20 hover:bg-white/30 text-white border-0">
+                  <Plus className="h-5 w-5" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="rounded-2xl">
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-bold">Add Player</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleAdd} className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Grade</Label>
-                    <Input type="number" value={newPlayer.grade} onChange={(e) => setNewPlayer({ ...newPlayer, grade: e.target.value })} placeholder="9-12" className="tap-target" />
+                    <Label className="text-sm font-semibold">First Name</Label>
+                    <Input value={newPlayer.first_name} onChange={(e) => setNewPlayer({ ...newPlayer, first_name: e.target.value })} required className="tap-target h-12 rounded-xl" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Positions</Label>
-                    <Input value={newPlayer.positions} onChange={(e) => setNewPlayer({ ...newPlayer, positions: e.target.value })} placeholder="SS, OF" className="tap-target" />
+                    <Label className="text-sm font-semibold">Last Name</Label>
+                    <Input value={newPlayer.last_name} onChange={(e) => setNewPlayer({ ...newPlayer, last_name: e.target.value })} required className="tap-target h-12 rounded-xl" />
                   </div>
-                </div>
-                <Button type="submit" className="w-full tap-target">Add Player</Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Grade</Label>
+                      <Input type="number" value={newPlayer.grade} onChange={(e) => setNewPlayer({ ...newPlayer, grade: e.target.value })} placeholder="9-12" className="tap-target h-12 rounded-xl" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Positions</Label>
+                      <Input value={newPlayer.positions} onChange={(e) => setNewPlayer({ ...newPlayer, positions: e.target.value })} placeholder="SS, OF" className="tap-target h-12 rounded-xl" />
+                    </div>
+                  </div>
+                  <Button type="submit" className="w-full tap-target h-12 font-bold rounded-xl gradient-primary border-0">Add Player</Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </div>
 
@@ -134,19 +142,27 @@ export default function Roster() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search players..."
-          className="pl-10 tap-target text-base"
+          className="pl-10 tap-target text-base h-12 rounded-xl"
         />
       </div>
 
       <div className="space-y-2 stagger-list">
         {loading ? (
-          <p className="py-8 text-center text-muted-foreground">Loading players...</p>
-        ) : filtered.length === 0 ? (
           <div className="py-12 text-center">
-            <UserPlus className="mx-auto mb-3 h-12 w-12 text-muted-foreground/50" />
-            <p className="text-muted-foreground">
-              {players.length === 0 ? "No players yet. Add one or share the registration link!" : "No players match your search."}
+            <div className="mx-auto mb-3 h-12 w-12 rounded-2xl gradient-primary flex items-center justify-center text-2xl animate-pulse-soft">⚾</div>
+            <p className="text-muted-foreground">Loading players...</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="py-12 text-center animate-fade-in">
+            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
+              <UserPlus className="h-8 w-8 text-muted-foreground/50" />
+            </div>
+            <p className="text-muted-foreground font-medium">
+              {players.length === 0 ? "No players yet" : "No players match your search"}
             </p>
+            {players.length === 0 && (
+              <p className="text-sm text-muted-foreground mt-1">Add a player or share the registration link</p>
+            )}
           </div>
         ) : (
           filtered.map((p) => (
@@ -156,19 +172,19 @@ export default function Roster() {
               className="player-card"
             >
               <div className="flex items-center gap-3">
-                {p.player_number && (
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
-                    {p.player_number}
-                  </span>
+                {p.player_number ? (
+                  <span className="number-badge">{p.player_number}</span>
+                ) : (
+                  <span className="number-badge bg-muted text-muted-foreground">—</span>
                 )}
                 <div>
-                  <p className="font-semibold">
+                  <p className="font-bold text-[15px]">
                     {p.last_name}, {p.first_name}
                   </p>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    {p.grade && <span>Grade {p.grade}</span>}
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {p.grade && <span className="text-xs text-muted-foreground">Grade {p.grade}</span>}
                     {p.positions?.map((pos) => (
-                      <Badge key={pos} variant="secondary" className="text-xs">
+                      <Badge key={pos} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-medium">
                         {pos}
                       </Badge>
                     ))}
@@ -176,13 +192,12 @@ export default function Roster() {
                 </div>
               </div>
               {p.jersey_number_preference && (
-                <span className="text-lg font-bold text-muted-foreground">#{p.jersey_number_preference}</span>
+                <span className="text-sm font-semibold text-muted-foreground">#{p.jersey_number_preference}</span>
               )}
             </button>
           ))
         )}
       </div>
-      <p className="mt-3 text-center text-sm text-muted-foreground">{filtered.length} player{filtered.length !== 1 ? "s" : ""}</p>
     </div>
   );
 }

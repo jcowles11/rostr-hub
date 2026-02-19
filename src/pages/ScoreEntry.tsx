@@ -95,27 +95,47 @@ export default function ScoreEntry() {
 
   const stationPlayer = stationMode ? filtered[stationIndex] : null;
 
+  const playerDisplay = (p: Player) => (
+    <>
+      {p.player_number && <span className="text-primary font-extrabold">#{p.player_number} </span>}
+      {p.last_name}, {p.first_name}
+    </>
+  );
+
   return (
     <div className="mx-auto max-w-lg px-4 pt-4 animate-fade-in">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="page-header">Score Entry</h1>
-        <Button
-          variant={stationMode ? "default" : "outline"}
-          size="sm"
-          onClick={() => { setStationMode(!stationMode); setStationIndex(0); }}
-          className="tap-target"
-        >
-          {stationMode ? "Exit Station" : "Station Mode"}
-        </Button>
+      {/* Hero header */}
+      <div className="page-hero mb-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">Score Entry</h1>
+            <p className="text-white/70 text-sm mt-0.5">
+              {stationMode ? "Station Mode — cycle through players" : "Select a player to score"}
+            </p>
+          </div>
+          <Button
+            variant={stationMode ? "default" : "outline"}
+            size="sm"
+            onClick={() => { setStationMode(!stationMode); setStationIndex(0); }}
+            className={cn(
+              "tap-target font-bold rounded-xl transition-all",
+              stationMode
+                ? "bg-white/20 hover:bg-white/30 text-white border-0"
+                : "bg-white/10 hover:bg-white/20 text-white border-white/20"
+            )}
+          >
+            {stationMode ? "Exit Station" : "Station Mode"}
+          </Button>
+        </div>
       </div>
 
       {/* Metric selector */}
       <div className="mb-4">
         <Select value={selectedMetric} onValueChange={setSelectedMetric}>
-          <SelectTrigger className="tap-target text-base font-medium">
+          <SelectTrigger className="tap-target text-base font-semibold h-12 rounded-xl">
             <SelectValue placeholder="Select metric" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="rounded-xl">
             {metrics.map((m) => (
               <SelectItem key={m.id} value={m.id}>
                 {m.name} ({m.unit})
@@ -126,23 +146,19 @@ export default function ScoreEntry() {
       </div>
 
       {stationMode ? (
-        /* Station mode: cycle through players */
         <div className="space-y-4">
-          <div className="relative mb-4">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-            <Input value={search} onChange={(e) => { setSearch(e.target.value); setStationIndex(0); }} placeholder="Filter players..." className="pl-10 tap-target text-base" />
+            <Input value={search} onChange={(e) => { setSearch(e.target.value); setStationIndex(0); }} placeholder="Filter players..." className="pl-10 tap-target text-base h-12 rounded-xl" />
           </div>
 
           {stationPlayer && (
-            <div className="rounded-2xl border-2 border-primary bg-card p-6 text-center shadow-elevated animate-scale-in">
-              <p className="text-sm text-muted-foreground">Player {stationIndex + 1} of {filtered.length}</p>
-              <p className="text-3xl font-bold mt-1">
-                {stationPlayer.player_number && <span className="text-primary">#{stationPlayer.player_number} </span>}
-                {stationPlayer.last_name}, {stationPlayer.first_name}
-              </p>
+            <div className="section-card p-6 text-center border-2 border-primary/30 shadow-elevated animate-scale-in">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Player {stationIndex + 1} of {filtered.length}</p>
+              <p className="text-3xl font-extrabold mt-2">{playerDisplay(stationPlayer)}</p>
 
               <div className="mt-6 flex items-center justify-center gap-3">
-                <Button variant="outline" size="icon" className="tap-target" onClick={() => setStationIndex(Math.max(0, stationIndex - 1))} disabled={stationIndex === 0}>
+                <Button variant="outline" size="icon" className="tap-target rounded-xl h-14 w-14" onClick={() => setStationIndex(Math.max(0, stationIndex - 1))} disabled={stationIndex === 0}>
                   <ChevronLeft className="h-6 w-6" />
                 </Button>
 
@@ -154,39 +170,35 @@ export default function ScoreEntry() {
                   onChange={(e) => setValue(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={currentMetric?.unit || "Value"}
-                  className="h-16 w-32 text-center text-3xl font-bold tap-target"
+                  className="h-16 w-32 text-center text-3xl font-extrabold tap-target rounded-xl border-2 border-primary/20 focus:border-primary"
                   autoFocus
                 />
 
-                <Button variant="outline" size="icon" className="tap-target" onClick={() => setStationIndex(Math.min(filtered.length - 1, stationIndex + 1))} disabled={stationIndex >= filtered.length - 1}>
+                <Button variant="outline" size="icon" className="tap-target rounded-xl h-14 w-14" onClick={() => setStationIndex(Math.min(filtered.length - 1, stationIndex + 1))} disabled={stationIndex >= filtered.length - 1}>
                   <ChevronRight className="h-6 w-6" />
                 </Button>
               </div>
 
-              <Button onClick={handleScore} disabled={!value || saving} className="mt-4 w-full tap-target text-lg font-semibold">
+              <Button onClick={handleScore} disabled={!value || saving} className="mt-5 w-full tap-target text-lg font-bold rounded-xl h-14 gradient-primary border-0 shadow-glow hover:shadow-lg transition-all">
                 <Check className="mr-2 h-5 w-5" /> Save & Next
               </Button>
             </div>
           )}
         </div>
       ) : (
-        /* Normal mode: search & select player */
         <div className="space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search players..." className="pl-10 tap-target text-base" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search players..." className="pl-10 tap-target text-base h-12 rounded-xl" />
           </div>
 
           {selectedPlayer ? (
-            <div className="rounded-2xl border-2 border-primary bg-card p-6 text-center shadow-elevated animate-scale-in">
-              <button onClick={() => setSelectedPlayer(null)} className="text-sm text-muted-foreground hover:text-foreground underline">
+            <div className="section-card p-6 text-center border-2 border-primary/30 shadow-elevated animate-scale-in">
+              <button onClick={() => setSelectedPlayer(null)} className="text-sm text-muted-foreground hover:text-primary transition-colors font-medium">
                 ← Change player
               </button>
-              <p className="text-2xl font-bold mt-1">
-                {selectedPlayer.player_number && <span className="text-primary">#{selectedPlayer.player_number} </span>}
-                {selectedPlayer.last_name}, {selectedPlayer.first_name}
-              </p>
-              <div className="mt-4 flex items-center justify-center gap-3">
+              <p className="text-2xl font-extrabold mt-2">{playerDisplay(selectedPlayer)}</p>
+              <div className="mt-5 flex items-center justify-center gap-3">
                 <Input
                   ref={inputRef}
                   type="number"
@@ -195,11 +207,11 @@ export default function ScoreEntry() {
                   onChange={(e) => setValue(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={currentMetric?.unit || "Value"}
-                  className="h-16 w-32 text-center text-3xl font-bold tap-target"
+                  className="h-16 w-32 text-center text-3xl font-extrabold tap-target rounded-xl border-2 border-primary/20 focus:border-primary"
                   autoFocus
                 />
               </div>
-              <Button onClick={handleScore} disabled={!value || saving} className="mt-4 w-full tap-target text-lg font-semibold">
+              <Button onClick={handleScore} disabled={!value || saving} className="mt-5 w-full tap-target text-lg font-bold rounded-xl h-14 gradient-primary border-0 shadow-glow hover:shadow-lg transition-all">
                 <Check className="mr-2 h-5 w-5" /> Save Score
               </Button>
             </div>
@@ -211,10 +223,14 @@ export default function ScoreEntry() {
                   onClick={() => { setSelectedPlayer(p); setValue(""); setTimeout(() => inputRef.current?.focus(), 100); }}
                   className="player-card tap-target"
                 >
-                  <span className="font-semibold">
-                    {p.player_number && <span className="text-primary mr-1">#{p.player_number}</span>}
-                    {p.last_name}, {p.first_name}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    {p.player_number ? (
+                      <span className="number-badge">{p.player_number}</span>
+                    ) : (
+                      <span className="number-badge bg-muted text-muted-foreground">—</span>
+                    )}
+                    <span className="font-bold text-[15px]">{p.last_name}, {p.first_name}</span>
+                  </div>
                 </button>
               ))}
             </div>
@@ -224,13 +240,16 @@ export default function ScoreEntry() {
 
       {/* Recent scores */}
       {recentScores.length > 0 && (
-        <div className="mt-6">
-          <h3 className="mb-2 text-sm font-medium text-muted-foreground">Recent Scores</h3>
-          <div className="space-y-1">
+        <div className="mt-6 animate-fade-in">
+          <h3 className="mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recent Scores</h3>
+          <div className="space-y-1.5">
             {recentScores.map((s, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-sm">
-                <span className="font-medium">{s.player.last_name}</span>
-                <span className="text-muted-foreground">{s.metric}: {s.value}</span>
+              <div key={i} className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2.5 text-sm">
+                <span className="font-semibold">
+                  {s.player.player_number && <span className="text-primary mr-1">#{s.player.player_number}</span>}
+                  {s.player.last_name}
+                </span>
+                <span className="text-muted-foreground font-medium">{s.metric}: {s.value}</span>
               </div>
             ))}
           </div>

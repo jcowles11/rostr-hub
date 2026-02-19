@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 
 const COACH_COLORS = ["#3B82F6", "#EF4444", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899"];
@@ -35,7 +35,6 @@ export default function ProgramSetup() {
     if (!user) return;
     setLoading(true);
 
-    // Create program
     const { data: program, error: programError } = await supabase
       .from("programs")
       .insert({ name: programName, school_name: schoolName, created_by: user.id })
@@ -48,7 +47,6 @@ export default function ProgramSetup() {
       return;
     }
 
-    // Create coach record for the creator as head coach
     const { error: coachError } = await supabase.from("coaches").insert({
       user_id: user.id,
       program_id: program.id,
@@ -64,7 +62,6 @@ export default function ProgramSetup() {
       return;
     }
 
-    // Insert default metrics
     const metricsToInsert = DEFAULT_METRICS.map((m) => ({
       ...m,
       program_id: program.id,
@@ -79,47 +76,48 @@ export default function ProgramSetup() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-3xl text-primary-foreground">
+    <div className="auth-bg">
+      <div className="w-full max-w-md animate-scale-in">
+        <div className="text-center mb-8 animate-slide-up">
+          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl gradient-primary text-4xl shadow-glow">
             ⚾
           </div>
-          <CardTitle className="text-2xl font-bold">Set Up Your Program</CardTitle>
-          <CardDescription>
-            Create your baseball program to start managing tryouts
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="programName">Program Name</Label>
-              <Input
-                id="programName"
-                value={programName}
-                onChange={(e) => setProgramName(e.target.value)}
-                placeholder="Eagles Baseball"
-                required
-                className="tap-target"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="schoolName">School Name</Label>
-              <Input
-                id="schoolName"
-                value={schoolName}
-                onChange={(e) => setSchoolName(e.target.value)}
-                placeholder="Lincoln High School"
-                required
-                className="tap-target"
-              />
-            </div>
-            <Button type="submit" className="w-full tap-target text-base font-semibold" disabled={loading}>
-              {loading ? "Creating..." : "Create Program"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          <h1 className="text-3xl font-extrabold tracking-tight">Set Up Your Program</h1>
+          <p className="mt-1 text-muted-foreground">Create your baseball program to start managing tryouts</p>
+        </div>
+
+        <Card className="shadow-elevated border-0">
+          <CardContent className="pt-6">
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="programName" className="text-sm font-semibold">Program Name</Label>
+                <Input
+                  id="programName"
+                  value={programName}
+                  onChange={(e) => setProgramName(e.target.value)}
+                  placeholder="Eagles Baseball"
+                  required
+                  className="tap-target h-12 text-base rounded-xl"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="schoolName" className="text-sm font-semibold">School Name</Label>
+                <Input
+                  id="schoolName"
+                  value={schoolName}
+                  onChange={(e) => setSchoolName(e.target.value)}
+                  placeholder="Lincoln High School"
+                  required
+                  className="tap-target h-12 text-base rounded-xl"
+                />
+              </div>
+              <Button type="submit" className="w-full tap-target h-12 text-base font-bold rounded-xl gradient-primary border-0 shadow-glow hover:shadow-lg transition-all duration-200" disabled={loading}>
+                {loading ? "Creating..." : "Create Program"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

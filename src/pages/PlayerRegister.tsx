@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { CheckCircle } from "lucide-react";
 
@@ -29,7 +29,6 @@ export default function PlayerRegister() {
     e.preventDefault();
     setLoading(true);
 
-    // Look up program by registration code
     const { data: program } = await supabase
       .from("programs")
       .select("id")
@@ -42,8 +41,6 @@ export default function PlayerRegister() {
       return;
     }
 
-    // Use edge function or service role to insert — for now, we'll need an RLS bypass
-    // Workaround: insert using anon with a special policy
     const { error } = await supabase.from("players").insert({
       program_id: program.id,
       first_name: form.first_name,
@@ -67,11 +64,13 @@ export default function PlayerRegister() {
 
   if (submitted) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md text-center">
+      <div className="auth-bg">
+        <Card className="w-full max-w-md text-center shadow-elevated border-0 animate-bounce-in">
           <CardContent className="py-12">
-            <CheckCircle className="mx-auto mb-4 h-16 w-16 text-accent" />
-            <h2 className="text-2xl font-bold mb-2">You're Registered!</h2>
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent/10">
+              <CheckCircle className="h-10 w-10 text-accent" />
+            </div>
+            <h2 className="text-2xl font-extrabold mb-2">You're Registered!</h2>
             <p className="text-muted-foreground">Your information has been submitted to the coaching staff. You'll be assigned a tryout number. Good luck at tryouts! ⚾</p>
           </CardContent>
         </Card>
@@ -80,63 +79,68 @@ export default function PlayerRegister() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-3xl text-primary-foreground">⚾</div>
-          <CardTitle className="text-2xl font-bold">Tryout Registration</CardTitle>
-          <CardDescription>Fill out your information for tryouts</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>First Name *</Label>
-                <Input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} required className="tap-target" />
+    <div className="auth-bg">
+      <div className="w-full max-w-md animate-scale-in">
+        <div className="text-center mb-8 animate-slide-up">
+          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl gradient-primary text-4xl shadow-glow">
+            ⚾
+          </div>
+          <h1 className="text-3xl font-extrabold tracking-tight">Tryout Registration</h1>
+          <p className="mt-1 text-muted-foreground">Fill out your information for tryouts</p>
+        </div>
+
+        <Card className="shadow-elevated border-0">
+          <CardContent className="pt-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">First Name *</Label>
+                  <Input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} required className="tap-target h-12 rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Last Name *</Label>
+                  <Input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} required className="tap-target h-12 rounded-xl" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Grade</Label>
+                  <Input type="number" value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} placeholder="9-12" className="tap-target h-12 rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Jersey # Preference</Label>
+                  <Input type="number" value={form.jersey_number_preference} onChange={(e) => setForm({ ...form, jersey_number_preference: e.target.value })} className="tap-target h-12 rounded-xl" />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label>Last Name *</Label>
-                <Input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} required className="tap-target" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Grade</Label>
-                <Input type="number" value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} placeholder="9-12" className="tap-target" />
+                <Label className="text-sm font-semibold">Positions (comma separated)</Label>
+                <Input value={form.positions} onChange={(e) => setForm({ ...form, positions: e.target.value })} placeholder="SS, OF, P" className="tap-target h-12 rounded-xl" />
               </div>
               <div className="space-y-2">
-                <Label>Jersey # Preference</Label>
-                <Input type="number" value={form.jersey_number_preference} onChange={(e) => setForm({ ...form, jersey_number_preference: e.target.value })} className="tap-target" />
+                <Label className="text-sm font-semibold">Travel Ball Experience</Label>
+                <Input value={form.travel_ball_experience} onChange={(e) => setForm({ ...form, travel_ball_experience: e.target.value })} placeholder="Team name, years" className="tap-target h-12 rounded-xl" />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Positions (comma separated)</Label>
-              <Input value={form.positions} onChange={(e) => setForm({ ...form, positions: e.target.value })} placeholder="SS, OF, P" className="tap-target" />
-            </div>
-            <div className="space-y-2">
-              <Label>Travel Ball Experience</Label>
-              <Input value={form.travel_ball_experience} onChange={(e) => setForm({ ...form, travel_ball_experience: e.target.value })} placeholder="Team name, years" className="tap-target" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Emergency Contact</Label>
-                <Input value={form.emergency_contact_name} onChange={(e) => setForm({ ...form, emergency_contact_name: e.target.value })} placeholder="Name" className="tap-target" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Emergency Contact</Label>
+                  <Input value={form.emergency_contact_name} onChange={(e) => setForm({ ...form, emergency_contact_name: e.target.value })} placeholder="Name" className="tap-target h-12 rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Contact Phone</Label>
+                  <Input type="tel" value={form.emergency_contact_phone} onChange={(e) => setForm({ ...form, emergency_contact_phone: e.target.value })} placeholder="(555) 123-4567" className="tap-target h-12 rounded-xl" />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label>Contact Phone</Label>
-                <Input type="tel" value={form.emergency_contact_phone} onChange={(e) => setForm({ ...form, emergency_contact_phone: e.target.value })} placeholder="(555) 123-4567" className="tap-target" />
+                <Label className="text-sm font-semibold">Medical Notes</Label>
+                <Textarea value={form.medical_notes} onChange={(e) => setForm({ ...form, medical_notes: e.target.value })} placeholder="Allergies, injuries, etc." className="tap-target rounded-xl" />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Medical Notes</Label>
-              <Textarea value={form.medical_notes} onChange={(e) => setForm({ ...form, medical_notes: e.target.value })} placeholder="Allergies, injuries, etc." className="tap-target" />
-            </div>
-            <Button type="submit" className="w-full tap-target text-base font-semibold" disabled={loading}>
-              {loading ? "Submitting..." : "Register for Tryouts"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              <Button type="submit" className="w-full tap-target h-12 text-base font-bold rounded-xl gradient-primary border-0 shadow-glow hover:shadow-lg transition-all duration-200" disabled={loading}>
+                {loading ? "Submitting..." : "Register for Tryouts"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

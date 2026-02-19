@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Star, AlertTriangle, Eye, MessageSquare, Send } from "lucide-react";
+import { ArrowLeft, Star, AlertTriangle, Eye, MessageSquare, Send, Phone, HeartPulse } from "lucide-react";
 import { aggregateValues, AGGREGATION_LABELS } from "@/lib/metrics";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -83,7 +83,6 @@ export default function PlayerDetail() {
 
   const filteredEvals = coachFilter === "all" ? evals : evals.filter((e) => e.coach_id === coachFilter);
 
-  // Group evals by metric
   const evalsByMetric = new Map<string, Evaluation[]>();
   filteredEvals.forEach((e) => {
     const arr = evalsByMetric.get(e.metric_id) || [];
@@ -105,32 +104,45 @@ export default function PlayerDetail() {
     else { setNewNote(""); setNewFlag(""); fetchAll(); }
   };
 
-  if (!player) return <div className="p-4 text-center text-muted-foreground">Loading...</div>;
+  if (!player) return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="mx-auto h-12 w-12 rounded-2xl gradient-primary flex items-center justify-center text-2xl animate-pulse-soft">⚾</div>
+    </div>
+  );
 
   return (
     <div className="mx-auto max-w-lg px-4 pt-4 pb-8 animate-fade-in">
-      <button onClick={() => navigate(-1)} className="mb-3 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <button onClick={() => navigate(-1)} className="mb-3 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">
         <ArrowLeft className="h-4 w-4" /> Back
       </button>
 
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold">
-          {player.player_number && <span className="text-primary">#{player.player_number} </span>}
-          {player.last_name}, {player.first_name}
-        </h1>
-        <div className="flex flex-wrap items-center gap-2 mt-1">
-          {player.grade && <Badge variant="secondary">Grade {player.grade}</Badge>}
-          {player.positions?.map((p) => <Badge key={p} variant="outline">{p}</Badge>)}
-          {player.jersey_number_preference && <Badge>#{player.jersey_number_preference}</Badge>}
+      {/* Player hero card */}
+      <div className="page-hero mb-5">
+        <div className="flex items-center gap-4">
+          {player.player_number && (
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 text-2xl font-extrabold text-white">
+              {player.player_number}
+            </div>
+          )}
+          <div>
+            <h1 className="text-2xl font-extrabold text-white">
+              {player.last_name}, {player.first_name}
+            </h1>
+            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+              {player.grade && <span className="rounded-lg bg-white/20 px-2 py-0.5 text-xs font-semibold text-white">Grade {player.grade}</span>}
+              {player.positions?.map((p) => <span key={p} className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">{p}</span>)}
+              {player.jersey_number_preference && <span className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">Jersey #{player.jersey_number_preference}</span>}
+            </div>
+          </div>
         </div>
-        {player.travel_ball_experience && <p className="text-sm text-muted-foreground mt-1">Travel: {player.travel_ball_experience}</p>}
+        {player.travel_ball_experience && <p className="text-sm text-white/60 mt-3">Travel: {player.travel_ball_experience}</p>}
       </div>
 
       {/* Coach filter */}
       <div className="mb-4">
         <Select value={coachFilter} onValueChange={setCoachFilter}>
-          <SelectTrigger className="tap-target"><SelectValue placeholder="Filter by coach" /></SelectTrigger>
-          <SelectContent>
+          <SelectTrigger className="tap-target rounded-xl h-12 font-semibold"><SelectValue placeholder="Filter by coach" /></SelectTrigger>
+          <SelectContent className="rounded-xl">
             <SelectItem value="all">All Coaches</SelectItem>
             {coaches.map((c) => <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>)}
           </SelectContent>
@@ -138,8 +150,8 @@ export default function PlayerDetail() {
       </div>
 
       {/* Scores by metric */}
-      <Card className="mb-4">
-        <CardHeader><CardTitle className="text-lg">Evaluations</CardTitle></CardHeader>
+      <Card className="section-card mb-4">
+        <CardHeader className="pb-2"><CardTitle className="text-lg font-bold">Evaluations</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {metrics.map((m) => {
             const mEvals = evalsByMetric.get(m.id) || [];
@@ -148,19 +160,19 @@ export default function PlayerDetail() {
             const computed = aggregateValues(vals, m.aggregation as any, m.metric_type as any);
             const label = AGGREGATION_LABELS[m.aggregation] || "Best";
             return (
-              <div key={m.id} className="rounded-lg bg-muted/50 p-3">
-                <div className="flex items-center justify-between mb-1">
+              <div key={m.id} className="rounded-xl bg-muted/40 p-3.5 transition-colors hover:bg-muted/60">
+                <div className="flex items-center justify-between mb-2">
                   <div>
-                    <span className="font-medium text-sm">{m.name}</span>
-                    <span className="text-xs text-muted-foreground ml-1">({label} of {mEvals.length})</span>
+                    <span className="font-semibold text-sm">{m.name}</span>
+                    <span className="text-[10px] text-muted-foreground ml-1.5 font-medium">({label} of {mEvals.length})</span>
                   </div>
-                  <span className="text-lg font-bold">{computed?.toFixed(1)} <span className="text-xs font-normal text-muted-foreground">{m.unit}</span></span>
+                  <span className="text-xl font-extrabold">{computed?.toFixed(1)} <span className="text-xs font-medium text-muted-foreground">{m.unit}</span></span>
                 </div>
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5">
                   {mEvals.map((e) => {
                     const c = getCoach(e.coach_id);
                     return (
-                      <span key={e.id} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-primary-foreground" style={{ backgroundColor: c?.color || "hsl(var(--primary))" }}>
+                      <span key={e.id} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: c?.color || "hsl(var(--primary))" }}>
                         {c?.full_name?.split(" ")[0] || "?"}: {e.value}
                       </span>
                     );
@@ -169,51 +181,54 @@ export default function PlayerDetail() {
               </div>
             );
           })}
-          {evalsByMetric.size === 0 && <p className="text-sm text-muted-foreground text-center py-4">No evaluations yet</p>}
+          {evalsByMetric.size === 0 && <p className="text-sm text-muted-foreground text-center py-6">No evaluations yet</p>}
         </CardContent>
       </Card>
 
       {/* Notes */}
-      <Card className="mb-4">
-        <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MessageSquare className="h-5 w-5" /> Notes</CardTitle></CardHeader>
+      <Card className="section-card mb-4">
+        <CardHeader className="pb-2"><CardTitle className="text-lg font-bold flex items-center gap-2"><MessageSquare className="h-5 w-5" /> Notes</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {notes.map((n) => {
             const c = getCoach(n.coach_id);
             return (
-              <div key={n.id} className="rounded-lg border p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium" style={{ color: c?.color }}>{c?.full_name}</span>
-                  <div className="flex items-center gap-1">
-                    {n.flag === "standout" && <Star className="h-3 w-3 text-secondary" />}
-                    {n.flag === "concern" && <AlertTriangle className="h-3 w-3 text-destructive" />}
-                    {n.flag === "needs_second_look" && <Eye className="h-3 w-3 text-primary" />}
-                    <span className="text-xs text-muted-foreground">{new Date(n.created_at).toLocaleDateString()}</span>
+              <div key={n.id} className="rounded-xl border p-3.5 transition-colors hover:bg-muted/30">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold" style={{ color: c?.color }}>{c?.full_name}</span>
+                  <div className="flex items-center gap-1.5">
+                    {n.flag === "standout" && <Star className="h-3.5 w-3.5 text-secondary fill-secondary" />}
+                    {n.flag === "concern" && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
+                    {n.flag === "needs_second_look" && <Eye className="h-3.5 w-3.5 text-primary" />}
+                    <span className="text-[10px] text-muted-foreground font-medium">{new Date(n.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
-                <p className="text-sm">{n.content}</p>
+                <p className="text-sm leading-relaxed">{n.content}</p>
               </div>
             );
           })}
 
           {/* Add note */}
-          <div className="space-y-2 pt-2 border-t">
-            <Textarea value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Add a note..." className="tap-target" />
+          <div className="space-y-3 pt-3 border-t">
+            <Textarea value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Add a note..." className="tap-target rounded-xl" />
             <div className="flex items-center justify-between">
               <div className="flex gap-1">
                 {["standout", "needs_second_look", "concern"].map((f) => (
                   <button
                     key={f}
                     onClick={() => setNewFlag(newFlag === f ? "" : f)}
-                    className={cn("rounded-md px-2 py-1 text-xs font-medium border transition-colors", newFlag === f ? "border-primary bg-primary/10" : "border-transparent")}
+                    className={cn(
+                      "rounded-xl px-2.5 py-1.5 text-xs font-semibold border-2 transition-all duration-200",
+                      newFlag === f ? "border-primary bg-primary/10 scale-105" : "border-transparent hover:bg-muted"
+                    )}
                   >
-                    {f === "standout" && <Star className="h-3 w-3 inline mr-1 text-secondary" />}
+                    {f === "standout" && <Star className="h-3 w-3 inline mr-1 text-secondary fill-secondary" />}
                     {f === "concern" && <AlertTriangle className="h-3 w-3 inline mr-1 text-destructive" />}
                     {f === "needs_second_look" && <Eye className="h-3 w-3 inline mr-1 text-primary" />}
                     {f.replace(/_/g, " ")}
                   </button>
                 ))}
               </div>
-              <Button size="sm" onClick={addNote} disabled={!newNote.trim()} className="tap-target">
+              <Button size="sm" onClick={addNote} disabled={!newNote.trim()} className="tap-target rounded-xl gradient-primary border-0">
                 <Send className="h-4 w-4" />
               </Button>
             </div>
@@ -223,11 +238,28 @@ export default function PlayerDetail() {
 
       {/* Contact info */}
       {(player.emergency_contact_name || player.medical_notes) && (
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Contact & Medical</CardTitle></CardHeader>
+        <Card className="section-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <HeartPulse className="h-5 w-5" /> Contact & Medical
+            </CardTitle>
+          </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            {player.emergency_contact_name && <p><span className="text-muted-foreground">Emergency:</span> {player.emergency_contact_name} {player.emergency_contact_phone}</p>}
-            {player.medical_notes && <p><span className="text-muted-foreground">Medical:</span> {player.medical_notes}</p>}
+            {player.emergency_contact_name && (
+              <div className="flex items-start gap-2 rounded-xl bg-muted/40 p-3">
+                <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="font-semibold">{player.emergency_contact_name}</p>
+                  {player.emergency_contact_phone && <p className="text-muted-foreground">{player.emergency_contact_phone}</p>}
+                </div>
+              </div>
+            )}
+            {player.medical_notes && (
+              <div className="rounded-xl bg-destructive/5 border border-destructive/10 p-3">
+                <p className="text-xs font-bold text-destructive mb-1">Medical Notes</p>
+                <p className="text-sm">{player.medical_notes}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

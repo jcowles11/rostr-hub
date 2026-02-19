@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
-import { Search, Star, AlertTriangle, Eye } from "lucide-react";
+import { Search, Star, AlertTriangle, Eye, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { aggregateValues } from "@/lib/metrics";
@@ -40,7 +40,6 @@ export default function Dashboard() {
 
       const metricsMap = new Map((mRes.data || []).map((m) => [m.id, m]));
 
-      // Group evals by player+metric
       const evalsByPlayerMetric = new Map<string, Map<string, number[]>>();
       (eRes.data || []).forEach((e) => {
         if (!evalsByPlayerMetric.has(e.player_id)) evalsByPlayerMetric.set(e.player_id, new Map());
@@ -90,7 +89,6 @@ export default function Dashboard() {
     };
     fetchData();
 
-    // Realtime subscription for live updates
     const channel = supabase
       .channel("dashboard-evals")
       .on("postgres_changes", { event: "*", schema: "public", table: "evaluations", filter: `program_id=eq.${coach.program_id}` }, () => fetchData())
@@ -110,59 +108,89 @@ export default function Dashboard() {
       return a.last_name.localeCompare(b.last_name);
     });
 
+  const totalEvals = players.reduce((acc, p) => acc + p.evalCount, 0);
+  const playersWithScores = players.filter((p) => p.evalCount > 0).length;
+
   const flagIcon = (flag: string) => {
-    if (flag === "standout") return <Star className="h-4 w-4 text-secondary" />;
-    if (flag === "concern") return <AlertTriangle className="h-4 w-4 text-destructive" />;
-    return <Eye className="h-4 w-4 text-primary" />;
+    if (flag === "standout") return <Star className="h-3.5 w-3.5 text-secondary fill-secondary" />;
+    if (flag === "concern") return <AlertTriangle className="h-3.5 w-3.5 text-destructive" />;
+    return <Eye className="h-3.5 w-3.5 text-primary" />;
   };
 
   return (
     <div className="mx-auto max-w-lg px-4 pt-4 animate-fade-in">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="page-header">Dashboard</h1>
-        <div className="flex gap-1">
-          <button onClick={() => setSortBy("name")} className={cn("rounded-md px-3 py-1 text-sm font-medium", sortBy === "name" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
+      {/* Gradient hero */}
+      <div className="page-hero mb-5">
+        <h1 className="text-2xl font-extrabold text-white tracking-tight">Dashboard</h1>
+        <div className="flex items-center gap-4 mt-3">
+          <div className="glass-card px-3 py-2 flex-1 text-center">
+            <p className="text-2xl font-extrabold text-white">{players.length}</p>
+            <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider">Players</p>
+          </div>
+          <div className="glass-card px-3 py-2 flex-1 text-center">
+            <p className="text-2xl font-extrabold text-white">{totalEvals}</p>
+            <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider">Scores</p>
+          </div>
+          <div className="glass-card px-3 py-2 flex-1 text-center">
+            <p className="text-2xl font-extrabold text-white">{playersWithScores}</p>
+            <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider">Evaluated</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Sort toggle + search */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search players..." className="pl-10 tap-target text-base h-12 rounded-xl" />
+        </div>
+        <div className="flex rounded-xl border bg-card overflow-hidden">
+          <button onClick={() => setSortBy("name")} className={cn("px-3 py-2 text-xs font-semibold transition-all", sortBy === "name" ? "gradient-primary text-white" : "text-muted-foreground hover:text-foreground")}>
             A-Z
           </button>
-          <button onClick={() => setSortBy("score")} className={cn("rounded-md px-3 py-1 text-sm font-medium", sortBy === "score" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
+          <button onClick={() => setSortBy("score")} className={cn("px-3 py-2 text-xs font-semibold transition-all", sortBy === "score" ? "gradient-primary text-white" : "text-muted-foreground hover:text-foreground")}>
             Score
           </button>
         </div>
       </div>
 
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search players..." className="pl-10 tap-target text-base" />
-      </div>
-
       {loading ? (
-        <p className="py-8 text-center text-muted-foreground">Loading...</p>
+        <div className="py-12 text-center">
+          <div className="mx-auto mb-3 h-12 w-12 rounded-2xl gradient-primary flex items-center justify-center text-2xl animate-pulse-soft">⚾</div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
       ) : (
         <div className="space-y-2 stagger-list">
           {filtered.map((p) => (
             <button key={p.id} onClick={() => navigate(`/player/${p.id}`)} className="player-card">
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold">
-                    {p.player_number && <span className="text-primary mr-1">#{p.player_number}</span>}
-                    {p.last_name}, {p.first_name}
-                  </p>
-                  {p.flags.map((f) => (
-                    <span key={f}>{flagIcon(f)}</span>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  {p.grade && <span>Grade {p.grade}</span>}
-                  {p.positions?.map((pos) => (
-                    <Badge key={pos} variant="secondary" className="text-xs">{pos}</Badge>
-                  ))}
-                  <span>{p.evalCount} evals</span>
+              <div className="flex items-center gap-3">
+                {p.player_number ? (
+                  <span className="number-badge">{p.player_number}</span>
+                ) : (
+                  <span className="number-badge bg-muted text-muted-foreground">—</span>
+                )}
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-bold text-[15px]">{p.last_name}, {p.first_name}</p>
+                    {p.flags.map((f) => (
+                      <span key={f}>{flagIcon(f)}</span>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {p.grade && <span className="text-xs text-muted-foreground">Grade {p.grade}</span>}
+                    {p.positions?.map((pos) => (
+                      <Badge key={pos} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-medium">{pos}</Badge>
+                    ))}
+                    {p.evalCount > 0 && (
+                      <span className="text-[10px] text-muted-foreground">{p.evalCount} evals</span>
+                    )}
+                  </div>
                 </div>
               </div>
               {p.avgScore !== null && (
                 <div className="text-right">
-                  <p className="text-2xl font-bold">{p.avgScore.toFixed(1)}</p>
-                  <p className="text-xs text-muted-foreground">avg</p>
+                  <p className="text-xl font-extrabold">{p.avgScore.toFixed(1)}</p>
+                  <p className="text-[10px] text-muted-foreground font-medium">avg</p>
                 </div>
               )}
             </button>
