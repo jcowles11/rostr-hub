@@ -170,27 +170,27 @@ export default function Dashboard() {
       {/* Gradient hero */}
       <div className="page-hero mb-5">
         <h1 className="text-2xl font-extrabold text-white tracking-tight">Dashboard</h1>
-        <div className="flex items-center gap-2 mt-3">
+        <div className="grid grid-cols-3 gap-2 mt-3">
           <button
             onClick={() => setFilterMode("all")}
-            className={cn("glass-card px-3 py-2 flex-1 text-center transition-all", filterMode === "all" ? "ring-2 ring-white/60" : "opacity-70 hover:opacity-100")}
+            className={cn("glass-card px-2 py-2 text-center transition-all", filterMode === "all" ? "ring-2 ring-white/60" : "opacity-70 hover:opacity-100")}
           >
             <p className="text-2xl font-extrabold text-white">{players.length}</p>
-            <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider">All Players</p>
+            <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider truncate">All Players</p>
           </button>
           <button
             onClick={() => setFilterMode("evaluated")}
-            className={cn("glass-card px-3 py-2 flex-1 text-center transition-all", filterMode === "evaluated" ? "ring-2 ring-white/60" : "opacity-70 hover:opacity-100")}
+            className={cn("glass-card px-2 py-2 text-center transition-all", filterMode === "evaluated" ? "ring-2 ring-white/60" : "opacity-70 hover:opacity-100")}
           >
             <p className="text-2xl font-extrabold text-white">{playersWithScores}</p>
-            <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider">Evaluated</p>
+            <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider truncate">Evaluated</p>
           </button>
           <button
             onClick={() => setFilterMode("not_evaluated")}
-            className={cn("glass-card px-3 py-2 flex-1 text-center transition-all", filterMode === "not_evaluated" ? "ring-2 ring-white/60" : "opacity-70 hover:opacity-100")}
+            className={cn("glass-card px-2 py-2 text-center transition-all", filterMode === "not_evaluated" ? "ring-2 ring-white/60" : "opacity-70 hover:opacity-100")}
           >
             <p className="text-2xl font-extrabold text-white">{playersWithoutScores}</p>
-            <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider">Not Evaluated</p>
+            <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider truncate">Not Evaluated</p>
           </button>
         </div>
       </div>
