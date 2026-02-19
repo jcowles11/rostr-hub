@@ -20,6 +20,7 @@ interface Player {
   grade: number | null;
   positions: string[] | null;
   jersey_number_preference: number | null;
+  player_number: number | null;
   travel_ball_experience: string | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
@@ -113,7 +114,10 @@ export default function PlayerDetail() {
       </button>
 
       <div className="mb-4">
-        <h1 className="text-2xl font-bold">{player.last_name}, {player.first_name}</h1>
+        <h1 className="text-2xl font-bold">
+          {player.player_number && <span className="text-primary">#{player.player_number} </span>}
+          {player.last_name}, {player.first_name}
+        </h1>
         <div className="flex flex-wrap items-center gap-2 mt-1">
           {player.grade && <Badge variant="secondary">Grade {player.grade}</Badge>}
           {player.positions?.map((p) => <Badge key={p} variant="outline">{p}</Badge>)}

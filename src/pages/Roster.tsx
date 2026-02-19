@@ -17,6 +17,7 @@ interface Player {
   grade: number | null;
   positions: string[] | null;
   jersey_number_preference: number | null;
+  player_number: number | null;
 }
 
 export default function Roster() {
@@ -32,7 +33,7 @@ export default function Roster() {
     if (!coach) return;
     const { data } = await supabase
       .from("players")
-      .select("id, first_name, last_name, grade, positions, jersey_number_preference")
+      .select("id, first_name, last_name, grade, positions, jersey_number_preference, player_number")
       .eq("program_id", coach.program_id)
       .order("last_name")
       .order("first_name");
@@ -154,17 +155,24 @@ export default function Roster() {
               onClick={() => navigate(`/player/${p.id}`)}
               className="flex w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/50"
             >
-              <div>
-                <p className="font-semibold">
-                  {p.last_name}, {p.first_name}
-                </p>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  {p.grade && <span>Grade {p.grade}</span>}
-                  {p.positions?.map((pos) => (
-                    <Badge key={pos} variant="secondary" className="text-xs">
-                      {pos}
-                    </Badge>
-                  ))}
+              <div className="flex items-center gap-3">
+                {p.player_number && (
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                    {p.player_number}
+                  </span>
+                )}
+                <div>
+                  <p className="font-semibold">
+                    {p.last_name}, {p.first_name}
+                  </p>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    {p.grade && <span>Grade {p.grade}</span>}
+                    {p.positions?.map((pos) => (
+                      <Badge key={pos} variant="secondary" className="text-xs">
+                        {pos}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
               </div>
               {p.jersey_number_preference && (

@@ -12,6 +12,7 @@ interface Player {
   id: string;
   first_name: string;
   last_name: string;
+  player_number: number | null;
 }
 
 interface Metric {
@@ -41,7 +42,7 @@ export default function ScoreEntry() {
   useEffect(() => {
     if (!coach) return;
     Promise.all([
-      supabase.from("players").select("id, first_name, last_name").eq("program_id", coach.program_id).order("last_name").order("first_name"),
+      supabase.from("players").select("id, first_name, last_name, player_number").eq("program_id", coach.program_id).order("last_name").order("first_name"),
       supabase.from("metrics").select("id, name, unit, category, metric_type, min_value, max_value").eq("program_id", coach.program_id).order("sort_order"),
     ]).then(([pRes, mRes]) => {
       setPlayers(pRes.data || []);
@@ -135,7 +136,10 @@ export default function ScoreEntry() {
           {stationPlayer && (
             <div className="rounded-xl border-2 border-primary bg-card p-6 text-center">
               <p className="text-sm text-muted-foreground">Player {stationIndex + 1} of {filtered.length}</p>
-              <p className="text-3xl font-bold mt-1">{stationPlayer.last_name}, {stationPlayer.first_name}</p>
+              <p className="text-3xl font-bold mt-1">
+                {stationPlayer.player_number && <span className="text-primary">#{stationPlayer.player_number} </span>}
+                {stationPlayer.last_name}, {stationPlayer.first_name}
+              </p>
 
               <div className="mt-6 flex items-center justify-center gap-3">
                 <Button variant="outline" size="icon" className="tap-target" onClick={() => setStationIndex(Math.max(0, stationIndex - 1))} disabled={stationIndex === 0}>
@@ -178,7 +182,10 @@ export default function ScoreEntry() {
               <button onClick={() => setSelectedPlayer(null)} className="text-sm text-muted-foreground hover:text-foreground underline">
                 ← Change player
               </button>
-              <p className="text-2xl font-bold mt-1">{selectedPlayer.last_name}, {selectedPlayer.first_name}</p>
+              <p className="text-2xl font-bold mt-1">
+                {selectedPlayer.player_number && <span className="text-primary">#{selectedPlayer.player_number} </span>}
+                {selectedPlayer.last_name}, {selectedPlayer.first_name}
+              </p>
               <div className="mt-4 flex items-center justify-center gap-3">
                 <Input
                   ref={inputRef}
@@ -204,7 +211,10 @@ export default function ScoreEntry() {
                   onClick={() => { setSelectedPlayer(p); setValue(""); setTimeout(() => inputRef.current?.focus(), 100); }}
                   className="flex w-full items-center rounded-lg border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/50 tap-target"
                 >
-                  <span className="font-semibold">{p.last_name}, {p.first_name}</span>
+                  <span className="font-semibold">
+                    {p.player_number && <span className="text-primary mr-1">#{p.player_number}</span>}
+                    {p.last_name}, {p.first_name}
+                  </span>
                 </button>
               ))}
             </div>

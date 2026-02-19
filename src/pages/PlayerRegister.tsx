@@ -72,7 +72,7 @@ export default function PlayerRegister() {
           <CardContent className="py-12">
             <CheckCircle className="mx-auto mb-4 h-16 w-16 text-accent" />
             <h2 className="text-2xl font-bold mb-2">You're Registered!</h2>
-            <p className="text-muted-foreground">Your information has been submitted to the coaching staff. Good luck at tryouts! ⚾</p>
+            <p className="text-muted-foreground">Your information has been submitted to the coaching staff. You'll be assigned a tryout number. Good luck at tryouts! ⚾</p>
           </CardContent>
         </Card>
       </div>
