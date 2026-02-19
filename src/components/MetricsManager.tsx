@@ -136,11 +136,11 @@ export default function MetricsManager() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Min Value</Label>
-                      <Input type="number" value={newMetric.min_value} onChange={(e) => setNewMetric({ ...newMetric, min_value: e.target.value })} placeholder="1" className="tap-target" />
+                      <Input type="number" value={newMetric.min_value} onChange={(e) => setNewMetric({ ...newMetric, min_value: e.target.value })} placeholder="20" className="tap-target" />
                     </div>
                     <div className="space-y-2">
                       <Label>Max Value</Label>
-                      <Input type="number" value={newMetric.max_value} onChange={(e) => setNewMetric({ ...newMetric, max_value: e.target.value })} placeholder="10" className="tap-target" />
+                      <Input type="number" value={newMetric.max_value} onChange={(e) => setNewMetric({ ...newMetric, max_value: e.target.value })} placeholder="80" className="tap-target" />
                     </div>
                   </div>
                 )}
