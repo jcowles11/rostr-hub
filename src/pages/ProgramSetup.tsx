@@ -8,37 +8,32 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { SPORTS, SportConfig } from "@/lib/sports";
 
 const COACH_COLORS = ["#3B82F6", "#EF4444", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899"];
-
-const DEFAULT_METRICS = [
-  { name: "60-Yard Dash", unit: "sec", category: "running" as const, metric_type: "timed" as const, sort_order: 1 },
-  { name: "Home to First", unit: "sec", category: "running" as const, metric_type: "timed" as const, sort_order: 2 },
-  { name: "Exit Velocity", unit: "mph", category: "hitting" as const, metric_type: "measured" as const, sort_order: 3 },
-  { name: "Arm Velocity (IF)", unit: "mph", category: "fielding" as const, metric_type: "measured" as const, sort_order: 4 },
-  { name: "Arm Velocity (OF)", unit: "mph", category: "fielding" as const, metric_type: "measured" as const, sort_order: 5 },
-  { name: "Arm Velocity (C)", unit: "mph", category: "fielding" as const, metric_type: "measured" as const, sort_order: 6 },
-  { name: "Fastball Velo", unit: "mph", category: "pitching" as const, metric_type: "measured" as const, sort_order: 7 },
-  { name: "Fielding", unit: "20-80", category: "fielding" as const, metric_type: "rated" as const, min_value: 20, max_value: 80, sort_order: 8 },
-  { name: "Hitting", unit: "20-80", category: "hitting" as const, metric_type: "rated" as const, min_value: 20, max_value: 80, sort_order: 9 },
-  { name: "Hustle/Attitude", unit: "20-80", category: "other" as const, metric_type: "rated" as const, min_value: 20, max_value: 80, sort_order: 10 },
-];
 
 export default function ProgramSetup() {
   const { user, refreshCoach } = useAuth();
   const navigate = useNavigate();
+  const [selectedSport, setSelectedSport] = useState<SportConfig | null>(null);
   const [programName, setProgramName] = useState("");
   const [schoolName, setSchoolName] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !selectedSport) return;
     setLoading(true);
 
     const { data: program, error: programError } = await supabase
       .from("programs")
-      .insert({ name: programName, school_name: schoolName, created_by: user.id })
+      .insert({
+        name: programName,
+        school_name: schoolName,
+        created_by: user.id,
+        sport: selectedSport.id,
+      })
       .select()
       .single();
 
@@ -63,12 +58,12 @@ export default function ProgramSetup() {
       return;
     }
 
-    const metricsToInsert = DEFAULT_METRICS.map((m) => ({
+    const metricsToInsert = selectedSport.defaultMetrics.map((m) => ({
       ...m,
       program_id: program.id,
       is_default: true,
     }));
-    await supabase.from("metrics").insert(metricsToInsert);
+    await supabase.from("metrics").insert(metricsToInsert as any);
 
     await refreshCoach();
     toast.success("Program created!");
@@ -82,40 +77,77 @@ export default function ProgramSetup() {
         <div className="text-center mb-8 animate-slide-up">
           <img src={rostrLogo} alt="Rostr" className="mx-auto mb-4 h-20 w-20 rounded-3xl shadow-glow object-cover" />
           <h1 className="text-3xl font-extrabold tracking-tight">Set Up Your Program</h1>
-          <p className="mt-1 text-muted-foreground">Create your baseball program to start managing tryouts</p>
+          <p className="mt-1 text-muted-foreground">
+            {selectedSport ? `Create your ${selectedSport.label.toLowerCase()} program` : "Choose your sport to get started"}
+          </p>
         </div>
 
-        <Card className="shadow-elevated border-0">
-          <CardContent className="pt-6">
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="programName" className="text-sm font-semibold">Program Name</Label>
-                <Input
-                  id="programName"
-                  value={programName}
-                  onChange={(e) => setProgramName(e.target.value)}
-                  placeholder="Eagles Baseball"
-                  required
-                  className="tap-target h-12 text-base rounded-xl"
-                />
+        {/* Sport selection */}
+        {!selectedSport && (
+          <Card className="shadow-elevated border-0 animate-fade-in">
+            <CardContent className="pt-6">
+              <Label className="text-sm font-semibold mb-3 block">Select Your Sport</Label>
+              <div className="grid grid-cols-2 gap-3">
+                {SPORTS.map((sport) => (
+                  <button
+                    key={sport.id}
+                    onClick={() => setSelectedSport(sport)}
+                    className="flex flex-col items-center gap-2 rounded-xl border bg-card p-5 transition-all hover:border-primary hover:shadow-md active:scale-95"
+                  >
+                    <span className="text-3xl">{sport.emoji}</span>
+                    <span className="text-sm font-semibold">{sport.label}</span>
+                  </button>
+                ))}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="schoolName" className="text-sm font-semibold">School Name</Label>
-                <Input
-                  id="schoolName"
-                  value={schoolName}
-                  onChange={(e) => setSchoolName(e.target.value)}
-                  placeholder="Lincoln High School"
-                  required
-                  className="tap-target h-12 text-base rounded-xl"
-                />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Program details form */}
+        {selectedSport && (
+          <Card className="shadow-elevated border-0 animate-fade-in">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setSelectedSport(null)}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  ← Change sport
+                </button>
+                <span className="ml-auto text-lg">{selectedSport.emoji}</span>
+                <span className="text-sm font-semibold">{selectedSport.label}</span>
               </div>
-              <Button type="submit" className="w-full tap-target h-12 text-base font-bold rounded-xl gradient-primary border-0 shadow-glow hover:shadow-lg transition-all duration-200" disabled={loading}>
-                {loading ? "Creating..." : "Create Program"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+              <form onSubmit={handleCreate} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="programName" className="text-sm font-semibold">Program Name</Label>
+                  <Input
+                    id="programName"
+                    value={programName}
+                    onChange={(e) => setProgramName(e.target.value)}
+                    placeholder={selectedSport.placeholderProgramName}
+                    required
+                    className="tap-target h-12 text-base rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="schoolName" className="text-sm font-semibold">School Name</Label>
+                  <Input
+                    id="schoolName"
+                    value={schoolName}
+                    onChange={(e) => setSchoolName(e.target.value)}
+                    placeholder="Lincoln High School"
+                    required
+                    className="tap-target h-12 text-base rounded-xl"
+                  />
+                </div>
+                <Button type="submit" className="w-full tap-target h-12 text-base font-bold rounded-xl gradient-primary border-0 shadow-glow hover:shadow-lg transition-all duration-200" disabled={loading}>
+                  {loading ? "Creating..." : "Create Program"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

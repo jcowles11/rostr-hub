@@ -11,6 +11,7 @@ interface CoachInfo {
   program_name?: string;
   program_levels?: string[];
   logo_url?: string | null;
+  sport?: string;
 }
 
 interface PlayerInfo {
@@ -69,12 +70,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchCoaches = async (userId: string) => {
     const { data } = await supabase
       .from("coaches")
-      .select("id, program_id, full_name, role, color, programs(name, levels, logo_url)")
+      .select("id, program_id, full_name, role, color, programs(name, levels, logo_url, sport)")
       .eq("user_id", userId);
 
     if (data && data.length > 0) {
       const coaches: CoachInfo[] = data.map((d) => {
-        const programData = d.programs as unknown as { name: string; levels: string[]; logo_url: string | null } | null;
+        const programData = d.programs as unknown as { name: string; levels: string[]; logo_url: string | null; sport: string } | null;
         return {
           id: d.id,
           program_id: d.program_id,
@@ -84,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           program_name: programData?.name,
           program_levels: programData?.levels,
           logo_url: programData?.logo_url,
+          sport: programData?.sport,
         };
       });
       setAllCoaches(coaches);
