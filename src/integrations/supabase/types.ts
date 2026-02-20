@@ -327,6 +327,7 @@ export type Database = {
           registration_code: string
           results_public: boolean
           school_name: string
+          sport: string
           updated_at: string
         }
         Insert: {
@@ -339,6 +340,7 @@ export type Database = {
           registration_code?: string
           results_public?: boolean
           school_name: string
+          sport?: string
           updated_at?: string
         }
         Update: {
@@ -351,6 +353,7 @@ export type Database = {
           registration_code?: string
           results_public?: boolean
           school_name?: string
+          sport?: string
           updated_at?: string
         }
         Relationships: []
