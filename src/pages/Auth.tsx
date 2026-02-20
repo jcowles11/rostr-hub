@@ -93,6 +93,9 @@ export default function Auth() {
           <p className="mt-1 text-muted-foreground">
             {mode === "login" ? "Welcome back" : mode === "signup-coach" ? "Create your coaching account" : "Create your player account"}
           </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Manage tryouts for baseball, football, basketball, soccer & more
+          </p>
         </div>
 
         {/* Role selector for signup */}

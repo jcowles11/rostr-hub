@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, GripVertical } from "lucide-react";
 import { toast } from "sonner";
+import { getSportCategories, formatCategory } from "@/lib/sports";
 
 interface Metric {
   id: string;
@@ -48,13 +49,13 @@ export default function MetricsManager() {
       program_id: coach.program_id,
       name: newMetric.name,
       unit: newMetric.unit,
-      category: newMetric.category as any,
-      metric_type: newMetric.metric_type as any,
+      category: newMetric.category,
+      metric_type: newMetric.metric_type,
       min_value: newMetric.min_value ? parseFloat(newMetric.min_value) : null,
       max_value: newMetric.max_value ? parseFloat(newMetric.max_value) : null,
       sort_order: metrics.length,
-      aggregation: newMetric.aggregation as any,
-    });
+      aggregation: newMetric.aggregation,
+    } as any);
     if (error) toast.error("Failed to add metric");
     else {
       toast.success("Metric added!");
@@ -71,9 +72,13 @@ export default function MetricsManager() {
   };
 
   const categoryColor = (cat: string) => {
-    const map: Record<string, string> = { running: "bg-primary", hitting: "bg-secondary", fielding: "bg-accent", pitching: "bg-destructive", other: "bg-muted text-muted-foreground" };
-    return map[cat] || map.other;
+    const colors = ["bg-primary", "bg-secondary", "bg-accent", "bg-destructive", "bg-muted text-muted-foreground"];
+    const categories = getSportCategories(coach?.sport || "baseball");
+    const idx = categories.indexOf(cat);
+    return idx >= 0 && idx < colors.length ? colors[idx] : colors[colors.length - 1];
   };
+
+  const sportCategories = getSportCategories(coach?.sport || "baseball");
 
   return (
     <div className="space-y-4">
@@ -98,14 +103,12 @@ export default function MetricsManager() {
                   </div>
                   <div className="space-y-2">
                     <Label>Category</Label>
-                    <Select value={newMetric.category} onValueChange={(v) => setNewMetric({ ...newMetric, category: v })}>
+                     <Select value={newMetric.category} onValueChange={(v) => setNewMetric({ ...newMetric, category: v })}>
                       <SelectTrigger className="tap-target"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="running">Running</SelectItem>
-                        <SelectItem value="hitting">Hitting</SelectItem>
-                        <SelectItem value="fielding">Fielding</SelectItem>
-                        <SelectItem value="pitching">Pitching</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
+                        {sportCategories.map((cat) => (
+                          <SelectItem key={cat} value={cat}>{formatCategory(cat)}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -161,7 +164,7 @@ export default function MetricsManager() {
                   {m.unit && <span className="text-xs text-muted-foreground">({m.unit})</span>}
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <Badge className={`text-xs ${categoryColor(m.category)}`}>{m.category}</Badge>
+                  <Badge className={`text-xs ${categoryColor(m.category)}`}>{formatCategory(m.category)}</Badge>
                   <span className="text-xs text-muted-foreground">
                     {m.metric_type === "timed" ? "↓ lower better" : m.metric_type === "measured" ? "↑ higher better" : "scale"}
                   </span>
