@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, UserPlus, Share2, Users, X, Upload, Database } from "lucide-react";
+import { Search, Plus, UserPlus, Share2, Users, X, Upload, Database, Globe } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,6 +24,8 @@ interface Player {
   jersey_number_preference: number | null;
   player_number: number | null;
   photo_url: string | null;
+  profile_slug: string | null;
+  profile_public: boolean;
 }
 
 export default function Roster() {
@@ -53,7 +55,7 @@ export default function Roster() {
     if (!coach) return;
     const { data } = await supabase
       .from("players")
-      .select("id, first_name, last_name, grade, positions, jersey_number_preference, player_number, photo_url")
+      .select("id, first_name, last_name, grade, positions, jersey_number_preference, player_number, photo_url, profile_slug, profile_public")
       .eq("program_id", coach.program_id)
       .order("last_name")
       .order("first_name");
@@ -325,9 +327,24 @@ export default function Roster() {
                   </div>
                 </div>
               </div>
-              {p.jersey_number_preference && (
-                <span className="text-sm font-semibold text-muted-foreground">#{p.jersey_number_preference}</span>
-              )}
+              <div className="flex items-center gap-2 shrink-0">
+                {p.profile_public && p.profile_slug && (
+                  <span
+                    role="button"
+                    title="Open public profile"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(`/p/${p.profile_slug}`, "_blank");
+                    }}
+                    className="rounded-full p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    <Globe className="h-4 w-4" />
+                  </span>
+                )}
+                {p.jersey_number_preference && (
+                  <span className="text-sm font-semibold text-muted-foreground">#{p.jersey_number_preference}</span>
+                )}
+              </div>
             </button>
           ))
         )}
