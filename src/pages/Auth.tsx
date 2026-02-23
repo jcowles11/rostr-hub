@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type AuthMode = "login" | "signup-coach" | "signup-player";
+type AuthMode = "login" | "signup-coach" | "signup-player" | "signup-evaluator";
 
 export default function Auth() {
   const [mode, setMode] = useState<AuthMode>("login");
@@ -17,6 +17,7 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [regCode, setRegCode] = useState("");
+  const [orgName, setOrgName] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -56,7 +57,6 @@ export default function Auth() {
         return;
       }
 
-      // Create account
       const { data: authData, error } = await supabase.auth.signUp({
         email,
         password,
@@ -69,12 +69,29 @@ export default function Auth() {
       if (error) {
         toast.error(error.message);
       } else if (authData.user) {
-        // Check if there's an existing unlinked player with this name in the program
-        // If not, we'll link after they confirm email and log in
-        // Store the reg code so we can link on first login
         localStorage.setItem(`rostr_player_reg_${authData.user.id}`, JSON.stringify({
           program_id: program.id,
           full_name: fullName,
+        }));
+        toast.success("Check your email to confirm your account!");
+      }
+    } else if (mode === "signup-evaluator") {
+      const { data: authData, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName, account_type: "evaluator" },
+          emailRedirectTo: window.location.origin,
+        },
+      });
+
+      if (error) {
+        toast.error(error.message);
+      } else if (authData.user) {
+        // Store evaluator setup info for after email confirmation
+        localStorage.setItem(`rostr_evaluator_setup_${authData.user.id}`, JSON.stringify({
+          full_name: fullName,
+          organization_name: orgName,
         }));
         toast.success("Check your email to confirm your account!");
       }
@@ -84,15 +101,22 @@ export default function Auth() {
 
   const isSignup = mode !== "login";
 
+  const getSubtitle = () => {
+    switch (mode) {
+      case "login": return "Welcome back";
+      case "signup-coach": return "Create your coaching account";
+      case "signup-player": return "Create your player account";
+      case "signup-evaluator": return "Create your evaluator account";
+    }
+  };
+
   return (
     <div className="auth-bg">
       <div className="w-full max-w-md animate-scale-in">
         <div className="text-center mb-8 animate-slide-up">
           <img src={rostrLogo} alt="Rostr" className="mx-auto mb-4 h-20 w-20 rounded-3xl shadow-glow object-cover" />
           <h1 className="text-3xl font-extrabold tracking-tight">Rostr</h1>
-          <p className="mt-1 text-muted-foreground">
-            {mode === "login" ? "Welcome back" : mode === "signup-coach" ? "Create your coaching account" : "Create your player account"}
-          </p>
+          <p className="mt-1 text-muted-foreground">{getSubtitle()}</p>
           <p className="mt-2 text-xs text-muted-foreground">
             Manage tryouts for baseball, football, basketball, soccer & more
           </p>
@@ -123,6 +147,17 @@ export default function Auth() {
             >
               ⚾ Player
             </button>
+            <button
+              onClick={() => setMode("signup-evaluator")}
+              className={cn(
+                "flex-1 rounded-xl py-3 text-sm font-bold transition-all",
+                mode === "signup-evaluator"
+                  ? "gradient-primary text-white shadow-glow"
+                  : "bg-card border text-muted-foreground hover:text-foreground"
+              )}
+            >
+              📋 Evaluator
+            </button>
           </div>
         )}
 
@@ -136,10 +171,24 @@ export default function Auth() {
                     id="fullName"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder={mode === "signup-coach" ? "Coach Smith" : "John Smith"}
+                    placeholder={mode === "signup-coach" ? "Coach Smith" : mode === "signup-evaluator" ? "Coach Mike" : "John Smith"}
                     required
                     className="tap-target h-12 text-base rounded-xl"
                   />
+                </div>
+              )}
+              {mode === "signup-evaluator" && (
+                <div className="space-y-2 animate-fade-in">
+                  <Label htmlFor="orgName" className="text-sm font-semibold">Organization / Business Name</Label>
+                  <Input
+                    id="orgName"
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                    placeholder="Elite Pitching Academy"
+                    required
+                    className="tap-target h-12 text-base rounded-xl"
+                  />
+                  <p className="text-xs text-muted-foreground">Your org name will appear on verified evaluations</p>
                 </div>
               )}
               {mode === "signup-player" && (
@@ -163,7 +212,7 @@ export default function Auth() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder={mode === "signup-coach" ? "coach@school.edu" : "player@email.com"}
+                  placeholder={mode === "signup-coach" ? "coach@school.edu" : mode === "signup-evaluator" ? "mike@academy.com" : "player@email.com"}
                   required
                   className="tap-target h-12 text-base rounded-xl"
                 />
