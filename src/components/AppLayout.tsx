@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Users, ClipboardList, BarChart3, Layers, Settings, ChevronDown, Plus, Trash2 } from "lucide-react";
+import { Users, ClipboardList, BarChart3, Layers, Settings, ChevronDown, Plus, Trash2, Building2 } from "lucide-react";
 import rostrLogo from "@/assets/rostr-logo.png";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
@@ -34,7 +35,7 @@ const navItems = [
 export default function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { coach, allCoaches, switchProgram, deleteProgram } = useAuth();
+  const { coach, allCoaches, organizations, currentOrg, switchProgram, switchOrg, deleteProgram } = useAuth();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -52,9 +53,18 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     setDeleteTarget(null);
   };
 
+  // Group coaches by organization
+  const coachesByOrg = new Map<string, typeof allCoaches>();
+  allCoaches.forEach((c) => {
+    const orgId = c.organization_id || "unknown";
+    const list = coachesByOrg.get(orgId) || [];
+    list.push(c);
+    coachesByOrg.set(orgId, list);
+  });
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Program switcher header */}
+      {/* Header with org + program switcher */}
       {allCoaches.length > 0 && (
         <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur-2xl">
           <div className="mx-auto flex max-w-lg items-center px-4 py-2.5">
@@ -65,47 +75,73 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   {coach?.logo_url && (
                     <img src={coach.logo_url} alt="" className="h-5 w-5 rounded-md object-cover shrink-0" />
                   )}
-                  <span className="truncate max-w-[200px]">{coach?.program_name || "Select Program"}</span>
+                  <div className="flex flex-col items-start">
+                    {organizations.length > 1 && currentOrg && (
+                      <span className="text-[10px] text-muted-foreground font-medium leading-none">{currentOrg.name}</span>
+                    )}
+                    <span className="truncate max-w-[200px]">{coach?.program_name || "Select Program"}</span>
+                  </div>
                   <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="center" className="w-56 bg-popover border shadow-lg z-50">
-                  {allCoaches.map((c) => (
-                    <DropdownMenuItem
-                      key={c.id}
-                      onClick={() => {
-                        switchProgram(c.id);
-                        navigate("/");
-                      }}
-                      className={cn(
-                        "cursor-pointer font-medium group",
-                        c.id === coach?.id && "bg-accent"
-                      )}
-                    >
-                      <span className="truncate flex-1 flex items-center gap-1.5">
-                        {c.logo_url && <img src={c.logo_url} alt="" className="h-4 w-4 rounded object-cover shrink-0" />}
-                        {c.program_name}
-                      </span>
-                      {c.id === coach?.id && (
-                        <span className="text-xs text-primary font-bold">✓</span>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteTarget({ id: c.program_id, name: c.program_name || "this program" });
-                        }}
-                        className="ml-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-0.5 rounded"
+                <DropdownMenuContent align="center" className="w-64 bg-popover border shadow-lg z-50">
+                  {/* If multiple orgs, group by org */}
+                  {organizations.length > 1 ? (
+                    organizations.map((org) => {
+                      const orgCoaches = coachesByOrg.get(org.id) || [];
+                      return (
+                        <div key={org.id}>
+                          <DropdownMenuLabel className="flex items-center gap-1.5 text-xs">
+                            <Building2 className="h-3 w-3" />
+                            {org.name}
+                          </DropdownMenuLabel>
+                          {orgCoaches.map((c) => (
+                            <DropdownMenuItem
+                              key={c.id}
+                              onClick={() => { switchProgram(c.id); navigate("/"); }}
+                              className={cn("cursor-pointer font-medium group pl-6", c.id === coach?.id && "bg-accent")}
+                            >
+                              <span className="truncate flex-1 flex items-center gap-1.5">
+                                {c.logo_url && <img src={c.logo_url} alt="" className="h-4 w-4 rounded object-cover shrink-0" />}
+                                {c.program_name}
+                              </span>
+                              {c.id === coach?.id && <span className="text-xs text-primary font-bold">✓</span>}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: c.program_id, name: c.program_name || "this program" }); }}
+                                className="ml-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-0.5 rounded"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </DropdownMenuItem>
+                          ))}
+                          <DropdownMenuSeparator />
+                        </div>
+                      );
+                    })
+                  ) : (
+                    /* Single org - flat list */
+                    allCoaches.map((c) => (
+                      <DropdownMenuItem
+                        key={c.id}
+                        onClick={() => { switchProgram(c.id); navigate("/"); }}
+                        className={cn("cursor-pointer font-medium group", c.id === coach?.id && "bg-accent")}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </DropdownMenuItem>
-                  ))}
+                        <span className="truncate flex-1 flex items-center gap-1.5">
+                          {c.logo_url && <img src={c.logo_url} alt="" className="h-4 w-4 rounded object-cover shrink-0" />}
+                          {c.program_name}
+                        </span>
+                        {c.id === coach?.id && <span className="text-xs text-primary font-bold">✓</span>}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: c.program_id, name: c.program_name || "this program" }); }}
+                          className="ml-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-0.5 rounded"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </DropdownMenuItem>
+                    ))
+                  )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => navigate("/setup")}
-                    className="cursor-pointer font-medium text-primary"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Program
+                  <DropdownMenuItem onClick={() => navigate("/setup")} className="cursor-pointer font-medium text-primary">
+                    <Plus className="mr-2 h-4 w-4" /> New Program
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -126,27 +162,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 onClick={() => navigate(path)}
                 className={cn(
                   "relative flex flex-col items-center gap-0.5 rounded-2xl px-4 py-2 tap-target transition-all duration-300 ease-out",
-                  active
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground"
+                  active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                {active && (
-                  <span className="absolute inset-0 rounded-2xl bg-primary/8 animate-scale-in" />
-                )}
-                <Icon
-                  className={cn(
-                    "relative z-10 h-5 w-5 transition-all duration-300",
-                    active && "scale-110"
-                  )}
-                  strokeWidth={active ? 2.5 : 1.8}
-                />
-                <span className={cn(
-                  "relative z-10 text-[10px] transition-all duration-300",
-                  active ? "font-bold" : "font-medium"
-                )}>
-                  {label}
-                </span>
+                {active && <span className="absolute inset-0 rounded-2xl bg-primary/8 animate-scale-in" />}
+                <Icon className={cn("relative z-10 h-5 w-5 transition-all duration-300", active && "scale-110")} strokeWidth={active ? 2.5 : 1.8} />
+                <span className={cn("relative z-10 text-[10px] transition-all duration-300", active ? "font-bold" : "font-medium")}>{label}</span>
               </button>
             );
           })}
