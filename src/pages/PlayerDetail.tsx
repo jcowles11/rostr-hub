@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Star, AlertTriangle, Eye, MessageSquare, Send, Phone, HeartPulse, Pencil, Trash2, Plus, Check, X } from "lucide-react";
+import { ArrowLeft, Star, AlertTriangle, Eye, MessageSquare, Send, Phone, HeartPulse, Pencil, Trash2, Plus, Check, X, ExternalLink } from "lucide-react";
 import PlayerPhotoUpload from "@/components/PlayerPhotoUpload";
 import { aggregateValues, AGGREGATION_LABELS } from "@/lib/metrics";
 import { toast } from "sonner";
@@ -32,6 +32,8 @@ interface Player {
   photo_url: string | null;
   bats: string | null;
   throws: string | null;
+  profile_slug: string | null;
+  profile_public: boolean;
 }
 
 interface Evaluation {
@@ -217,7 +219,22 @@ export default function PlayerDetail() {
             </div>
           </div>
         </div>
-        {player.travel_ball_experience && <p className="text-sm text-white/60 mt-3">Travel: {player.travel_ball_experience}</p>}
+        {/* Public profile link */}
+        <div className="mt-3 flex items-center gap-2">
+          {player.profile_public && player.profile_slug ? (
+            <a
+              href={`/p/${player.profile_slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-white/20 hover:bg-white/30 px-2.5 py-1 text-xs font-semibold text-white transition-colors"
+            >
+              <ExternalLink className="h-3 w-3" /> View Public Profile
+            </a>
+          ) : (
+            <span className="text-xs text-white/40 italic">Public profile not enabled</span>
+          )}
+        </div>
+        {player.travel_ball_experience && <p className="text-sm text-white/60 mt-2">Travel: {player.travel_ball_experience}</p>}
       </div>
 
       {/* Editable profile section */}
