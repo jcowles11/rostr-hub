@@ -2,6 +2,12 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
+interface OrgInfo {
+  id: string;
+  name: string;
+  logo_url: string | null;
+}
+
 interface CoachInfo {
   id: string;
   program_id: string;
@@ -12,6 +18,8 @@ interface CoachInfo {
   program_levels?: string[];
   logo_url?: string | null;
   sport?: string;
+  organization_id?: string;
+  organization_name?: string;
 }
 
 interface PlayerInfo {
@@ -32,12 +40,15 @@ interface AuthContextType {
   coach: CoachInfo | null;
   playerInfo: PlayerInfo | null;
   allCoaches: CoachInfo[];
+  organizations: OrgInfo[];
+  currentOrg: OrgInfo | null;
   userRole: UserRole;
   loading: boolean;
   signOut: () => Promise<void>;
   refreshCoach: () => Promise<void>;
   refreshPlayer: () => Promise<void>;
   switchProgram: (coachId: string) => void;
+  switchOrg: (orgId: string) => void;
   deleteProgram: (programId: string) => Promise<boolean>;
 }
 
@@ -47,12 +58,15 @@ const AuthContext = createContext<AuthContextType>({
   coach: null,
   playerInfo: null,
   allCoaches: [],
+  organizations: [],
+  currentOrg: null,
   userRole: null,
   loading: true,
   signOut: async () => {},
   refreshCoach: async () => {},
   refreshPlayer: async () => {},
   switchProgram: () => {},
+  switchOrg: () => {},
   deleteProgram: async () => false,
 });
 
@@ -63,19 +77,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [coach, setCoach] = useState<CoachInfo | null>(null);
   const [allCoaches, setAllCoaches] = useState<CoachInfo[]>([]);
+  const [organizations, setOrganizations] = useState<OrgInfo[]>([]);
+  const [currentOrg, setCurrentOrg] = useState<OrgInfo | null>(null);
   const [playerInfo, setPlayerInfo] = useState<PlayerInfo | null>(null);
   const [userRole, setUserRole] = useState<UserRole>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchCoaches = async (userId: string) => {
+    // Fetch coaches with program and org info
     const { data } = await supabase
       .from("coaches")
-      .select("id, program_id, full_name, role, color, programs(name, levels, logo_url, sport)")
+      .select("id, program_id, full_name, role, color, programs(name, levels, logo_url, sport, organization_id, organizations(id, name, logo_url))")
       .eq("user_id", userId);
 
     if (data && data.length > 0) {
       const coaches: CoachInfo[] = data.map((d) => {
-        const programData = d.programs as unknown as { name: string; levels: string[]; logo_url: string | null; sport: string } | null;
+        const programData = d.programs as unknown as {
+          name: string; levels: string[]; logo_url: string | null; sport: string;
+          organization_id: string; organizations: { id: string; name: string; logo_url: string | null } | null;
+        } | null;
         return {
           id: d.id,
           program_id: d.program_id,
@@ -86,16 +106,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           program_levels: programData?.levels,
           logo_url: programData?.logo_url,
           sport: programData?.sport,
+          organization_id: programData?.organization_id,
+          organization_name: programData?.organizations?.name,
         };
       });
       setAllCoaches(coaches);
 
+      // Build unique orgs list
+      const orgMap = new Map<string, OrgInfo>();
+      coaches.forEach((c) => {
+        if (c.organization_id) {
+          const programData = data.find((d) => d.id === c.id)?.programs as any;
+          const orgData = programData?.organizations;
+          if (orgData) {
+            orgMap.set(c.organization_id, { id: orgData.id, name: orgData.name, logo_url: orgData.logo_url });
+          }
+        }
+      });
+      const orgs = Array.from(orgMap.values());
+      setOrganizations(orgs);
+
+      // Restore active program
       const lastProgramId = localStorage.getItem(`rostr_active_program_${userId}`);
       const restored = coaches.find((c) => c.program_id === lastProgramId);
-      setCoach(restored || coaches[0]);
+      const activeCoach = restored || coaches[0];
+      setCoach(activeCoach);
+
+      // Set current org
+      const activeOrg = orgs.find((o) => o.id === activeCoach.organization_id) || orgs[0] || null;
+      setCurrentOrg(activeOrg);
+
       return true;
     } else {
       setAllCoaches([]);
+      setOrganizations([]);
+      setCurrentOrg(null);
       setCoach(null);
       return false;
     }
@@ -147,7 +192,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const firstName = parts[0] || "";
         const lastName = parts.slice(1).join(" ") || "";
 
-        // Try to find existing unlinked player
         const { data: existingPlayer } = await supabase
           .from("players")
           .select("id")
@@ -180,10 +224,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Check account_type from user metadata
     const accountType = (await supabase.auth.getUser()).data.user?.user_metadata?.account_type;
     if (accountType === "player") {
-      setUserRole("player"); // Will show link page since playerInfo is null
+      setUserRole("player");
       return;
     }
 
@@ -206,6 +249,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (target && user) {
       setCoach(target);
       localStorage.setItem(`rostr_active_program_${user.id}`, target.program_id);
+      // Also update current org
+      const org = organizations.find((o) => o.id === target.organization_id);
+      if (org) setCurrentOrg(org);
+    }
+  };
+
+  const switchOrg = (orgId: string) => {
+    const org = organizations.find((o) => o.id === orgId);
+    if (org) {
+      setCurrentOrg(org);
+      // Switch to first program in this org
+      const firstCoach = allCoaches.find((c) => c.organization_id === orgId);
+      if (firstCoach && user) {
+        setCoach(firstCoach);
+        localStorage.setItem(`rostr_active_program_${user.id}`, firstCoach.program_id);
+      }
     }
   };
 
@@ -214,7 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        if (initialLoad) return; // Skip – getSession handles initial load
+        if (initialLoad) return;
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
@@ -222,6 +281,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setCoach(null);
           setAllCoaches([]);
+          setOrganizations([]);
+          setCurrentOrg(null);
           setPlayerInfo(null);
           setUserRole(null);
         }
@@ -244,6 +305,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setCoach(null);
     setAllCoaches([]);
+    setOrganizations([]);
+    setCurrentOrg(null);
     setPlayerInfo(null);
     setUserRole(null);
   };
@@ -261,6 +324,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await supabase.from(table).delete().eq("program_id", programId);
       }
     }
+    // Also clean up organization_members for this program
+    await supabase.from("organization_members").delete().eq("program_id", programId);
+    // Delete teams
+    await supabase.from("teams").delete().eq("program_id", programId);
+
     const { error } = await supabase.from("programs").delete().eq("id", programId);
     if (error) return false;
     if (user) await fetchCoaches(user.id);
@@ -268,7 +336,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, coach, playerInfo, allCoaches, userRole, loading, signOut, refreshCoach, refreshPlayer, switchProgram, deleteProgram }}>
+    <AuthContext.Provider value={{ session, user, coach, playerInfo, allCoaches, organizations, currentOrg, userRole, loading, signOut, refreshCoach, refreshPlayer, switchProgram, switchOrg, deleteProgram }}>
       {children}
     </AuthContext.Provider>
   );

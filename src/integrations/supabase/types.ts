@@ -189,6 +189,94 @@ export type Database = {
           },
         ]
       }
+      organization_members: {
+        Row: {
+          color: string
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          organization_id: string | null
+          program_id: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          team_id: string | null
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          email: string
+          full_name: string
+          id?: string
+          organization_id?: string | null
+          program_id?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          team_id?: string | null
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          organization_id?: string | null
+          program_id?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          team_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_members_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          logo_url: string | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          logo_url?: string | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          logo_url?: string | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       player_notes: {
         Row: {
           coach_id: string
@@ -271,6 +359,7 @@ export type Database = {
           positions: string[] | null
           program_id: string
           results_visible: boolean | null
+          team_id: string | null
           throws: string | null
           travel_ball_experience: string | null
           updated_at: string
@@ -292,6 +381,7 @@ export type Database = {
           positions?: string[] | null
           program_id: string
           results_visible?: boolean | null
+          team_id?: string | null
           throws?: string | null
           travel_ball_experience?: string | null
           updated_at?: string
@@ -313,6 +403,7 @@ export type Database = {
           positions?: string[] | null
           program_id?: string
           results_visible?: boolean | null
+          team_id?: string | null
           throws?: string | null
           travel_ball_experience?: string | null
           updated_at?: string
@@ -326,6 +417,13 @@ export type Database = {
             referencedRelation: "programs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "players_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
         ]
       }
       programs: {
@@ -336,6 +434,7 @@ export type Database = {
           levels: string[]
           logo_url: string | null
           name: string
+          organization_id: string
           registration_code: string
           results_public: boolean
           school_name: string
@@ -349,6 +448,7 @@ export type Database = {
           levels?: string[]
           logo_url?: string | null
           name: string
+          organization_id: string
           registration_code?: string
           results_public?: boolean
           school_name: string
@@ -362,13 +462,22 @@ export type Database = {
           levels?: string[]
           logo_url?: string | null
           name?: string
+          organization_id?: string
           registration_code?: string
           results_public?: boolean
           school_name?: string
           sport?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "programs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       roster_assignments: {
         Row: {
@@ -464,6 +573,38 @@ export type Database = {
           },
         ]
       }
+      teams: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          program_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          program_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          program_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tryout_sessions: {
         Row: {
           created_at: string
@@ -504,7 +645,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      has_program_access: {
+        Args: { _program_id: string; _user_id: string }
+        Returns: boolean
+      }
+      has_team_access: {
+        Args: { _team_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_head_coach: {
+        Args: { _program_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_org_admin: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_org_member: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_program_admin: {
         Args: { _program_id: string; _user_id: string }
         Returns: boolean
       }
@@ -515,6 +676,7 @@ export type Database = {
     }
     Enums: {
       aggregation_method: "best" | "average" | "latest"
+      app_role: "admin" | "coach"
       coach_role: "head_coach" | "assistant_coach"
       metric_category: "running" | "hitting" | "fielding" | "pitching" | "other"
       metric_type: "timed" | "measured" | "rated"
@@ -648,6 +810,7 @@ export const Constants = {
   public: {
     Enums: {
       aggregation_method: ["best", "average", "latest"],
+      app_role: ["admin", "coach"],
       coach_role: ["head_coach", "assistant_coach"],
       metric_category: ["running", "hitting", "fielding", "pitching", "other"],
       metric_type: ["timed", "measured", "rated"],
