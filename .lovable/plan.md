@@ -1,184 +1,164 @@
 
 
-# Phase 1: Public Player Profiles
+# Verified Evaluators System
 
 ## Overview
-Add shareable public player profile pages that display verified metrics from coach evaluations. Players control what's visible via privacy settings, and all coach-entered data gets a "Verified" badge showing credibility.
+Add a new "Verified Evaluator" account type that allows private coaches, showcase directors, and independent trainers to submit verified metrics for players -- without being part of the player's school program. This ensures athletes can get updated, credible data from multiple trusted sources beyond just their HS coaching staff.
 
-## What Gets Built
+## How It Works
 
-### 1. Database Changes
+### The Evaluator Flow
+1. An evaluator signs up as a "Verified Evaluator" (new option on the auth page alongside Coach and Player)
+2. They create an evaluator profile with their name, organization/business name, and credentials
+3. They search for a player by name or profile slug, or receive an "evaluation link" from the player
+4. They submit metrics (e.g., fastball velo = 91 MPH) which get tagged with their identity and timestamp
+5. The metric appears on the player's public profile with a "Verified" badge showing *who* evaluated it (e.g., "Verified by Coach Mike, Elite Pitching Academy")
 
-**New columns on `players` table:**
-- `profile_slug` (text, unique) -- URL-friendly identifier like `john-smith-a1b2`
-- `profile_public` (boolean, default false) -- master toggle for public profile
-- `show_contact_info` (boolean, default false) -- opt-in for showing contact/social
-- `graduation_year` (integer, nullable) -- for recruiting context
-- `height` (text, nullable) -- e.g. "5'11"
-- `weight` (integer, nullable) -- in lbs
-- `gpa` (text, nullable) -- academic info
-- `social_twitter` (text, nullable) -- social handle
-- `social_instagram` (text, nullable)
-- `highlight_video_url` (text, nullable) -- YouTube/Hudl link
+### Player Experience
+- Players see all their evaluations grouped by source on their dashboard
+- On the public profile, each metric shows its best value with the evaluator source
+- Multiple evaluations from different sources build credibility (e.g., "91 MPH - Elite Pitching Academy, Jan 2026" and "89 MPH - Lincoln HS Tryout, Mar 2026")
 
-**Auto-generate slugs:** A database trigger will auto-generate `profile_slug` on insert using `first_name-last_name-random4chars`, ensuring uniqueness.
-
-**RLS:** A new SELECT policy allows anyone to read a player's row when `profile_public = true` (for the public profile page).
-
-### 2. Public Profile Page (`/p/:slug`)
-
-A new unauthenticated route that displays:
-- Player photo, name, grad year, height/weight, positions
-- Sport and program name (e.g. "Eagles Baseball")
-- Verified metrics with a checkmark badge (source: coach evaluations)
-  - Each metric shows the aggregated value, unit, and a "Verified" indicator
-  - Uses the existing `aggregateValues` and `computePercentiles` logic
-- Percentile composite score as a visual indicator
-- Optional: highlight video embed, social links, GPA (if player opted in)
-- Program logo for branding
-
-This page works without authentication -- it reads only from public-flagged profiles.
-
-### 3. Player Privacy Controls
-
-On the **Player Dashboard** (`/player-dashboard`), add a new "My Public Profile" settings section:
-- Toggle: "Make my profile public"
-- Toggle: "Show contact info"
-- Fields to add/edit: graduation year, height, weight, GPA, social handles, highlight video URL
-- A "Copy Profile Link" button that copies the public URL
-- Preview of what the public profile looks like
-
-### 4. Backend Functions for Public Access
-
-Create a database function `get_public_profile(slug text)` (security definer) that returns player data + their verified metrics only when `profile_public = true`. This avoids exposing RLS complexity to the public route and ensures only opted-in data is returned.
-
-### 5. Routing
-
-Add `/p/:slug` as an unauthenticated route in `App.tsx` pointing to a new `PublicProfile` page component.
+### Trust and Integrity
+- Evaluators cannot modify or delete evaluations from other evaluators
+- Players cannot create or modify any evaluation data
+- Each evaluation is permanently tied to the evaluator who submitted it
+- Future enhancement: evaluator verification/approval process
 
 ---
 
 ## Technical Details
 
-### Database Migration SQL
+### Database Changes
+
+**New table: `evaluators`**
+Stores verified evaluator profiles, separate from coaches.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid (PK) | Auto-generated |
+| user_id | uuid | Links to auth.users |
+| full_name | text | Evaluator's name |
+| organization_name | text | e.g., "Elite Pitching Academy" |
+| title | text (nullable) | e.g., "Pitching Coach", "Scout" |
+| sport | text | Primary sport |
+| verified | boolean (default false) | For future admin approval flow |
+| created_at | timestamptz | Auto |
+
+**New table: `evaluator_entries`**
+Stores metrics submitted by evaluators (separate from the `evaluations` table used by program coaches).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid (PK) | Auto-generated |
+| evaluator_id | uuid (FK) | References evaluators |
+| player_id | uuid (FK) | References players |
+| metric_name | text | e.g., "Fastball Velocity" |
+| metric_value | numeric | The measured value |
+| metric_unit | text | e.g., "MPH", "seconds" |
+| metric_type | text | "timed", "measured", "rated" |
+| event_name | text (nullable) | e.g., "Summer Showcase 2026" |
+| event_date | date (nullable) | When measured |
+| notes | text (nullable) | Additional context |
+| created_at | timestamptz | Auto |
+
+**Why a separate table instead of adding evaluator support to `evaluations`?**
+- The existing `evaluations` table is tightly coupled to program metrics (metric_id FK, program_id FK, coach_id FK, session_id FK)
+- Evaluator entries are freestyle -- they define the metric name/unit inline because evaluators aren't part of any program's configured metric system
+- Keeps program coach data isolated and clean
+- Simpler RLS policies without cross-role complexity
+
+**RLS Policies:**
+- `evaluators`: Evaluators can read/update their own row; public can read for display
+- `evaluator_entries`: Evaluators can INSERT/UPDATE/DELETE their own entries; anyone can SELECT (for public profiles)
+
+### Auth Changes
+- Add "Verified Evaluator" as a third signup option on the Auth page (alongside Coach and Player)
+- Store `account_type: "evaluator"` in user metadata
+- New routing: evaluators get redirected to an Evaluator Dashboard
+
+### New Pages and Components
+- **`src/pages/EvaluatorDashboard.tsx`** -- Main evaluator interface: search players, submit evaluations, view history
+- **`src/components/EvaluatorSubmitForm.tsx`** -- Form to submit a metric entry for a player (metric name, value, unit, event context)
+- Updated **`src/pages/Auth.tsx`** -- Add evaluator signup option
+- Updated **`src/pages/PublicProfile.tsx`** -- Show evaluator-submitted metrics alongside program coach metrics, with source attribution
+- Updated **`src/contexts/AuthContext.tsx`** -- Handle evaluator role detection and state
+- Updated **`src/App.tsx`** -- Add evaluator routes and guards
+
+### Updated `get_public_profile` Function
+The security definer function will be updated to also pull from `evaluator_entries`, returning them with the evaluator's name and organization so the public profile shows:
+- Program coach metrics (labeled "Verified by [Program Name]")
+- Evaluator metrics (labeled "Verified by [Evaluator Name], [Organization]")
+
+### Migration SQL Summary
 
 ```text
--- Add profile columns to players
-ALTER TABLE public.players
-  ADD COLUMN IF NOT EXISTS profile_slug text UNIQUE,
-  ADD COLUMN IF NOT EXISTS profile_public boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS show_contact_info boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS graduation_year integer,
-  ADD COLUMN IF NOT EXISTS height text,
-  ADD COLUMN IF NOT EXISTS weight integer,
-  ADD COLUMN IF NOT EXISTS gpa text,
-  ADD COLUMN IF NOT EXISTS social_twitter text,
-  ADD COLUMN IF NOT EXISTS social_instagram text,
-  ADD COLUMN IF NOT EXISTS highlight_video_url text;
+-- New evaluators table
+CREATE TABLE public.evaluators (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  full_name text NOT NULL,
+  organization_name text NOT NULL DEFAULT '',
+  title text,
+  sport text NOT NULL DEFAULT 'baseball',
+  verified boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.evaluators ENABLE ROW LEVEL SECURITY;
 
--- Auto-generate slugs for existing players
-UPDATE public.players
-SET profile_slug = LOWER(
-  REGEXP_REPLACE(first_name, '[^a-zA-Z0-9]', '', 'g') || '-' ||
-  REGEXP_REPLACE(last_name, '[^a-zA-Z0-9]', '', 'g') || '-' ||
-  SUBSTR(id::text, 1, 4)
-)
-WHERE profile_slug IS NULL;
+-- New evaluator_entries table
+CREATE TABLE public.evaluator_entries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  evaluator_id uuid NOT NULL REFERENCES public.evaluators(id) ON DELETE CASCADE,
+  player_id uuid NOT NULL REFERENCES public.players(id) ON DELETE CASCADE,
+  metric_name text NOT NULL,
+  metric_value numeric NOT NULL,
+  metric_unit text NOT NULL DEFAULT '',
+  metric_type text NOT NULL DEFAULT 'measured',
+  event_name text,
+  event_date date,
+  notes text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.evaluator_entries ENABLE ROW LEVEL SECURITY;
 
--- Trigger to auto-generate slug on new inserts
-CREATE OR REPLACE FUNCTION public.generate_player_slug()
-RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
-BEGIN
-  IF NEW.profile_slug IS NULL THEN
-    NEW.profile_slug := LOWER(
-      REGEXP_REPLACE(NEW.first_name, '[^a-zA-Z0-9]', '', 'g') || '-' ||
-      REGEXP_REPLACE(NEW.last_name, '[^a-zA-Z0-9]', '', 'g') || '-' ||
-      SUBSTR(NEW.id::text, 1, 4)
-    );
-  END IF;
-  RETURN NEW;
-END;
-$$;
+-- RLS for evaluators
+CREATE POLICY "Evaluators can view own profile" ON public.evaluators
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Evaluators can update own profile" ON public.evaluators
+  FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Evaluators can insert own profile" ON public.evaluators
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Public can view evaluators" ON public.evaluators
+  FOR SELECT USING (true);
 
-CREATE TRIGGER trg_generate_player_slug
-  BEFORE INSERT ON public.players
-  FOR EACH ROW EXECUTE FUNCTION public.generate_player_slug();
-
--- Public profile read access (security definer function)
-CREATE OR REPLACE FUNCTION public.get_public_profile(_slug text)
-RETURNS json LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
-DECLARE
-  result json;
-BEGIN
-  SELECT json_build_object(
-    'player', json_build_object(
-      'first_name', p.first_name, 'last_name', p.last_name,
-      'positions', p.positions, 'photo_url', p.photo_url,
-      'graduation_year', p.graduation_year, 'height', p.height,
-      'weight', p.weight, 'gpa', CASE WHEN p.show_contact_info THEN p.gpa ELSE NULL END,
-      'social_twitter', CASE WHEN p.show_contact_info THEN p.social_twitter ELSE NULL END,
-      'social_instagram', CASE WHEN p.show_contact_info THEN p.social_instagram ELSE NULL END,
-      'highlight_video_url', p.highlight_video_url,
-      'profile_slug', p.profile_slug
-    ),
-    'program', json_build_object(
-      'name', pr.name, 'school_name', pr.school_name,
-      'sport', pr.sport, 'logo_url', pr.logo_url
-    ),
-    'metrics', (
-      SELECT COALESCE(json_agg(json_build_object(
-        'name', m.name, 'unit', m.unit, 'metric_type', m.metric_type,
-        'value', sub.agg_value, 'verified', true
-      )), '[]'::json)
-      FROM metrics m
-      INNER JOIN (
-        SELECT metric_id, 
-          CASE WHEN m2.metric_type = 'timed' THEN MIN(e.value) ELSE MAX(e.value) END as agg_value
-        FROM evaluations e
-        JOIN metrics m2 ON m2.id = e.metric_id
-        WHERE e.player_id = p.id AND m2.visible_to_players = true
-        GROUP BY e.metric_id, m2.metric_type
-      ) sub ON sub.metric_id = m.id
-      WHERE m.program_id = p.program_id AND m.visible_to_players = true
-    )
-  ) INTO result
-  FROM players p
-  JOIN programs pr ON pr.id = p.program_id
-  WHERE p.profile_slug = _slug AND p.profile_public = true;
-
-  RETURN result;
-END;
-$$;
-
--- RLS: allow public select on players with profile_public = true
-CREATE POLICY "Public can view public profiles"
-  ON public.players FOR SELECT
-  USING (profile_public = true);
+-- RLS for evaluator_entries
+CREATE POLICY "Evaluators can insert entries" ON public.evaluator_entries
+  FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM public.evaluators e WHERE e.id = evaluator_id AND e.user_id = auth.uid())
+  );
+CREATE POLICY "Evaluators can update own entries" ON public.evaluator_entries
+  FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM public.evaluators e WHERE e.id = evaluator_id AND e.user_id = auth.uid())
+  );
+CREATE POLICY "Evaluators can delete own entries" ON public.evaluator_entries
+  FOR DELETE USING (
+    EXISTS (SELECT 1 FROM public.evaluators e WHERE e.id = evaluator_id AND e.user_id = auth.uid())
+  );
+CREATE POLICY "Public can view entries" ON public.evaluator_entries
+  FOR SELECT USING (true);
 ```
 
-### New Files
-- `src/pages/PublicProfile.tsx` -- Public-facing profile page (unauthenticated)
-- `src/components/PlayerProfileSettings.tsx` -- Privacy controls + profile editing for player dashboard
+### File Changes Summary
 
-### Modified Files
-- `src/App.tsx` -- Add `/p/:slug` route
-- `src/pages/PlayerDashboard.tsx` -- Add profile settings section with link to controls
-- `src/integrations/supabase/types.ts` -- Auto-updated after migration
-
-### File Structure
-
-```text
-src/
-  pages/
-    PublicProfile.tsx        (NEW - public profile view)
-  components/
-    PlayerProfileSettings.tsx (NEW - privacy/profile editing)
-```
-
-### Key Design Decisions
-- Slug-based URLs (`/p/john-smith-a1b2`) are user-friendly and shareable
-- Security definer function ensures only public profiles leak data -- no RLS bypass risk
-- Metrics shown on public profiles are always "verified" since they come from coach evaluations
-- Players control visibility granularly (master toggle + contact info toggle)
-- Highlight video is a URL field (YouTube/Hudl link) -- no file storage needed initially
+| File | Change |
+|------|--------|
+| `src/pages/Auth.tsx` | Add "Evaluator" signup tab |
+| `src/contexts/AuthContext.tsx` | Add evaluator role detection + state |
+| `src/App.tsx` | Add evaluator routes + guards |
+| `src/pages/EvaluatorDashboard.tsx` | NEW -- evaluator main page |
+| `src/components/EvaluatorSubmitForm.tsx` | NEW -- metric submission form |
+| `src/pages/PublicProfile.tsx` | Show evaluator entries with source |
+| `src/pages/PlayerDashboard.tsx` | Show evaluator entries in player view |
+| DB migration | New tables + RLS + updated `get_public_profile` |
 
