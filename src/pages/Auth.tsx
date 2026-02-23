@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type AuthMode = "login" | "signup-coach" | "signup-player" | "signup-evaluator";
+type AuthMode = "login" | "signup-coach" | "signup-player" | "signup-evaluator" | "signup-scout";
 
 export default function Auth() {
   const [mode, setMode] = useState<AuthMode>("login");
@@ -88,8 +88,26 @@ export default function Auth() {
       if (error) {
         toast.error(error.message);
       } else if (authData.user) {
-        // Store evaluator setup info for after email confirmation
         localStorage.setItem(`rostr_evaluator_setup_${authData.user.id}`, JSON.stringify({
+          full_name: fullName,
+          organization_name: orgName,
+        }));
+        toast.success("Check your email to confirm your account!");
+      }
+    } else if (mode === "signup-scout") {
+      const { data: authData, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName, account_type: "scout" },
+          emailRedirectTo: window.location.origin,
+        },
+      });
+
+      if (error) {
+        toast.error(error.message);
+      } else if (authData.user) {
+        localStorage.setItem(`rostr_scout_setup_${authData.user.id}`, JSON.stringify({
           full_name: fullName,
           organization_name: orgName,
         }));
@@ -107,6 +125,7 @@ export default function Auth() {
       case "signup-coach": return "Create your coaching account";
       case "signup-player": return "Create your player account";
       case "signup-evaluator": return "Create your evaluator account";
+      case "signup-scout": return "Create your scout account";
     }
   };
 
@@ -158,6 +177,17 @@ export default function Auth() {
             >
               📋 Evaluator
             </button>
+            <button
+              onClick={() => setMode("signup-scout")}
+              className={cn(
+                "flex-1 rounded-xl py-3 text-sm font-bold transition-all",
+                mode === "signup-scout"
+                  ? "gradient-primary text-white shadow-glow"
+                  : "bg-card border text-muted-foreground hover:text-foreground"
+              )}
+            >
+              🔍 Scout
+            </button>
           </div>
         )}
 
@@ -171,24 +201,26 @@ export default function Auth() {
                     id="fullName"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder={mode === "signup-coach" ? "Coach Smith" : mode === "signup-evaluator" ? "Coach Mike" : "John Smith"}
+                    placeholder={mode === "signup-coach" ? "Coach Smith" : mode === "signup-evaluator" ? "Coach Mike" : mode === "signup-scout" ? "Coach Johnson" : "John Smith"}
                     required
                     className="tap-target h-12 text-base rounded-xl"
                   />
                 </div>
               )}
-              {mode === "signup-evaluator" && (
+              {(mode === "signup-evaluator" || mode === "signup-scout") && (
                 <div className="space-y-2 animate-fade-in">
                   <Label htmlFor="orgName" className="text-sm font-semibold">Organization / Business Name</Label>
                   <Input
                     id="orgName"
                     value={orgName}
                     onChange={(e) => setOrgName(e.target.value)}
-                    placeholder="Elite Pitching Academy"
+                    placeholder={mode === "signup-scout" ? "University of Texas Baseball" : "Elite Pitching Academy"}
                     required
                     className="tap-target h-12 text-base rounded-xl"
                   />
-                  <p className="text-xs text-muted-foreground">Your org name will appear on verified evaluations</p>
+                  <p className="text-xs text-muted-foreground">
+                    {mode === "signup-scout" ? "Your organization name will be visible on your profile" : "Your org name will appear on verified evaluations"}
+                  </p>
                 </div>
               )}
               {mode === "signup-player" && (
@@ -212,7 +244,7 @@ export default function Auth() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder={mode === "signup-coach" ? "coach@school.edu" : mode === "signup-evaluator" ? "mike@academy.com" : "player@email.com"}
+                  placeholder={mode === "signup-coach" ? "coach@school.edu" : mode === "signup-evaluator" ? "mike@academy.com" : mode === "signup-scout" ? "scout@university.edu" : "player@email.com"}
                   required
                   className="tap-target h-12 text-base rounded-xl"
                 />

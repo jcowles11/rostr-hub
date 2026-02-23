@@ -654,6 +654,33 @@ export type Database = {
           },
         ]
       }
+      scouts: {
+        Row: {
+          created_at: string
+          full_name: string
+          id: string
+          organization_name: string
+          title: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          full_name: string
+          id?: string
+          organization_name?: string
+          title?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string
+          id?: string
+          organization_name?: string
+          title?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       session_attendance: {
         Row: {
           checked_in: boolean
@@ -793,6 +820,20 @@ export type Database = {
       is_program_coach: {
         Args: { _program_id: string; _user_id: string }
         Returns: boolean
+      }
+      search_public_players: {
+        Args: {
+          _bats?: string
+          _grad_year_max?: number
+          _grad_year_min?: number
+          _limit?: number
+          _name_search?: string
+          _offset?: number
+          _positions?: string[]
+          _sport?: string
+          _throws?: string
+        }
+        Returns: Json
       }
     }
     Enums: {

@@ -20,6 +20,7 @@ import PlayerDashboard from "@/pages/PlayerDashboard";
 import PlayerLinkPage from "@/pages/PlayerLinkPage";
 import PublicProfile from "@/pages/PublicProfile";
 import EvaluatorDashboard from "@/pages/EvaluatorDashboard";
+import ScoutDashboard from "@/pages/ScoutDashboard";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,6 +50,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/evaluator" replace />;
   }
 
+  if (userRole === "scout") {
+    return <Navigate to="/scout" replace />;
+  }
+
   if (!coach) return <Navigate to="/setup" replace />;
 
   return <AppLayout>{children}</AppLayout>;
@@ -64,6 +69,7 @@ function PlayerRoute({ children }: { children: React.ReactNode }) {
   if (userRole === null && !loading) return <Navigate to="/player-link" replace />;
   if (userRole === "coach") return <Navigate to="/" replace />;
   if (userRole === "evaluator") return <Navigate to="/evaluator" replace />;
+  if (userRole === "scout") return <Navigate to="/scout" replace />;
 
   return <Navigate to="/player-link" replace />;
 }
@@ -76,6 +82,20 @@ function EvaluatorRoute({ children }: { children: React.ReactNode }) {
   if (userRole === "evaluator") return <>{children}</>;
   if (userRole === "coach") return <Navigate to="/" replace />;
   if (userRole === "player") return <Navigate to="/player-dashboard" replace />;
+  if (userRole === "scout") return <Navigate to="/scout" replace />;
+
+  return <Navigate to="/auth" replace />;
+}
+
+function ScoutRoute({ children }: { children: React.ReactNode }) {
+  const { user, userRole, loading } = useAuth();
+
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/auth" replace />;
+  if (userRole === "scout") return <>{children}</>;
+  if (userRole === "coach") return <Navigate to="/" replace />;
+  if (userRole === "player") return <Navigate to="/player-dashboard" replace />;
+  if (userRole === "evaluator") return <Navigate to="/evaluator" replace />;
 
   return <Navigate to="/auth" replace />;
 }
@@ -85,8 +105,9 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
   if (loading) return null;
   if (user && userRole === "player") return <Navigate to="/player-dashboard" replace />;
   if (user && userRole === "evaluator") return <Navigate to="/evaluator" replace />;
+  if (user && userRole === "scout") return <Navigate to="/scout" replace />;
   if (user && coach) return <Navigate to="/" replace />;
-  if (user && !coach && userRole !== "player" && userRole !== "evaluator") return <Navigate to="/setup" replace />;
+  if (user && !coach && userRole !== "player" && userRole !== "evaluator" && userRole !== "scout") return <Navigate to="/setup" replace />;
   return <>{children}</>;
 }
 
@@ -111,6 +132,7 @@ const App = () => (
             <Route path="/player-dashboard" element={<PlayerRoute><PlayerDashboard /></PlayerRoute>} />
             <Route path="/player-link" element={<PlayerLinkPage />} />
             <Route path="/evaluator" element={<EvaluatorRoute><EvaluatorDashboard /></EvaluatorRoute>} />
+            <Route path="/scout" element={<ScoutRoute><ScoutDashboard /></ScoutRoute>} />
             <Route path="/p/:slug" element={<PublicProfile />} />
             <Route path="/" element={<ProtectedRoute><Roster /></ProtectedRoute>} />
             <Route path="/score" element={<ProtectedRoute><ScoreEntry /></ProtectedRoute>} />
