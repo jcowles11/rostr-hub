@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, UserPlus, Share2, Users, X, Upload } from "lucide-react";
+import { Search, Plus, UserPlus, Share2, Users, X, Upload, Database } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { getSportPositions, sportHasBatsThrows } from "@/lib/sports";
 import RosterUpload from "@/components/RosterUpload";
+import DataImport from "@/components/DataImport";
 
 interface Player {
   id: string;
@@ -36,6 +37,7 @@ export default function Roster() {
   const [newPlayer, setNewPlayer] = useState({ first_name: "", last_name: "", grade: "", bats: "", throws: "" });
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [dataImportOpen, setDataImportOpen] = useState(false);
 
   const sport = coach?.sport || "baseball";
   const positions = getSportPositions(sport);
@@ -163,6 +165,9 @@ export default function Roster() {
             </Button>
             <Button variant="ghost" size="icon" className="tap-target text-white/80 hover:text-white hover:bg-white/10" onClick={() => setUploadOpen(true)} title="Import roster from spreadsheet">
               <Upload className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="tap-target text-white/80 hover:text-white hover:bg-white/10" onClick={() => setDataImportOpen(true)} title="Import tryout data from spreadsheet">
+              <Database className="h-5 w-5" />
             </Button>
             <Button variant="ghost" size="icon" className="tap-target text-white/80 hover:text-white hover:bg-white/10" onClick={copyRegLink} title="Share registration link">
               <Share2 className="h-5 w-5" />
@@ -329,6 +334,7 @@ export default function Roster() {
       </div>
 
       <RosterUpload open={uploadOpen} onOpenChange={setUploadOpen} onSuccess={fetchPlayers} />
+      <DataImport open={dataImportOpen} onOpenChange={setDataImportOpen} onSuccess={fetchPlayers} />
     </div>
   );
 }
