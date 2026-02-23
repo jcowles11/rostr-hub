@@ -5,11 +5,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, UserPlus, Share2, Users } from "lucide-react";
+import { Search, Plus, UserPlus, Share2, Users, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { getSportPositions, sportHasBatsThrows } from "@/lib/sports";
 
 interface Player {
   id: string;
@@ -30,7 +32,18 @@ export default function Roster() {
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [sortBy, setSortBy] = useState<"alpha" | "number">("alpha");
-  const [newPlayer, setNewPlayer] = useState({ first_name: "", last_name: "", grade: "", positions: "" });
+  const [newPlayer, setNewPlayer] = useState({ first_name: "", last_name: "", grade: "", bats: "", throws: "" });
+  const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
+
+  const sport = coach?.sport || "baseball";
+  const positions = getSportPositions(sport);
+  const showBatsThrows = sportHasBatsThrows(sport);
+
+  const togglePosition = (pos: string) => {
+    setSelectedPositions((prev) =>
+      prev.includes(pos) ? prev.filter((p) => p !== pos) : [...prev, pos]
+    );
+  };
 
   const fetchPlayers = async () => {
     if (!coach) return;
@@ -78,14 +91,17 @@ export default function Roster() {
         first_name: newPlayer.first_name.trim(),
         last_name: newPlayer.last_name.trim(),
         grade: newPlayer.grade ? parseInt(newPlayer.grade) : null,
-        positions: newPlayer.positions ? newPlayer.positions.split(",").map((s) => s.trim()).filter(Boolean) : [],
+        positions: selectedPositions.length > 0 ? selectedPositions : [],
+        bats: newPlayer.bats || null,
+        throws: newPlayer.throws || null,
       });
       if (error) {
         console.error("Add player error:", error);
         toast.error(`Failed to add player: ${error.message}`);
       } else {
         toast.success("Player added!");
-        setNewPlayer({ first_name: "", last_name: "", grade: "", positions: "" });
+        setNewPlayer({ first_name: "", last_name: "", grade: "", bats: "", throws: "" });
+        setSelectedPositions([]);
         setAddOpen(false);
         fetchPlayers();
       }
@@ -165,16 +181,64 @@ export default function Roster() {
                     <Label className="text-sm font-semibold">Last Name</Label>
                     <Input value={newPlayer.last_name} onChange={(e) => setNewPlayer({ ...newPlayer, last_name: e.target.value })} required className="tap-target h-12 rounded-xl" />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Grade</Label>
-                      <Input type="number" value={newPlayer.grade} onChange={(e) => setNewPlayer({ ...newPlayer, grade: e.target.value })} placeholder="9-12" className="tap-target h-12 rounded-xl" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Positions</Label>
-                      <Input value={newPlayer.positions} onChange={(e) => setNewPlayer({ ...newPlayer, positions: e.target.value })} placeholder="SS, OF" className="tap-target h-12 rounded-xl" />
-                    </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Grade</Label>
+                    <Input type="number" value={newPlayer.grade} onChange={(e) => setNewPlayer({ ...newPlayer, grade: e.target.value })} placeholder="9-12" className="tap-target h-12 rounded-xl" />
                   </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Position(s)</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {positions.map((pos) => (
+                        <button
+                          key={pos}
+                          type="button"
+                          onClick={() => togglePosition(pos)}
+                          className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors border ${
+                            selectedPositions.includes(pos)
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                          }`}
+                        >
+                          {pos}
+                        </button>
+                      ))}
+                    </div>
+                    {selectedPositions.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {selectedPositions.map((pos) => (
+                          <Badge key={pos} variant="secondary" className="text-xs gap-1">
+                            {pos}
+                            <X className="h-3 w-3 cursor-pointer" onClick={() => togglePosition(pos)} />
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {showBatsThrows && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Bats</Label>
+                        <Select value={newPlayer.bats} onValueChange={(v) => setNewPlayer({ ...newPlayer, bats: v })}>
+                          <SelectTrigger className="tap-target h-12 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="R">Right (R)</SelectItem>
+                            <SelectItem value="L">Left (L)</SelectItem>
+                            <SelectItem value="S">Switch (S)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Throws</Label>
+                        <Select value={newPlayer.throws} onValueChange={(v) => setNewPlayer({ ...newPlayer, throws: v })}>
+                          <SelectTrigger className="tap-target h-12 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="R">Right (R)</SelectItem>
+                            <SelectItem value="L">Left (L)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
                   <Button type="submit" disabled={adding} className="w-full tap-target h-12 font-bold rounded-xl gradient-primary border-0">{adding ? "Adding..." : "Add Player"}</Button>
                 </form>
               </DialogContent>

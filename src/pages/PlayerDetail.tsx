@@ -28,6 +28,8 @@ interface Player {
   emergency_contact_phone: string | null;
   medical_notes: string | null;
   photo_url: string | null;
+  bats: string | null;
+  throws: string | null;
 }
 
 interface Evaluation {
@@ -196,6 +198,9 @@ export default function PlayerDetail() {
               {player.grade && <span className="rounded-lg bg-white/20 px-2 py-0.5 text-xs font-semibold text-white">Grade {player.grade}</span>}
               {player.positions?.map((p) => <span key={p} className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">{p}</span>)}
               {player.jersey_number_preference && <span className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">Jersey #{player.jersey_number_preference}</span>}
+              {player.bats && player.throws && <span className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">{player.bats}/{player.throws}</span>}
+              {player.bats && !player.throws && <span className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">Bats: {player.bats}</span>}
+              {!player.bats && player.throws && <span className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">Throws: {player.throws}</span>}
             </div>
           </div>
         </div>
