@@ -18,6 +18,7 @@ import RosterBoard from "@/pages/RosterBoard";
 import ExportPage from "@/pages/ExportPage";
 import PlayerDashboard from "@/pages/PlayerDashboard";
 import PlayerLinkPage from "@/pages/PlayerLinkPage";
+import PublicProfile from "@/pages/PublicProfile";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -92,6 +93,7 @@ const App = () => (
             <Route path="/register/:code" element={<PlayerRegister />} />
             <Route path="/player-dashboard" element={<PlayerRoute><PlayerDashboard /></PlayerRoute>} />
             <Route path="/player-link" element={<PlayerLinkPage />} />
+            <Route path="/p/:slug" element={<PublicProfile />} />
             <Route path="/" element={<ProtectedRoute><Roster /></ProtectedRoute>} />
             <Route path="/score" element={<ProtectedRoute><ScoreEntry /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

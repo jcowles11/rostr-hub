@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LogOut, User, Lock, Eye } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import PlayerProfileSettings from "@/components/PlayerProfileSettings";
 import { aggregateValues } from "@/lib/metrics";
 import PlayerPhotoUpload from "@/components/PlayerPhotoUpload";
 import { toast } from "sonner";
@@ -203,6 +204,11 @@ export default function PlayerDashboard() {
             </CardContent>
           </Card>
         )}
+
+        {/* Public Profile Settings */}
+        <div className="mt-5">
+          <PlayerProfileSettings playerId={player.id} />
+        </div>
       </div>
     </div>
   );

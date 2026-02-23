@@ -349,7 +349,11 @@ export type Database = {
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           first_name: string
+          gpa: string | null
           grade: number | null
+          graduation_year: number | null
+          height: string | null
+          highlight_video_url: string | null
           id: string
           jersey_number_preference: number | null
           last_name: string
@@ -357,13 +361,19 @@ export type Database = {
           photo_url: string | null
           player_number: number | null
           positions: string[] | null
+          profile_public: boolean
+          profile_slug: string | null
           program_id: string
           results_visible: boolean | null
+          show_contact_info: boolean
+          social_instagram: string | null
+          social_twitter: string | null
           team_id: string | null
           throws: string | null
           travel_ball_experience: string | null
           updated_at: string
           user_id: string | null
+          weight: number | null
         }
         Insert: {
           bats?: string | null
@@ -371,7 +381,11 @@ export type Database = {
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           first_name: string
+          gpa?: string | null
           grade?: number | null
+          graduation_year?: number | null
+          height?: string | null
+          highlight_video_url?: string | null
           id?: string
           jersey_number_preference?: number | null
           last_name: string
@@ -379,13 +393,19 @@ export type Database = {
           photo_url?: string | null
           player_number?: number | null
           positions?: string[] | null
+          profile_public?: boolean
+          profile_slug?: string | null
           program_id: string
           results_visible?: boolean | null
+          show_contact_info?: boolean
+          social_instagram?: string | null
+          social_twitter?: string | null
           team_id?: string | null
           throws?: string | null
           travel_ball_experience?: string | null
           updated_at?: string
           user_id?: string | null
+          weight?: number | null
         }
         Update: {
           bats?: string | null
@@ -393,7 +413,11 @@ export type Database = {
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           first_name?: string
+          gpa?: string | null
           grade?: number | null
+          graduation_year?: number | null
+          height?: string | null
+          highlight_video_url?: string | null
           id?: string
           jersey_number_preference?: number | null
           last_name?: string
@@ -401,13 +425,19 @@ export type Database = {
           photo_url?: string | null
           player_number?: number | null
           positions?: string[] | null
+          profile_public?: boolean
+          profile_slug?: string | null
           program_id?: string
           results_visible?: boolean | null
+          show_contact_info?: boolean
+          social_instagram?: string | null
+          social_twitter?: string | null
           team_id?: string | null
           throws?: string | null
           travel_ball_experience?: string | null
           updated_at?: string
           user_id?: string | null
+          weight?: number | null
         }
         Relationships: [
           {
@@ -645,6 +675,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_public_profile: { Args: { _slug: string }; Returns: Json }
       has_program_access: {
         Args: { _program_id: string; _user_id: string }
         Returns: boolean
