@@ -23,6 +23,7 @@ interface Metric {
   is_default: boolean;
   sort_order: number;
   aggregation: string;
+  max_attempts: number;
 }
 
 export default function MetricsManager() {
@@ -30,7 +31,7 @@ export default function MetricsManager() {
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [newMetric, setNewMetric] = useState({
-    name: "", unit: "", category: "other", metric_type: "measured", min_value: "", max_value: "", aggregation: "best",
+    name: "", unit: "", category: "other", metric_type: "measured", min_value: "", max_value: "", aggregation: "best", max_attempts: "1",
   });
   const isHead = coach?.role === "head_coach";
 
@@ -55,12 +56,13 @@ export default function MetricsManager() {
       max_value: newMetric.max_value ? parseFloat(newMetric.max_value) : null,
       sort_order: metrics.length,
       aggregation: newMetric.aggregation,
+      max_attempts: parseInt(newMetric.max_attempts) || 1,
     } as any);
     if (error) toast.error("Failed to add metric");
     else {
       toast.success("Metric added!");
       setAddOpen(false);
-      setNewMetric({ name: "", unit: "", category: "other", metric_type: "measured", min_value: "", max_value: "", aggregation: "best" });
+      setNewMetric({ name: "", unit: "", category: "other", metric_type: "measured", min_value: "", max_value: "", aggregation: "best", max_attempts: "1" });
       fetchMetrics();
     }
   };
@@ -135,6 +137,21 @@ export default function MetricsManager() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Max Attempts</Label>
+                    <Select value={newMetric.max_attempts} onValueChange={(v) => setNewMetric({ ...newMetric, max_attempts: v })}>
+                      <SelectTrigger className="tap-target"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 attempt</SelectItem>
+                        <SelectItem value="2">2 attempts</SelectItem>
+                        <SelectItem value="3">3 attempts</SelectItem>
+                        <SelectItem value="4">4 attempts</SelectItem>
+                        <SelectItem value="5">5 attempts</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 {newMetric.metric_type === "rated" && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -171,6 +188,11 @@ export default function MetricsManager() {
                   <span className="text-xs text-muted-foreground">
                     • {m.aggregation === "best" ? "Best" : m.aggregation === "average" ? "Avg" : "Latest"}
                   </span>
+                  {m.max_attempts > 1 && (
+                    <span className="text-xs text-muted-foreground">
+                      • {m.max_attempts} attempts
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

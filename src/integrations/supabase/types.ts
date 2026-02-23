@@ -57,6 +57,7 @@ export type Database = {
       }
       evaluations: {
         Row: {
+          attempt_number: number
           coach_id: string
           created_at: string
           id: string
@@ -68,6 +69,7 @@ export type Database = {
           value: number
         }
         Insert: {
+          attempt_number?: number
           coach_id: string
           created_at?: string
           id?: string
@@ -79,6 +81,7 @@ export type Database = {
           value: number
         }
         Update: {
+          attempt_number?: number
           coach_id?: string
           created_at?: string
           id?: string
@@ -134,6 +137,7 @@ export type Database = {
           created_at: string
           id: string
           is_default: boolean
+          max_attempts: number
           max_value: number | null
           metric_type: Database["public"]["Enums"]["metric_type"]
           min_value: number | null
@@ -149,6 +153,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_default?: boolean
+          max_attempts?: number
           max_value?: number | null
           metric_type?: Database["public"]["Enums"]["metric_type"]
           min_value?: number | null
@@ -164,6 +169,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_default?: boolean
+          max_attempts?: number
           max_value?: number | null
           metric_type?: Database["public"]["Enums"]["metric_type"]
           min_value?: number | null
