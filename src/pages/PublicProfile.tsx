@@ -5,6 +5,20 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle, MapPin, Ruler, Weight, GraduationCap, Trophy, Youtube, Instagram, Twitter, User } from "lucide-react";
 
+interface MetricEntry {
+  name: string;
+  unit: string;
+  metric_type: string;
+  value: number;
+  verified: boolean;
+  source_type?: string;
+  source_name?: string;
+  source_org?: string;
+  event_name?: string;
+  event_date?: string;
+  created_at?: string;
+}
+
 interface PublicProfileData {
   player: {
     first_name: string;
@@ -26,18 +40,31 @@ interface PublicProfileData {
     sport: string;
     logo_url: string | null;
   };
-  metrics: {
-    name: string;
-    unit: string;
-    metric_type: string;
-    value: number;
-    verified: boolean;
-  }[];
+  metrics: MetricEntry[];
+  evaluator_metrics: MetricEntry[];
 }
 
 function getYouTubeEmbedUrl(url: string): string | null {
   const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/);
   return match ? `https://www.youtube.com/embed/${match[1]}` : null;
+}
+
+function SourceBadge({ entry }: { entry: MetricEntry }) {
+  if (entry.source_type === "evaluator") {
+    const label = entry.source_org
+      ? `${entry.source_name}, ${entry.source_org}`
+      : entry.source_name || "Evaluator";
+    return (
+      <Badge variant="outline" className="text-[10px] gap-1 border-accent/30 text-accent font-medium px-1.5 py-0">
+        <CheckCircle className="h-2.5 w-2.5" /> {label}
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-[10px] gap-1 border-accent/30 text-accent font-medium px-1.5 py-0">
+      <CheckCircle className="h-2.5 w-2.5" /> {entry.source_name || "Verified"}
+    </Badge>
+  );
 }
 
 export default function PublicProfile() {
@@ -82,7 +109,8 @@ export default function PublicProfile() {
     );
   }
 
-  const { player, program, metrics } = data;
+  const { player, program, metrics, evaluator_metrics } = data;
+  const allMetrics = [...(metrics || []), ...(evaluator_metrics || [])];
   const embedUrl = player.highlight_video_url ? getYouTubeEmbedUrl(player.highlight_video_url) : null;
 
   return (
@@ -158,7 +186,7 @@ export default function PublicProfile() {
         )}
 
         {/* Verified Metrics */}
-        {metrics.length > 0 && (
+        {allMetrics.length > 0 && (
           <Card className="section-card">
             <CardContent className="pt-5 pb-4">
               <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -166,16 +194,21 @@ export default function PublicProfile() {
                 Verified Metrics
               </h2>
               <div className="space-y-2.5">
-                {metrics.map((m, i) => (
-                  <div key={i} className="flex items-center justify-between rounded-xl bg-muted/40 p-3.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm">{m.name}</span>
-                      {m.unit && <span className="text-xs text-muted-foreground">({m.unit})</span>}
-                      <Badge variant="outline" className="text-[10px] gap-1 border-accent/30 text-accent font-medium px-1.5 py-0">
-                        <CheckCircle className="h-2.5 w-2.5" /> Verified
-                      </Badge>
+                {allMetrics.map((m, i) => (
+                  <div key={i} className="rounded-xl bg-muted/40 p-3.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm">{m.name}</span>
+                        {m.unit && <span className="text-xs text-muted-foreground">({m.unit})</span>}
+                        <SourceBadge entry={m} />
+                      </div>
+                      <span className="text-xl font-extrabold">{Number(m.value).toFixed(1)}</span>
                     </div>
-                    <span className="text-xl font-extrabold">{Number(m.value).toFixed(1)}</span>
+                    {(m.event_name || m.event_date) && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {m.event_name}{m.event_date ? ` • ${new Date(m.event_date).toLocaleDateString()}` : ""}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -231,7 +264,7 @@ export default function PublicProfile() {
 
         {/* Footer */}
         <p className="text-center text-xs text-muted-foreground pt-4">
-          Powered by <span className="font-semibold">Rostr</span> • Metrics verified by coaching staff
+          Powered by <span className="font-semibold">Rostr</span> • Metrics verified by coaching staff & evaluators
         </p>
       </div>
     </div>

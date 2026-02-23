@@ -130,6 +130,96 @@ export type Database = {
           },
         ]
       }
+      evaluator_entries: {
+        Row: {
+          created_at: string
+          evaluator_id: string
+          event_date: string | null
+          event_name: string | null
+          id: string
+          metric_name: string
+          metric_type: string
+          metric_unit: string
+          metric_value: number
+          notes: string | null
+          player_id: string
+        }
+        Insert: {
+          created_at?: string
+          evaluator_id: string
+          event_date?: string | null
+          event_name?: string | null
+          id?: string
+          metric_name: string
+          metric_type?: string
+          metric_unit?: string
+          metric_value: number
+          notes?: string | null
+          player_id: string
+        }
+        Update: {
+          created_at?: string
+          evaluator_id?: string
+          event_date?: string | null
+          event_name?: string | null
+          id?: string
+          metric_name?: string
+          metric_type?: string
+          metric_unit?: string
+          metric_value?: number
+          notes?: string | null
+          player_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evaluator_entries_evaluator_id_fkey"
+            columns: ["evaluator_id"]
+            isOneToOne: false
+            referencedRelation: "evaluators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evaluator_entries_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      evaluators: {
+        Row: {
+          created_at: string
+          full_name: string
+          id: string
+          organization_name: string
+          sport: string
+          title: string | null
+          user_id: string
+          verified: boolean
+        }
+        Insert: {
+          created_at?: string
+          full_name: string
+          id?: string
+          organization_name?: string
+          sport?: string
+          title?: string | null
+          user_id: string
+          verified?: boolean
+        }
+        Update: {
+          created_at?: string
+          full_name?: string
+          id?: string
+          organization_name?: string
+          sport?: string
+          title?: string | null
+          user_id?: string
+          verified?: boolean
+        }
+        Relationships: []
+      }
       metrics: {
         Row: {
           aggregation: Database["public"]["Enums"]["aggregation_method"]
