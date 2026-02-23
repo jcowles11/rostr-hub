@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,7 @@ import PlayerPhotoUpload from "@/components/PlayerPhotoUpload";
 import { aggregateValues, AGGREGATION_LABELS } from "@/lib/metrics";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { getSportPositions, sportHasBatsThrows } from "@/lib/sports";
 
 interface Player {
   id: string;
@@ -63,6 +65,11 @@ export default function PlayerDetail() {
   const [savingEval, setSavingEval] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
   const addInputRef = useRef<HTMLInputElement>(null);
+  const [editingProfile, setEditingProfile] = useState(false);
+
+  const sport = coach?.sport || "baseball";
+  const sportPositions = getSportPositions(sport);
+  const showBatsThrows = sportHasBatsThrows(sport);
 
   const fetchAll = async () => {
     if (!coach || !id) return;
@@ -198,14 +205,95 @@ export default function PlayerDetail() {
               {player.grade && <span className="rounded-lg bg-white/20 px-2 py-0.5 text-xs font-semibold text-white">Grade {player.grade}</span>}
               {player.positions?.map((p) => <span key={p} className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">{p}</span>)}
               {player.jersey_number_preference && <span className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">Jersey #{player.jersey_number_preference}</span>}
-              {player.bats && player.throws && <span className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">{player.bats}/{player.throws}</span>}
+              {player.bats && player.throws && <span className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">B/T: {player.bats}/{player.throws}</span>}
               {player.bats && !player.throws && <span className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">Bats: {player.bats}</span>}
               {!player.bats && player.throws && <span className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">Throws: {player.throws}</span>}
+              <button
+                onClick={() => setEditingProfile(!editingProfile)}
+                className="rounded-lg bg-white/10 hover:bg-white/20 px-2 py-0.5 text-xs font-medium text-white/70 hover:text-white transition-colors"
+              >
+                <Pencil className="h-3 w-3 inline mr-0.5" /> Edit
+              </button>
             </div>
           </div>
         </div>
         {player.travel_ball_experience && <p className="text-sm text-white/60 mt-3">Travel: {player.travel_ball_experience}</p>}
       </div>
+
+      {/* Editable profile section */}
+      {editingProfile && (
+        <Card className="section-card mb-4 animate-fade-in border-2 border-primary/20">
+          <CardContent className="pt-5 space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Position(s)</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {sportPositions.map((pos) => (
+                  <button
+                    key={pos}
+                    onClick={async () => {
+                      const current = player.positions || [];
+                      const updated = current.includes(pos) ? current.filter((p) => p !== pos) : [...current, pos];
+                      const { error } = await supabase.from("players").update({ positions: updated }).eq("id", player.id);
+                      if (error) toast.error("Failed to update");
+                      else setPlayer({ ...player, positions: updated });
+                    }}
+                    className={cn(
+                      "rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors border",
+                      (player.positions || []).includes(pos)
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                    )}
+                  >
+                    {pos}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {showBatsThrows && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Bats</Label>
+                  <Select
+                    value={player.bats || ""}
+                    onValueChange={async (v) => {
+                      const { error } = await supabase.from("players").update({ bats: v }).eq("id", player.id);
+                      if (error) toast.error("Failed to update");
+                      else setPlayer({ ...player, bats: v });
+                    }}
+                  >
+                    <SelectTrigger className="tap-target h-10 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="R">Right (R)</SelectItem>
+                      <SelectItem value="L">Left (L)</SelectItem>
+                      <SelectItem value="S">Switch (S)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Throws</Label>
+                  <Select
+                    value={player.throws || ""}
+                    onValueChange={async (v) => {
+                      const { error } = await supabase.from("players").update({ throws: v }).eq("id", player.id);
+                      if (error) toast.error("Failed to update");
+                      else setPlayer({ ...player, throws: v });
+                    }}
+                  >
+                    <SelectTrigger className="tap-target h-10 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="R">Right (R)</SelectItem>
+                      <SelectItem value="L">Left (L)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+            <Button variant="outline" size="sm" className="w-full rounded-xl" onClick={() => setEditingProfile(false)}>
+              Done
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Coach filter */}
       <div className="mb-4">
