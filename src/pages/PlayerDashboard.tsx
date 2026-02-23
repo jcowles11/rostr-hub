@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LogOut, User, Lock, Eye } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import PlayerProfileSettings from "@/components/PlayerProfileSettings";
@@ -147,68 +148,79 @@ export default function PlayerDashboard() {
           </div>
         </div>
 
-        {/* Results */}
-        {canSeeResults ? (
-          <Card className="section-card">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <Eye className="h-5 w-5" /> My Evaluations
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {visibleMetrics.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">No metrics to display yet.</p>
-              ) : (
-                visibleMetrics.map((m) => {
-                  const vals = evalsByMetric.get(m.id) || [];
-                  const computed = vals.length > 0
-                    ? aggregateValues(vals, m.aggregation as any, m.metric_type as any)
-                    : null;
+        <Tabs defaultValue="evaluations" className="w-full">
+          <TabsList className="w-full mb-4">
+            <TabsTrigger value="evaluations" className="flex-1 gap-1.5">
+              <Eye className="h-4 w-4" /> My Evaluations
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="flex-1 gap-1.5">
+              <User className="h-4 w-4" /> My Profile
+            </TabsTrigger>
+          </TabsList>
 
-                  return (
-                    <div key={m.id} className="rounded-xl bg-muted/40 p-3.5">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="font-semibold text-sm">{m.name}</span>
-                          {m.unit && <span className="text-xs text-muted-foreground ml-1">({m.unit})</span>}
-                        </div>
-                        {computed !== null ? (
-                          <span className="text-xl font-extrabold">{computed.toFixed(1)}</span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
-                      </div>
-                      {vals.length > 1 && (
-                        <div className="flex gap-1.5 mt-2 flex-wrap">
-                          {vals.map((v, i) => (
-                            <Badge key={i} variant="secondary" className="text-xs font-medium">
-                              {v}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="section-card">
-            <CardContent className="py-12 text-center">
-              <Lock className="mx-auto h-12 w-12 text-muted-foreground/40 mb-3" />
-              <h3 className="text-lg font-bold mb-1">Results Not Yet Available</h3>
-              <p className="text-sm text-muted-foreground">
-                Your coach hasn't published evaluation results yet. Check back later!
-              </p>
-            </CardContent>
-          </Card>
-        )}
+          <TabsContent value="evaluations">
+            {canSeeResults ? (
+              <Card className="section-card">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg font-bold flex items-center gap-2">
+                    <Eye className="h-5 w-5" /> My Evaluations
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {visibleMetrics.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4 text-center">No metrics to display yet.</p>
+                  ) : (
+                    visibleMetrics.map((m) => {
+                      const vals = evalsByMetric.get(m.id) || [];
+                      const computed = vals.length > 0
+                        ? aggregateValues(vals, m.aggregation as any, m.metric_type as any)
+                        : null;
 
-        {/* Public Profile Settings */}
-        <div className="mt-5">
-          <PlayerProfileSettings playerId={player.id} />
-        </div>
+                      return (
+                        <div key={m.id} className="rounded-xl bg-muted/40 p-3.5">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="font-semibold text-sm">{m.name}</span>
+                              {m.unit && <span className="text-xs text-muted-foreground ml-1">({m.unit})</span>}
+                            </div>
+                            {computed !== null ? (
+                              <span className="text-xl font-extrabold">{computed.toFixed(1)}</span>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
+                            )}
+                          </div>
+                          {vals.length > 1 && (
+                            <div className="flex gap-1.5 mt-2 flex-wrap">
+                              {vals.map((v, i) => (
+                                <Badge key={i} variant="secondary" className="text-xs font-medium">
+                                  {v}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="section-card">
+                <CardContent className="py-12 text-center">
+                  <Lock className="mx-auto h-12 w-12 text-muted-foreground/40 mb-3" />
+                  <h3 className="text-lg font-bold mb-1">Results Not Yet Available</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Your coach hasn't published evaluation results yet. Check back later!
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="profile">
+            <PlayerProfileSettings playerId={player.id} />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

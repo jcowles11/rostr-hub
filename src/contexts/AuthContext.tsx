@@ -42,7 +42,15 @@ export interface EvaluatorInfo {
   verified: boolean;
 }
 
-type UserRole = "coach" | "player" | "evaluator" | null;
+export interface ScoutInfo {
+  id: string;
+  user_id: string;
+  full_name: string;
+  organization_name: string;
+  title: string | null;
+}
+
+type UserRole = "coach" | "player" | "evaluator" | "scout" | null;
 
 interface AuthContextType {
   session: Session | null;
@@ -50,6 +58,7 @@ interface AuthContextType {
   coach: CoachInfo | null;
   playerInfo: PlayerInfo | null;
   evaluatorInfo: EvaluatorInfo | null;
+  scoutInfo: ScoutInfo | null;
   allCoaches: CoachInfo[];
   organizations: OrgInfo[];
   currentOrg: OrgInfo | null;
@@ -59,6 +68,7 @@ interface AuthContextType {
   refreshCoach: () => Promise<void>;
   refreshPlayer: () => Promise<void>;
   refreshEvaluator: () => Promise<void>;
+  refreshScout: () => Promise<void>;
   switchProgram: (coachId: string) => void;
   switchOrg: (orgId: string) => void;
   deleteProgram: (programId: string) => Promise<boolean>;
@@ -70,6 +80,7 @@ const AuthContext = createContext<AuthContextType>({
   coach: null,
   playerInfo: null,
   evaluatorInfo: null,
+  scoutInfo: null,
   allCoaches: [],
   organizations: [],
   currentOrg: null,
@@ -79,6 +90,7 @@ const AuthContext = createContext<AuthContextType>({
   refreshCoach: async () => {},
   refreshPlayer: async () => {},
   refreshEvaluator: async () => {},
+  refreshScout: async () => {},
   switchProgram: () => {},
   switchOrg: () => {},
   deleteProgram: async () => false,
@@ -95,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentOrg, setCurrentOrg] = useState<OrgInfo | null>(null);
   const [playerInfo, setPlayerInfo] = useState<PlayerInfo | null>(null);
   const [evaluatorInfo, setEvaluatorInfo] = useState<EvaluatorInfo | null>(null);
+  const [scoutInfo, setScoutInfo] = useState<ScoutInfo | null>(null);
   const [userRole, setUserRole] = useState<UserRole>(null);
   const [loading, setLoading] = useState(true);
 
@@ -198,6 +211,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false;
   };
 
+  const fetchScout = async (userId: string) => {
+    const { data } = await supabase
+      .from("scouts")
+      .select("id, user_id, full_name, organization_name, title")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+
+    if (data) {
+      setScoutInfo(data as ScoutInfo);
+      return true;
+    }
+    setScoutInfo(null);
+    return false;
+  };
+
   const fetchUserRole = async (userId: string) => {
     const isCoach = await fetchCoaches(userId);
     if (isCoach) {
@@ -208,6 +237,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const isEvaluator = await fetchEvaluator(userId);
     if (isEvaluator) {
       setUserRole("evaluator");
+      return;
+    }
+
+    const isScout = await fetchScout(userId);
+    if (isScout) {
+      setUserRole("scout");
       return;
     }
 
@@ -267,6 +302,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUserRole("evaluator");
       return;
     }
+    if (accountType === "scout") {
+      // Auto-create scout profile from stored setup info
+      const scoutStored = localStorage.getItem(`rostr_scout_setup_${userId}`);
+      if (scoutStored) {
+        try {
+          const { full_name, organization_name } = JSON.parse(scoutStored);
+          await supabase.from("scouts").insert({
+            user_id: userId,
+            full_name,
+            organization_name: organization_name || "",
+          });
+          localStorage.removeItem(`rostr_scout_setup_${userId}`);
+          const linked = await fetchScout(userId);
+          if (linked) {
+            setUserRole("scout");
+            return;
+          }
+        } catch {
+          // Ignore
+        }
+      }
+      setUserRole("scout");
+      return;
+    }
 
     setUserRole(null);
   };
@@ -286,6 +345,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user) {
       const found = await fetchEvaluator(user.id);
       if (found) setUserRole("evaluator");
+    }
+  };
+
+  const refreshScout = async () => {
+    if (user) {
+      const found = await fetchScout(user.id);
+      if (found) setUserRole("scout");
     }
   };
 
@@ -328,6 +394,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setCurrentOrg(null);
           setPlayerInfo(null);
           setEvaluatorInfo(null);
+          setScoutInfo(null);
           setUserRole(null);
         }
         setLoading(false);
@@ -353,6 +420,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentOrg(null);
     setPlayerInfo(null);
     setEvaluatorInfo(null);
+    setScoutInfo(null);
     setUserRole(null);
   };
 
@@ -379,7 +447,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, coach, playerInfo, evaluatorInfo, allCoaches, organizations, currentOrg, userRole, loading, signOut, refreshCoach, refreshPlayer, refreshEvaluator, switchProgram, switchOrg, deleteProgram }}>
+    <AuthContext.Provider value={{ session, user, coach, playerInfo, evaluatorInfo, scoutInfo, allCoaches, organizations, currentOrg, userRole, loading, signOut, refreshCoach, refreshPlayer, refreshEvaluator, refreshScout, switchProgram, switchOrg, deleteProgram }}>
       {children}
     </AuthContext.Provider>
   );
