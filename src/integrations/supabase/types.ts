@@ -250,6 +250,7 @@ export type Database = {
       }
       players: {
         Row: {
+          bats: string | null
           created_at: string
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
@@ -264,11 +265,13 @@ export type Database = {
           positions: string[] | null
           program_id: string
           results_visible: boolean | null
+          throws: string | null
           travel_ball_experience: string | null
           updated_at: string
           user_id: string | null
         }
         Insert: {
+          bats?: string | null
           created_at?: string
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
@@ -283,11 +286,13 @@ export type Database = {
           positions?: string[] | null
           program_id: string
           results_visible?: boolean | null
+          throws?: string | null
           travel_ball_experience?: string | null
           updated_at?: string
           user_id?: string | null
         }
         Update: {
+          bats?: string | null
           created_at?: string
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
@@ -302,6 +307,7 @@ export type Database = {
           positions?: string[] | null
           program_id?: string
           results_visible?: boolean | null
+          throws?: string | null
           travel_ball_experience?: string | null
           updated_at?: string
           user_id?: string | null

@@ -3,6 +3,8 @@ export interface SportConfig {
   label: string;
   emoji: string;
   categories: string[];
+  positions: string[];
+  hasBatsThrows?: boolean;
   defaultMetrics: {
     name: string;
     unit: string;
@@ -21,6 +23,8 @@ export const SPORTS: SportConfig[] = [
     label: "Baseball / Softball",
     emoji: "⚾",
     categories: ["running", "hitting", "fielding", "pitching", "other"],
+    positions: ["RHP", "LHP", "C", "1B", "2B", "SS", "3B", "RF", "CF", "LF", "DH", "IF", "OF", "UT"],
+    hasBatsThrows: true,
     defaultMetrics: [
       { name: "60-Yard Dash", unit: "sec", category: "running", metric_type: "timed", sort_order: 1 },
       { name: "Home to First", unit: "sec", category: "running", metric_type: "timed", sort_order: 2 },
@@ -40,6 +44,7 @@ export const SPORTS: SportConfig[] = [
     label: "Football",
     emoji: "🏈",
     categories: ["speed", "strength", "offense", "defense", "special_teams", "other"],
+    positions: ["QB", "RB", "WR", "TE", "OL", "OT", "OG", "C", "DE", "DT", "LB", "CB", "S", "K", "P", "KR", "PR", "ATH"],
     defaultMetrics: [
       { name: "40-Yard Dash", unit: "sec", category: "speed", metric_type: "timed", sort_order: 1 },
       { name: "Pro Shuttle (5-10-5)", unit: "sec", category: "speed", metric_type: "timed", sort_order: 2 },
@@ -58,6 +63,7 @@ export const SPORTS: SportConfig[] = [
     label: "Basketball",
     emoji: "🏀",
     categories: ["speed", "shooting", "skills", "athleticism", "other"],
+    positions: ["PG", "SG", "SF", "PF", "C", "G", "F", "G/F"],
     defaultMetrics: [
       { name: "Lane Agility", unit: "sec", category: "speed", metric_type: "timed", sort_order: 1 },
       { name: "3/4 Court Sprint", unit: "sec", category: "speed", metric_type: "timed", sort_order: 2 },
@@ -76,6 +82,7 @@ export const SPORTS: SportConfig[] = [
     label: "Soccer",
     emoji: "⚽",
     categories: ["speed", "technical", "tactical", "physical", "other"],
+    positions: ["GK", "CB", "LB", "RB", "CDM", "CM", "CAM", "LM", "RM", "LW", "RW", "ST", "CF"],
     defaultMetrics: [
       { name: "40-Yard Dash", unit: "sec", category: "speed", metric_type: "timed", sort_order: 1 },
       { name: "Beep Test", unit: "level", category: "physical", metric_type: "measured", sort_order: 2 },
@@ -97,6 +104,14 @@ export function getSportById(id: string): SportConfig | undefined {
 
 export function getSportCategories(sportId: string): string[] {
   return getSportById(sportId)?.categories || ["other"];
+}
+
+export function getSportPositions(sportId: string): string[] {
+  return getSportById(sportId)?.positions || [];
+}
+
+export function sportHasBatsThrows(sportId: string): boolean {
+  return getSportById(sportId)?.hasBatsThrows ?? false;
 }
 
 export function formatCategory(category: string): string {

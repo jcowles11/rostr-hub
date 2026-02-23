@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import rostrLogo from "@/assets/rostr-logo.png";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,26 +7,54 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, X } from "lucide-react";
 import PlayerPhotoUpload from "@/components/PlayerPhotoUpload";
+import { getSportPositions, sportHasBatsThrows } from "@/lib/sports";
 
 export default function PlayerRegister() {
   const { code } = useParams<{ code: string }>();
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [sport, setSport] = useState("baseball");
+  const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
     grade: "",
-    positions: "",
     jersey_number_preference: "",
     travel_ball_experience: "",
     emergency_contact_name: "",
     emergency_contact_phone: "",
     medical_notes: "",
+    bats: "",
+    throws: "",
   });
+
+  useEffect(() => {
+    const fetchSport = async () => {
+      if (!code) return;
+      const { data } = await supabase
+        .from("programs")
+        .select("sport")
+        .eq("registration_code", code)
+        .single();
+      if (data?.sport) setSport(data.sport);
+    };
+    fetchSport();
+  }, [code]);
+
+  const positions = getSportPositions(sport);
+  const showBatsThrows = sportHasBatsThrows(sport);
+
+  const togglePosition = (pos: string) => {
+    setSelectedPositions((prev) =>
+      prev.includes(pos) ? prev.filter((p) => p !== pos) : [...prev, pos]
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,13 +77,15 @@ export default function PlayerRegister() {
       first_name: form.first_name,
       last_name: form.last_name,
       grade: form.grade ? parseInt(form.grade) : null,
-      positions: form.positions ? form.positions.split(",").map((s) => s.trim()) : [],
+      positions: selectedPositions.length > 0 ? selectedPositions : [],
       jersey_number_preference: form.jersey_number_preference ? parseInt(form.jersey_number_preference) : null,
       travel_ball_experience: form.travel_ball_experience || null,
       emergency_contact_name: form.emergency_contact_name || null,
       emergency_contact_phone: form.emergency_contact_phone || null,
       medical_notes: form.medical_notes || null,
       photo_url: photoUrl,
+      bats: form.bats || null,
+      throws: form.throws || null,
     });
 
     if (error) {
@@ -124,10 +154,69 @@ export default function PlayerRegister() {
                   <Input type="number" value={form.jersey_number_preference} onChange={(e) => setForm({ ...form, jersey_number_preference: e.target.value })} className="tap-target h-12 rounded-xl" />
                 </div>
               </div>
+
+              {/* Position multi-select */}
               <div className="space-y-2">
-                <Label className="text-sm font-semibold">Positions (comma separated)</Label>
-                <Input value={form.positions} onChange={(e) => setForm({ ...form, positions: e.target.value })} placeholder="SS, OF, P" className="tap-target h-12 rounded-xl" />
+                <Label className="text-sm font-semibold">Position(s)</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {positions.map((pos) => (
+                    <button
+                      key={pos}
+                      type="button"
+                      onClick={() => togglePosition(pos)}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors border ${
+                        selectedPositions.includes(pos)
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                      }`}
+                    >
+                      {pos}
+                    </button>
+                  ))}
+                </div>
+                {selectedPositions.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {selectedPositions.map((pos) => (
+                      <Badge key={pos} variant="secondary" className="text-xs gap-1">
+                        {pos}
+                        <X className="h-3 w-3 cursor-pointer" onClick={() => togglePosition(pos)} />
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
+
+              {/* Bats / Throws for baseball */}
+              {showBatsThrows && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Bats</Label>
+                    <Select value={form.bats} onValueChange={(v) => setForm({ ...form, bats: v })}>
+                      <SelectTrigger className="tap-target h-12 rounded-xl">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="R">Right (R)</SelectItem>
+                        <SelectItem value="L">Left (L)</SelectItem>
+                        <SelectItem value="S">Switch (S)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Throws</Label>
+                    <Select value={form.throws} onValueChange={(v) => setForm({ ...form, throws: v })}>
+                      <SelectTrigger className="tap-target h-12 rounded-xl">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="R">Right (R)</SelectItem>
+                        <SelectItem value="L">Left (L)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Travel Ball Experience</Label>
                 <Input value={form.travel_ball_experience} onChange={(e) => setForm({ ...form, travel_ball_experience: e.target.value })} placeholder="Team name, years" className="tap-target h-12 rounded-xl" />
