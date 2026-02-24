@@ -653,6 +653,117 @@ export type Database = {
           },
         ]
       }
+      post_comments: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_likes: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      posts: {
+        Row: {
+          author_id: string
+          caption: string | null
+          comment_count: number
+          created_at: string
+          id: string
+          like_count: number
+          media_urls: string[] | null
+          player_id: string | null
+          post_type: string
+          sport: string | null
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          caption?: string | null
+          comment_count?: number
+          created_at?: string
+          id?: string
+          like_count?: number
+          media_urls?: string[] | null
+          player_id?: string | null
+          post_type?: string
+          sport?: string | null
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          caption?: string | null
+          comment_count?: number
+          created_at?: string
+          id?: string
+          like_count?: number
+          media_urls?: string[] | null
+          player_id?: string | null
+          post_type?: string
+          sport?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posts_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       programs: {
         Row: {
           created_at: string

@@ -5,9 +5,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle, MapPin, Ruler, Weight, GraduationCap, Trophy, Youtube, Instagram, Twitter, User, Award, Copy, Mail, Phone, ExternalLink, Share2, Link2, Heart } from "lucide-react";
+import { CheckCircle, MapPin, Ruler, Weight, GraduationCap, Trophy, Youtube, Instagram, Twitter, User, Award, Copy, Mail, Phone, ExternalLink, Share2, Link2, Heart, Grid3X3, Image } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface MetricEntry {
   name: string;
@@ -168,6 +169,10 @@ export default function PublicProfile() {
   const [notFound, setNotFound] = useState(false);
   const [isFollowed, setIsFollowed] = useState(false);
   const [followPlayerId, setFollowPlayerId] = useState<string | null>(null);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [postCount, setPostCount] = useState(0);
+  const [playerPosts, setPlayerPosts] = useState<{ id: string; media_urls: string[]; post_type: string }[]>([]);
 
   useEffect(() => {
     if (!slug) return;
@@ -183,29 +188,60 @@ export default function PublicProfile() {
     fetchProfile();
   }, [slug]);
 
-  // Get the player id for follow functionality
+  // Get the player id, follow status, counts, and posts
   useEffect(() => {
-    if (!slug || !user) return;
-    const getPlayerId = async () => {
-      const { data: players } = await supabase
+    if (!slug) return;
+    const getPlayerData = async () => {
+      const { data: playerRow } = await supabase
         .from("players")
-        .select("id")
+        .select("id, user_id")
         .eq("profile_slug", slug)
         .eq("profile_public", true)
         .maybeSingle();
-      if (players) {
-        setFollowPlayerId(players.id);
-        // Check if already following
+      if (!playerRow) return;
+
+      setFollowPlayerId(playerRow.id);
+
+      // Follower count
+      const { count: fCount } = await supabase
+        .from("follows")
+        .select("id", { count: "exact", head: true })
+        .eq("followed_player_id", playerRow.id);
+      setFollowerCount(fCount || 0);
+
+      // Following count (if player has a user_id)
+      if (playerRow.user_id) {
+        const { count: fgCount } = await supabase
+          .from("follows")
+          .select("id", { count: "exact", head: true })
+          .eq("follower_id", playerRow.user_id);
+        setFollowingCount(fgCount || 0);
+      }
+
+      // Posts count + grid
+      if (playerRow.user_id) {
+        const { data: posts, count: pCount } = await supabase
+          .from("posts")
+          .select("id, media_urls, post_type", { count: "exact" })
+          .eq("author_id", playerRow.user_id)
+          .order("created_at", { ascending: false })
+          .limit(30);
+        setPostCount(pCount || 0);
+        setPlayerPosts(posts || []);
+      }
+
+      // Check if current user follows
+      if (user) {
         const { data: follow } = await supabase
           .from("follows")
           .select("id")
           .eq("follower_id", user.id)
-          .eq("followed_player_id", players.id)
+          .eq("followed_player_id", playerRow.id)
           .maybeSingle();
         setIsFollowed(!!follow);
       }
     };
-    getPlayerId();
+    getPlayerData();
   }, [slug, user]);
 
   const toggleFollow = async () => {
@@ -319,6 +355,26 @@ export default function PublicProfile() {
       </div>
 
       <div className="mx-auto max-w-2xl px-4 pb-12 -mt-4 space-y-5 animate-fade-in">
+        {/* Social stats bar */}
+        <Card className="section-card">
+          <CardContent className="py-3">
+            <div className="grid grid-cols-3 divide-x text-center">
+              <div>
+                <p className="text-lg font-extrabold">{postCount}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Posts</p>
+              </div>
+              <div>
+                <p className="text-lg font-extrabold">{followerCount}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Followers</p>
+              </div>
+              <div>
+                <p className="text-lg font-extrabold">{followingCount}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Following</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Bio stats */}
         <Card className="section-card">
           <CardContent className="py-4">
@@ -473,6 +529,39 @@ export default function PublicProfile() {
                     <Instagram className="h-4 w-4" /> @{player.social_instagram.replace("@", "")}
                   </a>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Posts Grid */}
+        {playerPosts.length > 0 && (
+          <Card className="section-card">
+            <CardContent className="pt-5 pb-4">
+              <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+                <Grid3X3 className="h-5 w-5" /> Posts
+              </h2>
+              <div className="grid grid-cols-3 gap-1">
+                {playerPosts.map((post) => (
+                  <div key={post.id} className="aspect-square rounded-lg overflow-hidden bg-muted relative">
+                    {post.media_urls?.[0] ? (
+                      post.media_urls[0].match(/\.(mp4|mov|webm)(\?|$)/i) ? (
+                        <video src={post.media_urls[0]} className="w-full h-full object-cover" />
+                      ) : (
+                        <img src={post.media_urls[0]} alt="" className="w-full h-full object-cover" />
+                      )
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Image className="h-6 w-6 text-muted-foreground/30" />
+                      </div>
+                    )}
+                    {(post.media_urls?.length || 0) > 1 && (
+                      <div className="absolute top-1.5 right-1.5">
+                        <Grid3X3 className="h-3.5 w-3.5 text-white drop-shadow" />
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
