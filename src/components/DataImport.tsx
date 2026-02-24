@@ -5,13 +5,20 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Database, UserPlus } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle2, Database, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
-import { normalizeHeader, isPlayerInfoColumn, isNumericColumn, splitFullName } from "@/lib/importUtils";
+import {
+  normalizeHeader,
+  isPlayerInfoColumn,
+  isNumericColumn,
+  splitFullName,
+  groupAttemptColumns,
+  type ColumnGroup,
+} from "@/lib/importUtils";
 
 interface DataImportProps {
   open: boolean;
@@ -40,7 +47,8 @@ interface PlayerIdMapping {
   last_name: string;
 }
 
-type MetricColumnMap = Record<string, string>; // header -> metric_id
+// Maps group displayName → metric_id
+type GroupMetricMap = Record<string, string>;
 
 function guessPlayerColumns(headers: string[]): PlayerIdMapping {
   const find = (terms: string[]) => {
@@ -60,44 +68,28 @@ function guessPlayerColumns(headers: string[]): PlayerIdMapping {
   };
 }
 
-function guessMetricColumns(
-  headers: string[],
-  metrics: MetricInfo[],
-  rows: Record<string, string>[],
-  nameColumns: string[]
-): MetricColumnMap {
-  const map: MetricColumnMap = {};
-  const nameSet = new Set(nameColumns.filter(Boolean));
+function guessGroupMetricMap(groups: ColumnGroup[], metrics: MetricInfo[]): GroupMetricMap {
+  const map: GroupMetricMap = {};
+  for (const group of groups) {
+    const gNorm = normalizeHeader(group.displayName);
+    // Strip trailing units like "(mph)"
+    const gStripped = gNorm.replace(/\s*\(.*?\)\s*$/, "").trim();
 
-  for (const header of headers) {
-    // Skip columns mapped as player name
-    if (nameSet.has(header)) continue;
-
-    // Skip known player-info columns
-    if (isPlayerInfoColumn(header)) continue;
-
-    // Skip columns that aren't mostly numeric
-    if (!isNumericColumn(rows, header)) continue;
-
-    const hNorm = normalizeHeader(header);
-    // Strip trailing units like "(mph)", "(sec)", etc.
-    const hStripped = hNorm.replace(/\s*\(.*?\)\s*$/, "").trim();
-
-    // Try exact match first
+    // Exact match
     let match = metrics.find((m) => {
       const mNorm = normalizeHeader(m.name);
-      return hNorm === mNorm || hStripped === mNorm;
+      return gNorm === mNorm || gStripped === mNorm;
     });
 
-    // Try header fully contained in metric name (short header matching longer metric)
-    if (!match && hStripped.length >= 3) {
+    // Header fully contained in metric name
+    if (!match && gStripped.length >= 3) {
       match = metrics.find((m) => {
         const mNorm = normalizeHeader(m.name);
-        return mNorm.includes(hStripped);
+        return mNorm.includes(gStripped);
       });
     }
 
-    if (match) map[header] = match.id;
+    if (match) map[group.displayName] = match.id;
   }
   return map;
 }
@@ -108,7 +100,7 @@ interface MatchedRow {
   lastName: string;
   matchedPlayer: ExistingPlayer | null;
   createNew: boolean;
-  metricValues: { metricId: string; metricName: string; value: number }[];
+  metricValues: { metricId: string; metricName: string; value: number; attemptNumber: number }[];
 }
 
 export default function DataImport({ open, onOpenChange, onSuccess }: DataImportProps) {
@@ -118,7 +110,8 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [playerMapping, setPlayerMapping] = useState<PlayerIdMapping>({ player_name: "", first_name: "", last_name: "" });
-  const [metricMapping, setMetricMapping] = useState<MetricColumnMap>({});
+  const [columnGroups, setColumnGroups] = useState<ColumnGroup[]>([]);
+  const [groupMapping, setGroupMapping] = useState<GroupMetricMap>({});
   const [existingPlayers, setExistingPlayers] = useState<ExistingPlayer[]>([]);
   const [metrics, setMetrics] = useState<MetricInfo[]>([]);
   const [matchedRows, setMatchedRows] = useState<MatchedRow[]>([]);
@@ -142,7 +135,8 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
     setHeaders([]);
     setRows([]);
     setPlayerMapping({ player_name: "", first_name: "", last_name: "" });
-    setMetricMapping({});
+    setColumnGroups([]);
+    setGroupMapping({});
     setMatchedRows([]);
     setImporting(false);
     setImportResult({ players: 0, evals: 0 });
@@ -163,12 +157,11 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
       setRows(data);
       const guessedNames = guessPlayerColumns(fields);
       setPlayerMapping(guessedNames);
-      setMetricMapping(guessMetricColumns(
-        fields,
-        metrics,
-        data,
-        [guessedNames.player_name, guessedNames.first_name, guessedNames.last_name]
-      ));
+
+      const nameSet = new Set([guessedNames.player_name, guessedNames.first_name, guessedNames.last_name].filter(Boolean));
+      const groups = groupAttemptColumns(fields, data, nameSet);
+      setColumnGroups(groups);
+      setGroupMapping(guessGroupMetricMap(groups, metrics));
       setStep("identify");
     };
 
@@ -197,6 +190,21 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
     }
   };
 
+  // Recompute groups when name mapping changes
+  const recomputeGroups = () => {
+    const nameSet = new Set([playerMapping.player_name, playerMapping.first_name, playerMapping.last_name].filter(Boolean));
+    const groups = groupAttemptColumns(headers, rows, nameSet);
+    setColumnGroups(groups);
+    // Preserve existing mappings where group names match
+    const newMap: GroupMetricMap = {};
+    for (const g of groups) {
+      if (groupMapping[g.displayName]) {
+        newMap[g.displayName] = groupMapping[g.displayName];
+      }
+    }
+    setGroupMapping(newMap);
+  };
+
   const useFullName = !!playerMapping.player_name && !playerMapping.first_name && !playerMapping.last_name;
   const hasValidNameMapping = useFullName || (!!playerMapping.first_name && !!playerMapping.last_name);
 
@@ -216,14 +224,25 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         (p) => p.first_name.toLowerCase() === firstName.toLowerCase() && p.last_name.toLowerCase() === lastName.toLowerCase()
       );
 
+      // Build metric values from grouped columns
       const metricValues: MatchedRow["metricValues"] = [];
-      for (const [header, metricId] of Object.entries(metricMapping)) {
-        const raw = row[header];
-        const val = parseFloat(raw);
-        if (!isNaN(val) && metricId) {
-          const metric = metrics.find((m) => m.id === metricId);
-          metricValues.push({ metricId, metricName: metric?.name || header, value: val });
-        }
+      for (const group of columnGroups) {
+        const metricId = groupMapping[group.displayName];
+        if (!metricId) continue;
+        const metric = metrics.find((m) => m.id === metricId);
+
+        group.columns.forEach((col, colIdx) => {
+          const raw = row[col];
+          const val = parseFloat(raw);
+          if (!isNaN(val)) {
+            metricValues.push({
+              metricId,
+              metricName: metric?.name || group.displayName,
+              value: val,
+              attemptNumber: colIdx + 1,
+            });
+          }
+        });
       }
 
       return {
@@ -239,16 +258,17 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
     setMatchedRows(matched);
   };
 
+  const proceedToMetrics = () => {
+    recomputeGroups();
+    setStep("map_metrics");
+  };
+
   const proceedToPreview = () => {
     buildMatchedRows();
     setStep("preview");
   };
 
-  // Show ALL columns except those mapped as player name columns
-  // Coaches can override any mapping — nothing is hidden
-  const nameColumnsSet = new Set([playerMapping.player_name, playerMapping.first_name, playerMapping.last_name].filter(Boolean));
-  const metricCandidateHeaders = headers.filter((h) => !nameColumnsSet.has(h));
-
+  const mappedGroupCount = Object.values(groupMapping).filter(Boolean).length;
   const totalEvals = matchedRows.reduce((acc, r) => acc + (r.matchedPlayer || r.createNew ? r.metricValues.length : 0), 0);
   const newPlayerCount = matchedRows.filter((r) => !r.matchedPlayer && r.createNew).length;
   const matchedCount = matchedRows.filter((r) => r.matchedPlayer).length;
@@ -298,7 +318,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
             metric_id: mv.metricId,
             coach_id: coach.id,
             value: mv.value,
-            attempt_number: 1,
+            attempt_number: mv.attemptNumber,
           });
         }
       }
@@ -396,7 +416,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
               <Button variant="outline" className="flex-1 h-11 rounded-xl" onClick={reset}>Back</Button>
               <Button className="flex-1 h-11 rounded-xl gradient-primary border-0 font-bold"
                 disabled={!hasValidNameMapping}
-                onClick={() => setStep("map_metrics")}
+                onClick={proceedToMetrics}
               >
                 Next: Map Metrics
               </Button>
@@ -407,43 +427,52 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         {step === "map_metrics" && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Map spreadsheet columns to your metrics. Unmapped columns will be skipped.
+              We detected <span className="font-semibold text-foreground">{columnGroups.length}</span> data groups from your columns.
+              Multi-attempt columns (e.g. <span className="font-mono text-xs">FB_Velo_1–5</span>) are grouped automatically.
+              Map each group to a metric or skip it.
             </p>
-            <div className="space-y-2.5 max-h-64 overflow-y-auto">
-              {metricCandidateHeaders.map((header) => {
-                const isInfo = isPlayerInfoColumn(header);
-                const isNum = isNumericColumn(rows, header);
-                return (
-                  <div key={header} className="flex items-center gap-3">
-                    <div className="w-32 shrink-0">
-                      <Label className="text-sm truncate block" title={header}>{header}</Label>
-                      {isInfo && !metricMapping[header] && (
-                        <span className="text-[10px] text-muted-foreground">Player info</span>
-                      )}
-                      {!isInfo && !isNum && !metricMapping[header] && (
-                        <span className="text-[10px] text-muted-foreground">Non-numeric</span>
-                      )}
-                    </div>
-                    <Select value={metricMapping[header] || "__none__"}
-                      onValueChange={(v) => setMetricMapping({ ...metricMapping, [header]: v === "__none__" ? "" : v })}
-                    >
-                      <SelectTrigger className="h-10 rounded-lg flex-1"><SelectValue placeholder="Skip" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">— Skip —</SelectItem>
-                        {metrics.map((m) => (
-                          <SelectItem key={m.id} value={m.id}>{m.name} ({m.unit})</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {columnGroups.map((group) => (
+                <div key={group.displayName} className="flex items-center gap-3 rounded-lg border p-2.5">
+                  <div className="w-32 shrink-0">
+                    <p className="text-sm font-medium truncate" title={group.displayName}>{group.displayName}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {group.columns.length} attempt{group.columns.length > 1 ? "s" : ""}
+                    </p>
                   </div>
-                );
-              })}
+                  <Select
+                    value={groupMapping[group.displayName] || "__none__"}
+                    onValueChange={(v) =>
+                      setGroupMapping({ ...groupMapping, [group.displayName]: v === "__none__" ? "" : v })
+                    }
+                  >
+                    <SelectTrigger className="h-9 rounded-lg flex-1 text-sm">
+                      <SelectValue placeholder="Skip" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Skip —</SelectItem>
+                      {metrics.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name} ({m.unit})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
             </div>
 
-            {Object.values(metricMapping).filter(Boolean).length === 0 && (
+            {mappedGroupCount === 0 && (
               <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3">
                 <AlertCircle className="h-4 w-4 shrink-0" />
-                Map at least one column to a metric to import data.
+                Map at least one group to a metric to import data.
+              </div>
+            )}
+
+            {mappedGroupCount > 0 && (
+              <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+                <span className="font-semibold text-foreground">{mappedGroupCount}</span> metric{mappedGroupCount > 1 ? "s" : ""} mapped.
+                {" "}Unmapped groups will be skipped.
               </div>
             )}
 
@@ -458,7 +487,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1 h-11 rounded-xl" onClick={() => setStep("identify")}>Back</Button>
               <Button className="flex-1 h-11 rounded-xl gradient-primary border-0 font-bold"
-                disabled={Object.values(metricMapping).filter(Boolean).length === 0}
+                disabled={mappedGroupCount === 0}
                 onClick={proceedToPreview}
               >
                 Preview Import
