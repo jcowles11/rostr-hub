@@ -354,7 +354,7 @@ export default function PlayerLinkPage() {
                           <SelectValue placeholder="Select height" />
                         </SelectTrigger>
                         <SelectContent className="bg-popover z-50">
-                          {Array.from({ length: 25 }, (_, i) => {
+                          {Array.from({ length: 37 }, (_, i) => {
                             const totalInches = 48 + i;
                             const feet = Math.floor(totalInches / 12);
                             const inches = totalInches % 12;
