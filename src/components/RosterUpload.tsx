@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+import { normalizeHeader, splitFullName, splitBatsThrows } from "@/lib/importUtils";
 
 interface RosterUploadProps {
   open: boolean;
@@ -18,27 +19,16 @@ interface RosterUploadProps {
 }
 
 type ColumnMapping = {
-  player_name: string; // single combined name column
+  player_name: string;
   first_name: string;
   last_name: string;
   grade: string;
   positions: string;
   jersey_number_preference: string;
-  bats_throws: string; // combined B/T column
+  bats_throws: string;
   bats: string;
   throws: string;
 };
-
-function splitBatsThrows(val: string): { bats: string; throws: string } {
-  const trimmed = val.trim().toUpperCase();
-  if (!trimmed) return { bats: "", throws: "" };
-  // Handle "R/R", "L/R", "S/R", "R/L" etc.
-  const parts = trimmed.split(/[\/\-\\|,]/);
-  if (parts.length >= 2) {
-    return { bats: parts[0].trim().substring(0, 1), throws: parts[1].trim().substring(0, 1) };
-  }
-  return { bats: "", throws: "" };
-}
 
 const PLAYER_FIELDS: { key: keyof ColumnMapping; label: string; required: boolean; hint?: string }[] = [
   { key: "player_name", label: "Full Name", required: false, hint: "Single column with first & last name" },
@@ -52,46 +42,31 @@ const PLAYER_FIELDS: { key: keyof ColumnMapping; label: string; required: boolea
   { key: "throws", label: "Throws", required: false },
 ];
 
-function splitFullName(fullName: string): { first: string; last: string } {
-  const trimmed = fullName.trim();
-  if (!trimmed) return { first: "", last: "" };
-  // Handle "Last, First" format
-  if (trimmed.includes(",")) {
-    const [last, ...rest] = trimmed.split(",");
-    return { first: rest.join(",").trim(), last: last.trim() };
-  }
-  // Handle "First Last" format
-  const parts = trimmed.split(/\s+/);
-  if (parts.length === 1) return { first: parts[0], last: "" };
-  const first = parts.slice(0, -1).join(" ");
-  const last = parts[parts.length - 1];
-  return { first, last };
-}
-
 function guessMapping(headers: string[]): ColumnMapping {
-  const lower = headers.map((h) => h.toLowerCase().trim());
   const find = (terms: string[]) => {
-    const idx = lower.findIndex((h) => terms.some((t) => h === t || h.includes(t)));
+    const idx = headers.findIndex((h) => {
+      const norm = normalizeHeader(h);
+      return terms.some((t) => norm === t || norm.includes(t));
+    });
     return idx >= 0 ? headers[idx] : "";
   };
-  // Check for combined name column
-  const playerName = find(["player name", "player_name", "playername", "full name", "full_name", "fullname", "athlete name", "athlete", "name"]);
-  const firstName = find(["first name", "first_name", "firstname", "first"]);
-  const lastName = find(["last name", "last_name", "lastname", "last", "surname"]);
 
-  // Check for combined B/T column
-  const batsThrows = find(["b/t", "b\\t", "bats/throws", "bats-throws", "bat/throw"]);
+  const playerName = find(["player name", "playername", "full name", "fullname", "athlete name", "athlete", "name"]);
+  const firstName = find(["first name", "firstname", "first"]);
+  const lastName = find(["last name", "lastname", "last", "surname"]);
+
+  const batsThrows = find(["b/t", "b t", "bats/throws", "bats throws", "bats-throws", "bat/throw"]);
   const bats = find(["bats", "bat"]);
   const throws_ = find(["throws", "throw", "arm"]);
 
   return {
-    player_name: (!firstName && !lastName) ? playerName : "",
+    player_name: !firstName && !lastName ? playerName : "",
     first_name: firstName,
     last_name: lastName,
     grade: find(["grade", "year", "class"]),
     positions: find(["position", "pos"]),
     jersey_number_preference: find(["jersey", "number", "#", "num"]),
-    bats_throws: (!bats && !throws_) ? batsThrows : "",
+    bats_throws: !bats && !throws_ ? batsThrows : "",
     bats: bats,
     throws: throws_,
   };
