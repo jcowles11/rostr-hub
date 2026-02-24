@@ -1,58 +1,104 @@
 
 
-# Organize "Unassigned" Scores and Improve Metric Display
+# Fix Spreadsheet Import: Smarter Column Detection
 
-## Problem
-Scores and metrics that aren't tied to a specific tryout session show up as "Unassigned" on player profiles -- both on the coach's backend view and the public-facing profile. This looks unprofessional, especially for evaluator-submitted data that comes from showcases, camps, or independent evaluations and naturally won't belong to a tryout session.
+## Problems Identified
 
-## Solution
+1. **B/T column leaking into metrics** -- The `mappedMetricHeaders` blocklist on the "Map Metrics" step filters out known player-info columns, but "b/t", "bats/throws" etc. are missing from this list. So the B/T column shows up as a mappable metric column.
 
-### 1. Rename "Unassigned" to smarter labels on the coach view
+2. **Over-aggressive metric auto-matching** -- `guessMetricColumns` uses bidirectional `includes()` matching (`hLower.includes(mLower) || mLower.includes(hLower)`). This means a column like "Velocity" could match "Arm Velocity (IF)" and vice versa, or unrelated partial matches could occur. Only columns that actually contain numeric data should be candidates.
 
-On the **PlayerDetail** page (coach side), replace the generic "Unassigned" label with context-aware labeling:
-- Rename "Unassigned" to **"General Scores"** -- a clean, neutral label for scores entered outside of a formal session
-- Add a subtle subtitle: "Scores not tied to a session"
+3. **Blocklist approach is fragile** -- The current approach maintains a hardcoded list of "skip" terms. Any column name a coach invents that isn't in the list will show up as a metric candidate. A better approach: show ALL non-name columns in the metric mapping step but default them to "Skip", and use smarter auto-matching that only matches when confident.
 
-This is a small but meaningful UX improvement that removes the "something is wrong" feel of "Unassigned."
+4. **No data-sniffing** -- The system doesn't look at actual cell values. A column full of "R/R", "L/R" values is obviously not a numeric metric. Checking whether a column has mostly numeric values would help auto-categorize.
 
-### 2. Organize public profile metrics by source
+## Plan
 
-On the **PublicProfile** page, instead of dumping all metrics into one flat list, group them into two clear sections:
+### 1. Add a normalized column matching utility
 
-- **Program Metrics** -- scores from the player's coaching staff, with the program name as attribution (e.g., "Verified by Lincoln HS Baseball")
-- **Showcase / Independent Evaluations** -- scores from verified evaluators, grouped by evaluator or event, showing the evaluator name, organization, event name, and date
+Create a `normalizeHeader(name)` function that lowercases, strips accents, collapses whitespace/underscores, and trims. Use it everywhere instead of raw `toLowerCase()`.
 
-This gives scouts and recruiters a clear picture of where each data point came from.
+### 2. Expand the player-info blocklist with data sniffing
 
-### 3. Add event context to evaluator entries on coach view
+Replace the static blocklist with a smarter `isPlayerInfoColumn(header, rows)` function that:
+- Checks against an expanded list of known player-info terms (including "b/t", "bats/throws", "bat/throw", "ht", "height", "weight", "wt", "age", "dob", "birthday", "email", "phone", "class", "team", "school", "city", "state", "zip", "address", "parent", "guardian")
+- Also checks the actual data: if fewer than 30% of values in a column are parseable as numbers, it's probably not a metric
 
-On the **PlayerDetail** page, fetch and display evaluator entries alongside program scores so coaches get the full picture of a player's verified data -- not just their own scores. These will appear in a separate collapsible section called **"External Evaluations"** below the session-grouped scores.
+### 3. Improve metric auto-matching confidence
+
+Change `guessMetricColumns` to use stricter matching:
+- Exact match (normalized): highest confidence
+- Header equals metric name after stripping units like "(mph)", "(sec)": good match
+- Only use `includes` as a fallback when the header is short and fully contained in the metric name (not the reverse)
+- Never auto-match if the column fails the numeric data sniff
+
+### 4. Show all remaining columns in metric mapping step
+
+Instead of pre-filtering `mappedMetricHeaders`, show ALL columns that aren't mapped as player name columns. Columns detected as player-info will default to "Skip" but remain visible so coaches can override. This ensures nothing gets silently hidden.
+
+### 5. Apply the same improvements to RosterUpload
+
+The `guessMapping` function in RosterUpload already handles B/T well, but will benefit from the normalized matching utility for consistency.
 
 ## Technical Details
 
-### Files to modify
+### File: `src/components/DataImport.tsx`
 
-| File | Changes |
-|------|---------|
-| `src/pages/PlayerDetail.tsx` | Rename "Unassigned" to "General Scores" with subtitle. Add new collapsible "External Evaluations" section that fetches from `evaluator_entries` for the player. |
-| `src/pages/PublicProfile.tsx` | Split the flat "Verified Metrics" list into two grouped sections: "Program Metrics" and "Showcase Evaluations." Group evaluator entries by evaluator/event for cleaner display. |
+**New helper functions:**
 
-### No database changes needed
+```typescript
+function normalizeHeader(name: string): string {
+  return name.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[_\s]+/g, " ")
+    .trim();
+}
 
-All the data already exists:
-- `evaluations` table has `session_id` (nullable) for program scores
-- `evaluator_entries` table has `event_name`, `event_date`, `evaluator_id` with evaluator attribution
-- The `get_public_profile` RPC already returns both `metrics` and `evaluator_metrics` separately
+function isNumericColumn(rows: Record<string, string>[], header: string): boolean {
+  if (rows.length === 0) return false;
+  const sample = rows.slice(0, 20);
+  const numericCount = sample.filter(r => {
+    const val = (r[header] || "").trim();
+    return val !== "" && !isNaN(parseFloat(val));
+  }).length;
+  const nonEmptyCount = sample.filter(r => (r[header] || "").trim() !== "").length;
+  return nonEmptyCount > 0 && (numericCount / nonEmptyCount) >= 0.5;
+}
 
-### PlayerDetail.tsx changes
-- Line 488: Change `"Unassigned"` to `"General Scores"`
-- Add a new section after the session-grouped scores that queries `evaluator_entries` joined with `evaluators` for this player
-- Display each external evaluation with: metric name, value, evaluator name, organization, event name, and date
-- Make this section collapsible like the existing session sections
+const PLAYER_INFO_TERMS = [
+  "first name", "last name", "first_name", "last_name", "firstname", "lastname",
+  "name", "first", "last", "surname", "player name", "player_name", "full name",
+  "full_name", "fullname", "athlete",
+  "grade", "year", "class",
+  "position", "pos",
+  "jersey", "number", "#", "num",
+  "bats", "throws", "b/t", "bats/throws", "bat/throw", "bats-throws",
+  "ht", "height", "wt", "weight", "age", "dob", "birthday",
+  "email", "phone", "team", "school", "city", "state", "zip", "address",
+  "parent", "guardian", "notes", "comment"
+];
 
-### PublicProfile.tsx changes
-- Instead of combining `metrics` and `evaluator_metrics` into one `allMetrics` array, render them as two separate card sections
-- **"Program Metrics"** card: shows aggregated program scores with the program name badge
-- **"Showcase & Evaluator Data"** card: groups evaluator entries by evaluator (or event if available), each with clear attribution showing evaluator name, organization, and event context
-- If either section is empty, it simply doesn't render (no empty state needed)
+function isPlayerInfoColumn(header: string): boolean {
+  const norm = normalizeHeader(header);
+  return PLAYER_INFO_TERMS.some(t => norm === t || norm === t.replace(/[\s_]/g, ""));
+}
+```
+
+**Changes to `guessMetricColumns`:**
+- Use `normalizeHeader` for matching
+- Only auto-match columns that pass `isNumericColumn` check
+- Use stricter matching: exact normalized match or header fully contained in metric name (not reverse)
+
+**Changes to `mappedMetricHeaders` (line 233-238):**
+- Replace the blocklist filter with: show all columns except the ones currently mapped as player name columns (first_name, last_name, player_name)
+- Each column gets a default mapping: auto-matched metric if confident, "Skip" otherwise
+- This means coaches see every column and can manually map any column to any metric
+
+**Changes to `guessPlayerColumns`:**
+- Use `normalizeHeader` for more robust matching
+
+### File: `src/components/RosterUpload.tsx`
+
+- Use the same `normalizeHeader` function for `guessMapping`
+- Expand the B/T detection terms to match more variations
 
