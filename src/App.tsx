@@ -150,7 +150,9 @@ function SocialRoute() {
 
 function AuthRoute({ children }: { children: React.ReactNode }) {
   const { user, coach, userRole, loading } = useAuth();
+  const redirectTo = new URLSearchParams(window.location.search).get("redirect");
   if (loading) return null;
+  if (user && redirectTo) return <Navigate to={redirectTo} replace />;
   if (user && userRole === "player") return <Navigate to="/player-dashboard" replace />;
   if (user && userRole === "evaluator") return <Navigate to="/evaluator" replace />;
   if (user && userRole === "scout") return <Navigate to="/scout" replace />;

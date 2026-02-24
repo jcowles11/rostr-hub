@@ -101,7 +101,7 @@ export default function DemoTour() {
 
         {!user && (
           <p className="text-center text-xs text-muted-foreground">
-            Please <button onClick={() => navigate("/auth")} className="text-primary underline">log in</button> first to use demo mode.
+            Please <button onClick={() => navigate("/auth?redirect=/demo")} className="text-primary underline">log in</button> first to use demo mode.
           </p>
         )}
 
