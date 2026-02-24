@@ -1,87 +1,58 @@
 
-# Redesign the "More" Tab as a Feature Hub
 
-## The Idea
-Transform the current Settings page (the "More" tab) from a long scrolling settings page into a clean **menu hub** with categorized action tiles. Each tile either navigates to a dedicated sub-page or opens a dialog. This keeps the four primary tabs (Roster, Score, Stats, Board) focused on core workflows while the "More" tab becomes the organized home for everything else.
+# Organize "Unassigned" Scores and Improve Metric Display
 
-## Current State
-The "More" tab is a single scrolling page containing: program logo upload, registration link, coach management, levels, visibility settings, metrics configuration, and sign out. Meanwhile, features like roster CSV import, data import, and export live scattered on other pages (Roster page has import buttons, Export is a separate route accessed from... nowhere obvious in the nav).
+## Problem
+Scores and metrics that aren't tied to a specific tryout session show up as "Unassigned" on player profiles -- both on the coach's backend view and the public-facing profile. This looks unprofessional, especially for evaluator-submitted data that comes from showcases, camps, or independent evaluations and naturally won't belong to a tryout session.
 
-## New Layout
+## Solution
 
-The "More" page becomes a categorized grid of action tiles:
+### 1. Rename "Unassigned" to smarter labels on the coach view
 
-```text
-+----------------------------------+
-| [Logo] Program Name              |
-| Head Coach - John Smith           |
-+----------------------------------+
-|                                  |
-| TRYOUT PLANNING                  |
-| [Calendar] Tryout Planner        |
-| [Sliders] Metrics & Drills       |
-|                                  |
-| DATA                             |
-| [Upload] Import Roster (CSV)     |
-| [Database] Import Scores (CSV)   |
-| [Download] Export & Reports       |
-|                                  |
-| PROGRAM                          |
-| [Users] Manage Coaches            |
-| [Layers] Team Levels              |
-| [Eye] Player Visibility           |
-| [Image] Program Logo              |
-| [Share] Registration Link         |
-|                                  |
-| ACCOUNT                          |
-| [LogOut] Sign Out                 |
-+----------------------------------+
-```
+On the **PlayerDetail** page (coach side), replace the generic "Unassigned" label with context-aware labeling:
+- Rename "Unassigned" to **"General Scores"** -- a clean, neutral label for scores entered outside of a formal session
+- Add a subtle subtitle: "Scores not tied to a session"
 
-Each tile is a compact row with an icon, title, and optional subtitle -- like a native settings app. Tapping a tile either:
-- **Navigates** to a dedicated page (Tryout Planner, Export)
-- **Opens a dialog** (Import Roster, Import Scores)
-- **Expands inline** (Manage Coaches, Levels, Visibility, Logo -- these stay as collapsible cards on the same page to avoid too many sub-pages)
+This is a small but meaningful UX improvement that removes the "something is wrong" feel of "Unassigned."
 
-## What Changes
+### 2. Organize public profile metrics by source
 
-### 1. Restructure SettingsPage.tsx into a hub layout
-- Replace the stacked cards with a categorized list of action tiles
-- Keep inline-expandable sections for simple settings (coaches, levels, visibility, logo)
-- Add navigation tiles for Tryout Planner and Export pages
-- Add dialog-trigger tiles for Roster Import and Data Import
+On the **PublicProfile** page, instead of dumping all metrics into one flat list, group them into two clear sections:
 
-### 2. Create TryoutPlanner page (`/plan`)
-- New page with two sections: **Sessions** (CRUD for tryout_sessions) and **Metrics Overview** (grouped by category, showing name, unit, attempts, scoring direction -- all editable inline)
-- Two-column layout on desktop, stacked on mobile
-- This is where coaches go to plan their tryout before game day
+- **Program Metrics** -- scores from the player's coaching staff, with the program name as attribution (e.g., "Verified by Lincoln HS Baseball")
+- **Showcase / Independent Evaluations** -- scores from verified evaluators, grouped by evaluator or event, showing the evaluator name, organization, event name, and date
 
-### 3. Wire up Export page in navigation
-- The ExportPage already exists at `/export` but isn't easily discoverable. Now it's one tap away from the More menu.
+This gives scouts and recruiters a clear picture of where each data point came from.
 
-### 4. Add route for `/plan`
-- Add the new TryoutPlanner route to App.tsx wrapped in ProtectedRoute
+### 3. Add event context to evaluator entries on coach view
 
-## Technical Changes
+On the **PlayerDetail** page, fetch and display evaluator entries alongside program scores so coaches get the full picture of a player's verified data -- not just their own scores. These will appear in a separate collapsible section called **"External Evaluations"** below the session-grouped scores.
 
-| File | Change |
-|------|--------|
-| `src/pages/SettingsPage.tsx` | Redesign as hub with categorized action tiles, import dialogs, collapsible inline sections |
-| `src/pages/TryoutPlanner.tsx` | **New** -- sessions CRUD + metrics overview grid, responsive two-column layout |
-| `src/App.tsx` | Add `/plan` route |
+## Technical Details
 
-### SettingsPage tile structure
-Each tile is a simple button/link row:
-- Icon + Title + optional chevron (for navigation) or expand arrow (for inline)
-- Grouped under section headers (Tryout Planning, Data, Program, Account)
-- Import Roster and Import Scores tiles open the existing `RosterUpload` and `DataImport` dialog components directly from this page
-- Metrics tile navigates to `/plan` (the new Tryout Planner)
+### Files to modify
 
-### TryoutPlanner.tsx details
-- **Sessions panel**: List all `tryout_sessions` with name + date. Inline edit/delete. Add new session button.
-- **Metrics panel**: Fetch all `metrics` for the program. Group by `category`. Each metric shows: name, unit, max_attempts, aggregation, scoring direction. Inline edit any field. Add new metric per category.
-- Desktop: side-by-side columns. Mobile: stacked with sessions on top.
-- Hero with gradient background, summary stats (X sessions, Y metrics)
+| File | Changes |
+|------|---------|
+| `src/pages/PlayerDetail.tsx` | Rename "Unassigned" to "General Scores" with subtitle. Add new collapsible "External Evaluations" section that fetches from `evaluator_entries` for the player. |
+| `src/pages/PublicProfile.tsx` | Split the flat "Verified Metrics" list into two grouped sections: "Program Metrics" and "Showcase Evaluations." Group evaluator entries by evaluator/event for cleaner display. |
 
-### No database changes required
-All tables (`tryout_sessions`, `metrics`) already exist with proper RLS policies.
+### No database changes needed
+
+All the data already exists:
+- `evaluations` table has `session_id` (nullable) for program scores
+- `evaluator_entries` table has `event_name`, `event_date`, `evaluator_id` with evaluator attribution
+- The `get_public_profile` RPC already returns both `metrics` and `evaluator_metrics` separately
+
+### PlayerDetail.tsx changes
+- Line 488: Change `"Unassigned"` to `"General Scores"`
+- Add a new section after the session-grouped scores that queries `evaluator_entries` joined with `evaluators` for this player
+- Display each external evaluation with: metric name, value, evaluator name, organization, event name, and date
+- Make this section collapsible like the existing session sections
+
+### PublicProfile.tsx changes
+- Instead of combining `metrics` and `evaluator_metrics` into one `allMetrics` array, render them as two separate card sections
+- **"Program Metrics"** card: shows aggregated program scores with the program name badge
+- **"Showcase & Evaluator Data"** card: groups evaluator entries by evaluator (or event if available), each with clear attribution showing evaluator name, organization, and event context
+- If either section is empty, it simply doesn't render (no empty state needed)
+
