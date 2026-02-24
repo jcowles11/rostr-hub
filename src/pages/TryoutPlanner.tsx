@@ -75,21 +75,21 @@ export default function TryoutPlanner() {
       name: newSessionName.trim(),
       session_date: newSessionDate,
     });
-    if (error) toast.error("Failed to add session");
-    else { toast.success("Session added!"); setAddingSession(false); setNewSessionName(""); fetchData(); }
+    if (error) toast.error("Failed to add event");
+    else { toast.success("Event added!"); setAddingSession(false); setNewSessionName(""); fetchData(); }
   };
 
   const updateSession = async (id: string) => {
     if (!editSessionName.trim()) return;
     const { error } = await supabase.from("tryout_sessions").update({ name: editSessionName.trim(), session_date: editSessionDate }).eq("id", id);
     if (error) toast.error("Failed to update");
-    else { toast.success("Session updated!"); setEditingSessionId(null); fetchData(); }
+    else { toast.success("Event updated!"); setEditingSessionId(null); fetchData(); }
   };
 
   const deleteSession = async (id: string) => {
     const { error } = await supabase.from("tryout_sessions").delete().eq("id", id);
-    if (error) toast.error("Failed to delete session");
-    else { toast.success("Session deleted"); fetchData(); }
+    if (error) toast.error("Failed to delete event");
+    else { toast.success("Event deleted"); fetchData(); }
   };
 
   // Metric inline edit
@@ -137,11 +137,11 @@ export default function TryoutPlanner() {
           <ArrowLeft className="h-4 w-4" /> Back to More
         </button>
         <h1 className="text-2xl font-extrabold text-white">Tryout Planner</h1>
-        <p className="text-white/70 text-sm mt-1">Plan your sessions and configure metrics in one place.</p>
+        <p className="text-white/70 text-sm mt-1">Plan your events and configure metrics in one place.</p>
         <div className="flex gap-4 mt-3">
           <div className="glass-card px-3 py-2 rounded-xl">
             <p className="text-white text-lg font-extrabold">{sessions.length}</p>
-            <p className="text-white/60 text-[10px] uppercase font-bold">Sessions</p>
+            <p className="text-white/60 text-[10px] uppercase font-bold">Events</p>
           </div>
           <div className="glass-card px-3 py-2 rounded-xl">
             <p className="text-white text-lg font-extrabold">{metrics.length}</p>
@@ -156,12 +156,12 @@ export default function TryoutPlanner() {
 
       {/* Two-column layout on desktop */}
       <div className="grid grid-cols-1 md:grid-cols-[1fr_1.5fr] gap-6">
-        {/* Sessions */}
+        {/* Events */}
         <Card className="section-card h-fit">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-primary" /> Sessions
+                <Calendar className="h-4 w-4 text-primary" /> Events
               </CardTitle>
               {isHead && !addingSession && (
                 <Button size="sm" variant="outline" className="rounded-xl text-xs h-8" onClick={() => setAddingSession(true)}>
@@ -176,7 +176,7 @@ export default function TryoutPlanner() {
                 <Input
                   value={newSessionName}
                   onChange={(e) => setNewSessionName(e.target.value)}
-                  placeholder="e.g. Day 1 - Speed & Agility"
+                  placeholder="e.g. Fall Tryouts"
                   className="h-9 rounded-lg text-sm"
                   autoFocus
                 />
@@ -194,7 +194,7 @@ export default function TryoutPlanner() {
             )}
 
             {sessions.length === 0 && !addingSession && (
-              <p className="text-sm text-muted-foreground text-center py-6">No sessions planned yet.</p>
+              <p className="text-sm text-muted-foreground text-center py-6">No events planned yet.</p>
             )}
 
             {sessions.map((s) => (

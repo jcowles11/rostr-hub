@@ -81,7 +81,7 @@ export default function PlayerDetail() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [sessionInfos, setSessionInfos] = useState<SessionInfo[]>([]);
   const [externalEntries, setExternalEntries] = useState<ExternalEntry[]>([]);
-  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set(["aggregate"]));
+  const [expandedMetrics, setExpandedMetrics] = useState<Set<string>>(new Set());
   const [newNote, setNewNote] = useState("");
   const [newFlag, setNewFlag] = useState<string>("");
   const [coachFilter, setCoachFilter] = useState<string>("all");
@@ -182,8 +182,8 @@ export default function PlayerDetail() {
     evalsByMetric.set(e.metric_id, arr);
   });
 
-  const toggleSession = (key: string) => {
-    setExpandedSessions((prev) => {
+  const toggleMetric = (key: string) => {
+    setExpandedMetrics((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -461,137 +461,76 @@ export default function PlayerDetail() {
         </Select>
       </div>
 
-      {/* Scores by metric - grouped by session */}
+      {/* Scores by metric - aggregated with expandable history */}
       <Card className="section-card mb-4">
         <CardHeader className="pb-2"><CardTitle className="text-lg font-bold">Evaluations</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          {/* Aggregate summary (all sessions) */}
-          <button
-            onClick={() => toggleSession("aggregate")}
-            className="flex items-center gap-2 w-full text-left"
-          >
-            {expandedSessions.has("aggregate") ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
-            <span className="text-sm font-bold">Overall Summary</span>
-            <span className="text-[10px] text-muted-foreground font-medium">All Sessions</span>
-          </button>
-          {expandedSessions.has("aggregate") && (
-            <div className="space-y-2 ml-6 animate-fade-in">
-              {metrics.map((m) => {
-                const mEvals = evalsByMetric.get(m.id) || [];
-                const vals = mEvals.map((e) => e.value);
-                const computed = vals.length > 0 ? aggregateValues(vals, m.aggregation as any, m.metric_type as any) : null;
-                const label = AGGREGATION_LABELS[m.aggregation] || "Best";
-                const isAdding = addingMetric === m.id;
-                return (
-                  <div key={m.id} className="rounded-xl bg-muted/40 p-3 transition-colors hover:bg-muted/60">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="font-semibold text-sm">{m.name}</span>
-                        {mEvals.length > 0 && (
-                          <span className="text-[10px] text-muted-foreground ml-1.5 font-medium">({label} of {mEvals.length})</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {computed !== null && (
-                          <span className="text-xl font-extrabold">{computed?.toFixed(1)} <span className="text-xs font-medium text-muted-foreground">{m.unit}</span></span>
-                        )}
-                        <button
-                          onClick={() => { setAddingMetric(isAdding ? null : m.id); setAddValue(""); setTimeout(() => addInputRef.current?.focus(), 50); }}
-                          className="rounded-lg p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                          title="Add score"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                    {isAdding && (
-                      <div className="flex items-center gap-2 mt-2 animate-fade-in">
-                        <Input ref={addInputRef} type="number" inputMode="decimal" value={addValue} onChange={(e) => setAddValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleAddEval(m.id); if (e.key === "Escape") setAddingMetric(null); }} placeholder={m.unit} className="h-9 w-24 text-center font-bold rounded-lg" />
-                        <Button size="sm" disabled={!addValue || savingEval} onClick={() => handleAddEval(m.id)} className="h-9 rounded-lg gradient-primary border-0"><Check className="h-4 w-4" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => setAddingMetric(null)} className="h-9 rounded-lg"><X className="h-4 w-4" /></Button>
-                      </div>
-                    )}
-                    {mEvals.length === 0 && !isAdding && <p className="text-xs text-muted-foreground mt-1">No scores yet</p>}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Per-session groups */}
-          {sessionKeys.map((sessionKey) => {
-            const sessEvals = evalsBySession.get(sessionKey) || [];
-            const sessInfo = sessionKey !== "unsorted" ? sessionMap.get(sessionKey) : null;
-            const sessionLabel = sessInfo ? sessInfo.name : "Imported / Unassigned";
-            const sessionDate = sessInfo ? format(new Date(sessInfo.session_date + "T00:00:00"), "MMM d, yyyy") : "";
-            const isExpanded = expandedSessions.has(sessionKey);
-            const isUnsorted = sessionKey === "unsorted";
-
-            // Group this session's evals by metric
-            const sessEvalsByMetric = new Map<string, Evaluation[]>();
-            sessEvals.forEach((e) => {
-              const arr = sessEvalsByMetric.get(e.metric_id) || [];
-              arr.push(e);
-              sessEvalsByMetric.set(e.metric_id, arr);
-            });
+        <CardContent className="space-y-2">
+          {metrics.map((m) => {
+            const mEvals = (evalsByMetric.get(m.id) || []).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            const vals = mEvals.map((e) => e.value);
+            const computed = vals.length > 0 ? aggregateValues(vals, m.aggregation as any, m.metric_type as any) : null;
+            const label = AGGREGATION_LABELS[m.aggregation] || "Best";
+            const isAdding = addingMetric === m.id;
+            const isExpanded = expandedMetrics.has(m.id);
 
             return (
-              <div key={sessionKey}>
-                <div className="flex items-center gap-2 mt-2">
-                  <button
-                    onClick={() => toggleSession(sessionKey)}
-                    className="flex items-center gap-2 flex-1 text-left"
-                  >
-                    {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
-                    <span className={cn("text-sm font-bold", isUnsorted && "text-amber-600 dark:text-amber-400")}>{sessionLabel}</span>
-                    {sessionDate && <span className="text-[10px] text-muted-foreground font-medium">{sessionDate}</span>}
-                    {isUnsorted && <span className="text-[10px] text-amber-500 italic">Not tied to a session</span>}
-                    <span className="text-[10px] text-muted-foreground">({sessEvals.length} scores)</span>
-                  </button>
-                  {/* Bulk-assign unsorted evals to a session */}
-                  {isUnsorted && (
-                    <Select onValueChange={async (sessionId) => {
-                      if (!id) return;
-                      const { error } = await supabase
-                        .from("evaluations")
-                        .update({ session_id: sessionId })
-                        .eq("player_id", id)
-                        .is("session_id", null);
-                      if (error) {
-                        toast.error("Failed to assign session");
-                      } else {
-                        toast.success("Scores assigned to session");
-                        fetchAll();
-                      }
-                    }}>
-                      <SelectTrigger className="h-7 w-auto text-[11px] rounded-lg px-2 shrink-0">
-                        <SelectValue placeholder="Assign to session…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {sessionInfos.map((s) => (
-                          <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+              <div key={m.id} className="rounded-xl bg-muted/40 p-3 transition-colors hover:bg-muted/60">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {mEvals.length > 0 && (
+                      <button onClick={() => toggleMetric(m.id)} className="shrink-0 text-muted-foreground hover:text-foreground transition-colors">
+                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </button>
+                    )}
+                    <div className="min-w-0">
+                      <span className="font-semibold text-sm">{m.name}</span>
+                      {mEvals.length > 0 && (
+                        <span className="text-[10px] text-muted-foreground ml-1.5 font-medium">({label} of {mEvals.length})</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {computed !== null && (
+                      <span className="text-xl font-extrabold">{computed?.toFixed(1)} <span className="text-xs font-medium text-muted-foreground">{m.unit}</span></span>
+                    )}
+                    <button
+                      onClick={() => { setAddingMetric(isAdding ? null : m.id); setAddValue(""); setTimeout(() => addInputRef.current?.focus(), 50); }}
+                      className="rounded-lg p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                      title="Add score"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-                {isExpanded && (
-                  <div className="space-y-2 ml-6 mt-1 animate-fade-in">
-                    {metrics.filter((m) => sessEvalsByMetric.has(m.id)).map((m) => {
-                      const mEvals = sessEvalsByMetric.get(m.id) || [];
-                      const vals = mEvals.map((e) => e.value);
-                      const computed = vals.length > 0 ? aggregateValues(vals, m.aggregation as any, m.metric_type as any) : null;
+
+                {/* Add score inline */}
+                {isAdding && (
+                  <div className="flex items-center gap-2 mt-2 animate-fade-in">
+                    <Input ref={addInputRef} type="number" inputMode="decimal" value={addValue} onChange={(e) => setAddValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleAddEval(m.id); if (e.key === "Escape") setAddingMetric(null); }} placeholder={m.unit} className="h-9 w-24 text-center font-bold rounded-lg" />
+                    <Button size="sm" disabled={!addValue || savingEval} onClick={() => handleAddEval(m.id)} className="h-9 rounded-lg gradient-primary border-0"><Check className="h-4 w-4" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => setAddingMetric(null)} className="h-9 rounded-lg"><X className="h-4 w-4" /></Button>
+                  </div>
+                )}
+
+                {mEvals.length === 0 && !isAdding && <p className="text-xs text-muted-foreground mt-1">No scores yet</p>}
+
+                {/* Expandable score history */}
+                {isExpanded && mEvals.length > 0 && (
+                  <div className="mt-2 space-y-1 animate-fade-in border-t border-border/50 pt-2">
+                    {mEvals.map((e) => {
+                      const c = getCoach(e.coach_id);
+                      const sessInfo = e.session_id ? sessionMap.get(e.session_id) : null;
+                      const dateStr = format(new Date(e.created_at), "MMM d, yyyy");
                       return (
-                        <div key={m.id} className="rounded-xl bg-muted/40 p-3 transition-colors hover:bg-muted/60">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="font-semibold text-sm">{m.name}</span>
-                            {computed !== null && (
-                              <span className="text-lg font-extrabold">{computed?.toFixed(1)} <span className="text-xs font-medium text-muted-foreground">{m.unit}</span></span>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {mEvals.map((e) => renderEvalChip(e))}
-                          </div>
+                        <div key={e.id} className="flex items-center gap-2 text-xs">
+                          {renderEvalChip(e)}
+                          <span className="text-muted-foreground">{dateStr}</span>
+                          {sessInfo && (
+                            <Badge variant="outline" className="text-[10px] h-4 px-1.5 py-0 font-medium">{sessInfo.name}</Badge>
+                          )}
+                          {!sessInfo && e.session_id === null && (
+                            <span className="text-[10px] text-muted-foreground/60 italic">unassigned</span>
+                          )}
                         </div>
                       );
                     })}
@@ -600,6 +539,33 @@ export default function PlayerDetail() {
               </div>
             );
           })}
+
+          {/* Unassigned scores bulk-assign */}
+          {filteredEvals.some((e) => e.session_id === null) && sessionInfos.length > 0 && (
+            <div className="flex items-center gap-2 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-2.5 mt-2">
+              <span className="text-xs font-medium text-amber-700 dark:text-amber-300 flex-1">Some scores aren't assigned to an event</span>
+              <Select onValueChange={async (sessionId) => {
+                if (!id) return;
+                const { error } = await supabase
+                  .from("evaluations")
+                  .update({ session_id: sessionId })
+                  .eq("player_id", id)
+                  .is("session_id", null);
+                if (error) toast.error("Failed to assign");
+                else { toast.success("Scores assigned to event"); fetchAll(); }
+              }}>
+                <SelectTrigger className="h-7 w-auto text-[11px] rounded-lg px-2 shrink-0">
+                  <SelectValue placeholder="Assign to event…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sessionInfos.map((s) => (
+                    <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {metrics.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">No metrics configured</p>}
         </CardContent>
       </Card>
