@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Users, ClipboardList, BarChart3, Layers, Settings, ChevronDown, Plus, Trash2, Building2, Calendar, Check, X } from "lucide-react";
+import { Users, ClipboardList, BarChart3, Layers, Settings, ChevronDown, Plus, Trash2, Building2, Calendar, Check, X, Globe } from "lucide-react";
 import rostrLogo from "@/assets/rostr-logo.png";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,7 +32,7 @@ const navItems = [
   { path: "/score", icon: ClipboardList, label: "Score" },
   { path: "/dashboard", icon: BarChart3, label: "Stats" },
   { path: "/roster-board", icon: Layers, label: "Board" },
-  { path: "/settings", icon: Settings, label: "More" },
+  { path: "/social", icon: Globe, label: "Social" },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {

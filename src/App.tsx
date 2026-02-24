@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SessionProvider } from "@/contexts/SessionContext";
 import AppLayout from "@/components/AppLayout";
+import UnifiedNavShell from "@/components/UnifiedNavShell";
 import Auth from "@/pages/Auth";
 import ProgramSetup from "@/pages/ProgramSetup";
 import Roster from "@/pages/Roster";
@@ -24,6 +25,7 @@ import PublicProfile from "@/pages/PublicProfile";
 import EvaluatorDashboard from "@/pages/EvaluatorDashboard";
 import EvaluatorProfile from "@/pages/EvaluatorProfile";
 import ScoutDashboard from "@/pages/ScoutDashboard";
+import SocialPage from "@/pages/SocialPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -103,6 +105,16 @@ function ScoutRoute({ children }: { children: React.ReactNode }) {
   return <Navigate to="/auth" replace />;
 }
 
+/** Social is accessible to all authenticated users */
+function SocialRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/auth" replace />;
+
+  return <>{children}</>;
+}
+
 function AuthRoute({ children }: { children: React.ReactNode }) {
   const { user, coach, userRole, loading } = useAuth();
   if (loading) return null;
@@ -132,10 +144,11 @@ const App = () => (
             <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
             <Route path="/setup" element={<SetupRoute />} />
             <Route path="/register/:code" element={<PlayerRegister />} />
-            <Route path="/player-dashboard" element={<PlayerRoute><PlayerDashboard /></PlayerRoute>} />
+            <Route path="/player-dashboard" element={<PlayerRoute><UnifiedNavShell><PlayerDashboard /></UnifiedNavShell></PlayerRoute>} />
             <Route path="/player-link" element={<PlayerLinkPage />} />
-            <Route path="/evaluator" element={<EvaluatorRoute><EvaluatorDashboard /></EvaluatorRoute>} />
-            <Route path="/scout" element={<ScoutRoute><ScoutDashboard /></ScoutRoute>} />
+            <Route path="/evaluator" element={<EvaluatorRoute><UnifiedNavShell><EvaluatorDashboard /></UnifiedNavShell></EvaluatorRoute>} />
+            <Route path="/scout" element={<ScoutRoute><UnifiedNavShell><ScoutDashboard /></UnifiedNavShell></ScoutRoute>} />
+            <Route path="/social" element={<SocialRoute><UnifiedNavShell><SocialPage /></UnifiedNavShell></SocialRoute>} />
             <Route path="/p/:slug" element={<PublicProfile />} />
             <Route path="/evaluator/:id" element={<EvaluatorProfile />} />
             <Route path="/" element={<ProtectedRoute><Roster /></ProtectedRoute>} />

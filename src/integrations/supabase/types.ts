@@ -435,10 +435,16 @@ export type Database = {
       players: {
         Row: {
           bats: string | null
+          city: string | null
+          commitment_date: string | null
+          committed_school_logo_url: string | null
+          committed_school_name: string | null
           created_at: string
+          email: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           first_name: string
+          gamechanger_profile_url: string | null
           gpa: string | null
           grade: number | null
           graduation_year: number | null
@@ -447,17 +453,21 @@ export type Database = {
           id: string
           jersey_number_preference: number | null
           last_name: string
+          maxpreps_profile_url: string | null
           medical_notes: string | null
+          phone: string | null
           photo_url: string | null
           player_number: number | null
           positions: string[] | null
           profile_public: boolean
           profile_slug: string | null
           program_id: string
+          recruiting_status: string
           results_visible: boolean | null
           show_contact_info: boolean
           social_instagram: string | null
           social_twitter: string | null
+          state: string | null
           team_id: string | null
           throws: string | null
           travel_ball_experience: string | null
@@ -467,10 +477,16 @@ export type Database = {
         }
         Insert: {
           bats?: string | null
+          city?: string | null
+          commitment_date?: string | null
+          committed_school_logo_url?: string | null
+          committed_school_name?: string | null
           created_at?: string
+          email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           first_name: string
+          gamechanger_profile_url?: string | null
           gpa?: string | null
           grade?: number | null
           graduation_year?: number | null
@@ -479,17 +495,21 @@ export type Database = {
           id?: string
           jersey_number_preference?: number | null
           last_name: string
+          maxpreps_profile_url?: string | null
           medical_notes?: string | null
+          phone?: string | null
           photo_url?: string | null
           player_number?: number | null
           positions?: string[] | null
           profile_public?: boolean
           profile_slug?: string | null
           program_id: string
+          recruiting_status?: string
           results_visible?: boolean | null
           show_contact_info?: boolean
           social_instagram?: string | null
           social_twitter?: string | null
+          state?: string | null
           team_id?: string | null
           throws?: string | null
           travel_ball_experience?: string | null
@@ -499,10 +519,16 @@ export type Database = {
         }
         Update: {
           bats?: string | null
+          city?: string | null
+          commitment_date?: string | null
+          committed_school_logo_url?: string | null
+          committed_school_name?: string | null
           created_at?: string
+          email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           first_name?: string
+          gamechanger_profile_url?: string | null
           gpa?: string | null
           grade?: number | null
           graduation_year?: number | null
@@ -511,17 +537,21 @@ export type Database = {
           id?: string
           jersey_number_preference?: number | null
           last_name?: string
+          maxpreps_profile_url?: string | null
           medical_notes?: string | null
+          phone?: string | null
           photo_url?: string | null
           player_number?: number | null
           positions?: string[] | null
           profile_public?: boolean
           profile_slug?: string | null
           program_id?: string
+          recruiting_status?: string
           results_visible?: boolean | null
           show_contact_info?: boolean
           social_instagram?: string | null
           social_twitter?: string | null
+          state?: string | null
           team_id?: string | null
           throws?: string | null
           travel_ball_experience?: string | null
@@ -793,6 +823,7 @@ export type Database = {
     }
     Functions: {
       get_public_profile: { Args: { _slug: string }; Returns: Json }
+      get_social_feed: { Args: { _limit?: number }; Returns: Json }
       has_program_access: {
         Args: { _program_id: string; _user_id: string }
         Returns: boolean
@@ -821,20 +852,36 @@ export type Database = {
         Args: { _program_id: string; _user_id: string }
         Returns: boolean
       }
-      search_public_players: {
-        Args: {
-          _bats?: string
-          _grad_year_max?: number
-          _grad_year_min?: number
-          _limit?: number
-          _name_search?: string
-          _offset?: number
-          _positions?: string[]
-          _sport?: string
-          _throws?: string
-        }
-        Returns: Json
-      }
+      search_public_players:
+        | {
+            Args: {
+              _bats?: string
+              _grad_year_max?: number
+              _grad_year_min?: number
+              _limit?: number
+              _name_search?: string
+              _offset?: number
+              _positions?: string[]
+              _sport?: string
+              _throws?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              _bats?: string
+              _grad_year_max?: number
+              _grad_year_min?: number
+              _limit?: number
+              _name_search?: string
+              _offset?: number
+              _positions?: string[]
+              _recruiting_status?: string
+              _sport?: string
+              _throws?: string
+            }
+            Returns: Json
+          }
     }
     Enums: {
       aggregation_method: "best" | "average" | "latest"

@@ -2,7 +2,9 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Search, User, Trophy, ExternalLink, Share2, Copy, MapPin } from "lucide-react";
+import { toast } from "sonner";
 import type { PlayerResult } from "@/pages/ScoutDashboard";
 
 interface Props {
@@ -51,6 +53,14 @@ export default function PlayerSearchResults({ results, loading, searched }: Prop
     );
   }
 
+  const shareProfile = (e: React.MouseEvent, player: PlayerResult) => {
+    e.stopPropagation();
+    if (!player.profile_slug) return;
+    const url = `${window.location.origin}/p/${player.profile_slug}`;
+    navigator.clipboard.writeText(url);
+    toast.success("Profile link copied!");
+  };
+
   return (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground font-medium">{results.length} player{results.length !== 1 ? "s" : ""} found</p>
@@ -63,17 +73,29 @@ export default function PlayerSearchResults({ results, loading, searched }: Prop
           >
             <CardContent className="p-4">
               <div className="flex items-start gap-3">
-                <Avatar className="h-12 w-12 rounded-xl border">
+                <Avatar className="h-12 w-12 rounded-xl border shrink-0">
                   <AvatarImage src={player.photo_url || undefined} className="object-cover" />
                   <AvatarFallback className="rounded-xl bg-muted text-xs font-bold">
                     {player.first_name[0]}{player.last_name[0]}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-sm truncate">{player.first_name} {player.last_name}</h3>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-bold text-sm truncate">{player.first_name} {player.last_name}</h3>
+                    {player.recruiting_status === "committed" && (
+                      <Badge className="bg-accent/15 text-accent border-0 text-[9px] px-1.5 py-0 shrink-0">
+                        <Trophy className="h-2.5 w-2.5 mr-0.5" /> Committed
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground truncate">
                     {player.school_name} • {player.program_name}
                   </p>
+                  {player.recruiting_status === "committed" && player.committed_school_name && (
+                    <p className="text-[10px] text-accent font-medium mt-0.5 truncate">
+                      → {player.committed_school_name}
+                    </p>
+                  )}
                   <div className="flex flex-wrap items-center gap-1 mt-1.5">
                     {player.graduation_year && (
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0">{player.graduation_year}</Badge>
@@ -81,19 +103,17 @@ export default function PlayerSearchResults({ results, loading, searched }: Prop
                     {player.positions?.slice(0, 3).map((pos) => (
                       <Badge key={pos} variant="secondary" className="text-[10px] px-1.5 py-0">{pos}</Badge>
                     ))}
-                    {player.height && (
-                      <span className="text-[10px] text-muted-foreground">{player.height}</span>
-                    )}
-                    {player.weight && (
-                      <span className="text-[10px] text-muted-foreground">{player.weight} lbs</span>
-                    )}
-                    {player.bats && (
-                      <span className="text-[10px] text-muted-foreground">B: {player.bats}</span>
-                    )}
-                    {player.throws && (
-                      <span className="text-[10px] text-muted-foreground">T: {player.throws}</span>
-                    )}
+                    {player.height && <span className="text-[10px] text-muted-foreground">{player.height}</span>}
+                    {player.weight && <span className="text-[10px] text-muted-foreground">{player.weight} lbs</span>}
+                    {player.bats && <span className="text-[10px] text-muted-foreground">B: {player.bats}</span>}
+                    {player.throws && <span className="text-[10px] text-muted-foreground">T: {player.throws}</span>}
                   </div>
+                  {(player.city || player.state) && (
+                    <p className="text-[10px] text-muted-foreground flex items-center gap-0.5 mt-1">
+                      <MapPin className="h-2.5 w-2.5" />
+                      {[player.city, player.state].filter(Boolean).join(", ")}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -111,6 +131,16 @@ export default function PlayerSearchResults({ results, loading, searched }: Prop
                   ))}
                 </div>
               )}
+
+              {/* Actions */}
+              <div className="flex items-center gap-2 mt-3 pt-2 border-t">
+                <Button variant="outline" size="sm" className="h-7 text-xs rounded-lg flex-1" onClick={(e) => { e.stopPropagation(); player.profile_slug && navigate(`/p/${player.profile_slug}`); }}>
+                  <ExternalLink className="h-3 w-3 mr-1" /> View Profile
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 text-xs rounded-lg px-2" onClick={(e) => shareProfile(e, player)}>
+                  <Share2 className="h-3 w-3" />
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ))}
