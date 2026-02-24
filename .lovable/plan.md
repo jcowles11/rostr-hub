@@ -1,42 +1,75 @@
 
 
-# Bridge Internal Roster to Public Profiles
+# Fix: Session-Scoped Score Entry (Stop Overwriting)
 
 ## Problem
-The coach-facing pages (Roster, Player Detail) are completely disconnected from the public/social side of the app. A coach viewing a player's detail page has no way to see or share that player's public profile. There's no obvious navigation path from the internal team management to the public-facing athlete profiles.
+The Score Entry page currently matches existing evaluations by `(player_id, metric_id, attempt_number, coach_id)`. When a coach enters a score for a player who already has one for that metric/attempt, it **overwrites** instead of creating a new entry. This prevents coaches from recording scores across multiple tryout sessions.
+
+## Root Cause
+The `evaluations` table already has a `session_id` column, but the Score Entry page never uses it. Without session scoping, there's no way to distinguish "60 yard dash attempt 1 from Day 1" vs "60 yard dash attempt 1 from Day 2."
 
 ## Solution
-Add clear navigation touchpoints at the two most natural places:
+Make the Score Entry page session-aware:
 
-### 1. Player Detail Page -- "View Public Profile" Button
-On the `PlayerDetail` page (the page a coach sees when they tap a player from the roster), add a prominent button/link in the player's hero section that opens their public profile (`/p/:slug`). This only shows if the player has a public profile enabled (`profile_public = true` and `profile_slug` exists).
+1. **Add a session selector** at the top of the Score Entry page (above the metric selector)
+2. **Require a session** before scoring — coach either picks an existing session or creates a new one inline
+3. **Scope all queries and inserts to the selected session** — the "existing eval" check uses `session_id`, so scores from different sessions never collide
+4. **Always insert new rows** for new sessions, only overwrite within the same session+attempt
 
-- Appears as a small "Public Profile" link/button near the player's name area
-- Opens in a new tab so the coach doesn't lose their place
-- If the player hasn't enabled their public profile yet, show a subtle "Profile not public" label instead, so the coach knows to encourage the player
+## How It Works For Coaches
 
-### 2. Roster Page -- Quick Share Icon on Player Cards
-On each player card in the roster list, add a small share/link icon that copies the player's public profile URL to clipboard (or opens it). This gives coaches a fast way to share any player's profile without navigating into the detail page first.
-
-- Only visible for players who have public profiles
-- Small unobtrusive icon on the right side of the player card
-
-### 3. Player Detail Page -- Fetch Profile Slug
-Currently `PlayerDetail` doesn't fetch `profile_slug` or `profile_public` from the players table. We need to add these fields to the query so we can conditionally show the public profile link.
+1. Coach opens Score Entry
+2. Picks today's session (e.g., "Day 2 Tryouts") or taps "+ New Session" to create one
+3. Selects a metric, starts scoring players
+4. If a player already has a score for that metric+attempt **in this session**, it shows "will overwrite" (intentional correction)
+5. Scores from previous sessions are untouched — they remain as separate records
 
 ## Technical Changes
 
 | File | Change |
 |------|--------|
-| `src/pages/PlayerDetail.tsx` | Add `profile_slug` and `profile_public` to the Player interface and query. Add a "View Public Profile" button in the hero section that links to `/p/:slug` (opens new tab). Show "Profile not public" hint when profile isn't enabled. |
-| `src/pages/Roster.tsx` | Add `profile_slug` and `profile_public` to the player query. Show a small external-link icon on player cards for players with public profiles, linking to `/p/:slug`. |
+| `src/pages/ScoreEntry.tsx` | Add session state, session selector UI, session creation, scope existing-eval queries by session_id, include session_id in inserts |
 
-## UX Details
+### Detailed Changes in ScoreEntry.tsx
 
-**Player Detail hero area**: Below the player name/badges row, a new row with:
-- If public: A button styled like the existing badge chips -- "View Public Profile" with an external-link icon, linking to `/p/{slug}` in a new tab
-- If not public: A muted text "Public profile not enabled" so coaches can mention it to the player
+1. **New state**: `selectedSession` (uuid), `sessions` (list from `tryout_sessions`), `showNewSession` (boolean for inline creation)
 
-**Roster player cards**: A small Globe or ExternalLink icon on the right side of cards where `profile_public = true`, that either navigates to the public profile or copies the URL on tap.
+2. **Fetch sessions** on mount — query `tryout_sessions` for the coach's program, ordered by date descending. Auto-select today's session if one exists.
 
-This is a lightweight change -- just 2 files, adding a few fields to existing queries and a couple of UI elements. No database changes needed.
+3. **Session selector UI** — a dropdown above the metric selector showing available sessions with a "+ New Session" option. Creating a new session requires just a name (date defaults to today).
+
+4. **Scope existing eval query** (line 67-76) — add `.eq("session_id", selectedSession)` so it only finds evals from the current session.
+
+5. **Include session_id in insert** (line 120-127) — add `session_id: selectedSession` to the evaluation insert.
+
+6. **Overwrite check** (line 112) — `getPlayerAttemptEval` already scoped by the filtered `existingEvals`, which is now session-scoped. So overwriting only happens within the same session, which is the correct behavior (fixing a typo).
+
+7. **Show previous session scores** — below the scoring card, show a small summary of the player's scores from other sessions for this metric (read-only context so the coach can see progression).
+
+### UI Layout (top to bottom)
+
+```text
++----------------------------------+
+| Score Entry              [Station Mode] |
++----------------------------------+
+| Session: [Day 2 Tryouts v] [+ New] |
++----------------------------------+
+| Metric: [60 Yard Dash (sec) v]  |
++----------------------------------+
+| Search players...        [A-Z]  |
++----------------------------------+
+| [Active player scoring card]    |
+|   Previous: 7.12s (Day 1)       |
++----------------------------------+
+| Player list / Recent scores     |
++----------------------------------+
+```
+
+### Key Behavior Changes
+
+- Scores are always tied to a session — no more orphaned `session_id = null` evaluations
+- Same player + same metric + same attempt in different sessions = separate rows (no overwrite)
+- Same player + same metric + same attempt in the SAME session = overwrite (intentional correction)
+- Player list attempt dots show completion for the **current session** only
+- Previous session scores shown as read-only context below the scoring card
+
