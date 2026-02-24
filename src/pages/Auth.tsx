@@ -28,6 +28,7 @@ export default function Auth() {
   const [regCode, setRegCode] = useState("");
   const [orgName, setOrgName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const navigate = useNavigate();
   const redirectTo = new URLSearchParams(window.location.search).get("redirect");
 
@@ -60,15 +61,21 @@ export default function Auth() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setErrorMsg(null);
 
-    if (mode === "login") {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        toast.error(error.message);
-      } else {
+    try {
+      if (mode === "login") {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          console.error("[Auth] Sign in error:", error.message);
+          setErrorMsg(error.message === "Invalid login credentials" ? "Incorrect email or password. Please try again." : error.message);
+          toast.error(error.message);
+          setLoading(false);
+          return;
+        }
         navigate(redirectTo || "/");
-      }
-    } else if (mode === "signup-coach") {
+        return;
+      } else if (mode === "signup-coach") {
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -154,7 +161,14 @@ export default function Auth() {
         toast.success("Check your email to confirm your account!");
       }
     }
-    setLoading(false);
+    } catch (err: any) {
+      console.error("[Auth] Unexpected error:", err);
+      const msg = err?.message || "An unexpected error occurred. Please try again.";
+      setErrorMsg(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const isSignup = mode !== "login";
@@ -378,6 +392,11 @@ export default function Auth() {
                   className="tap-target h-12 text-base rounded-xl"
                 />
               </div>
+              {errorMsg && (
+                <div className="rounded-xl bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive font-medium animate-fade-in">
+                  {errorMsg}
+                </div>
+              )}
               <Button type="submit" className="w-full tap-target h-12 text-base font-bold rounded-xl gradient-primary border-0 shadow-glow hover:shadow-lg transition-all duration-200" disabled={loading}>
                 {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
               </Button>
