@@ -1129,6 +1129,17 @@ export type Database = {
         Args: { _program_id: string; _user_id: string }
         Returns: boolean
       }
+      search_players_authenticated: {
+        Args: {
+          _grad_year_max?: number
+          _grad_year_min?: number
+          _limit?: number
+          _name_search?: string
+          _offset?: number
+          _positions?: string[]
+        }
+        Returns: Json
+      }
       search_public_players:
         | {
             Args: {
