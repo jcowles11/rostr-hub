@@ -73,8 +73,8 @@ export default function PlayerLinkPage() {
     const { data: program } = await supabase
       .from("programs")
       .select("id")
-      .eq("registration_code", regCode.trim())
-      .single();
+      .eq("registration_code", regCode.trim().toLowerCase())
+      .maybeSingle();
 
     if (!program) {
       toast.error("Invalid registration code");
