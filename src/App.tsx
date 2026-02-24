@@ -13,6 +13,7 @@ import Roster from "@/pages/Roster";
 import ScoreEntry from "@/pages/ScoreEntry";
 import Dashboard from "@/pages/Dashboard";
 import SettingsPage from "@/pages/SettingsPage";
+import TryoutPlanner from "@/pages/TryoutPlanner";
 import PlayerRegister from "@/pages/PlayerRegister";
 import PlayerDetail from "@/pages/PlayerDetail";
 import RosterBoard from "@/pages/RosterBoard";
@@ -141,6 +142,7 @@ const App = () => (
             <Route path="/roster-board" element={<ProtectedRoute><RosterBoard /></ProtectedRoute>} />
             <Route path="/export" element={<ProtectedRoute><ExportPage /></ProtectedRoute>} />
             <Route path="/player/:id" element={<ProtectedRoute><PlayerDetail /></ProtectedRoute>} />
+            <Route path="/plan" element={<ProtectedRoute><TryoutPlanner /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
