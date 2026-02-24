@@ -1,75 +1,86 @@
 
 
-# Fix: Session-Scoped Score Entry (Stop Overwriting)
+# Smarter Session Management
 
-## Problem
-The Score Entry page currently matches existing evaluations by `(player_id, metric_id, attempt_number, coach_id)`. When a coach enters a score for a player who already has one for that metric/attempt, it **overwrites** instead of creating a new entry. This prevents coaches from recording scores across multiple tryout sessions.
+## The Problem
+Right now, sessions live *only* on the Score Entry tab. They're needed there for data entry, but the rest of the app (Dashboard, Player Detail) ignores sessions entirely -- showing all scores flattened together with no way to compare across sessions. Switching sessions on the scoring page feels buried and disconnected from the bigger picture.
 
-## Root Cause
-The `evaluations` table already has a `session_id` column, but the Score Entry page never uses it. Without session scoping, there's no way to distinguish "60 yard dash attempt 1 from Day 1" vs "60 yard dash attempt 1 from Day 2."
+## The Solution: Three Changes
 
-## Solution
-Make the Score Entry page session-aware:
+### 1. Global Session Context in the App Header
+Move the "active session" concept out of Score Entry and into a shared context that lives in the app header bar (next to the program switcher). This way:
 
-1. **Add a session selector** at the top of the Score Entry page (above the metric selector)
-2. **Require a session** before scoring — coach either picks an existing session or creates a new one inline
-3. **Scope all queries and inserts to the selected session** — the "existing eval" check uses `session_id`, so scores from different sessions never collide
-4. **Always insert new rows** for new sessions, only overwrite within the same session+attempt
+- The active session is visible and switchable from any tab
+- Score Entry automatically uses it (no separate dropdown needed there)
+- Dashboard and Player Detail can optionally filter by it
+- Creating a new session can happen from the header too
 
-## How It Works For Coaches
+The header will show a small session chip (e.g., "Day 2 Tryouts - Feb 24") with a dropdown to switch or create sessions. An "All Sessions" option lets coaches see the full picture.
 
-1. Coach opens Score Entry
-2. Picks today's session (e.g., "Day 2 Tryouts") or taps "+ New Session" to create one
-3. Selects a metric, starts scoring players
-4. If a player already has a score for that metric+attempt **in this session**, it shows "will overwrite" (intentional correction)
-5. Scores from previous sessions are untouched — they remain as separate records
+### 2. Session-Aware Dashboard
+The Dashboard currently shows all scores across all sessions mashed together. With the global session context:
 
-## Technical Changes
+- When a specific session is selected: Dashboard shows only that session's scores and rankings
+- When "All Sessions" is selected: Dashboard shows the aggregated best/average across all sessions (current behavior)
+- This lets coaches answer "who performed best TODAY?" vs "who performs best OVERALL?"
+
+### 3. Session-Grouped Player Detail
+The Player Detail page currently shows a flat list of all evaluations. Update it to:
+
+- Group scores by session, with session name and date as section headers
+- Show a summary row at the top with the aggregated (best/average) value across all sessions
+- This gives coaches the progression view they want (e.g., "60 yard dash: 7.5s in January, 7.2s in February")
+
+## Technical Plan
+
+### New File: `src/contexts/SessionContext.tsx`
+A React context that:
+- Fetches all sessions for the current program
+- Stores `selectedSessionId` (or `"all"` for no filter)
+- Auto-selects today's session if one exists, otherwise "all"
+- Provides `createSession()` and `setSession()` functions
+- Is consumed by Score Entry, Dashboard, and Player Detail
+
+### Modified Files
 
 | File | Change |
 |------|--------|
-| `src/pages/ScoreEntry.tsx` | Add session state, session selector UI, session creation, scope existing-eval queries by session_id, include session_id in inserts |
+| `src/contexts/SessionContext.tsx` | **New** -- session state, fetch, create, switch |
+| `src/components/AppLayout.tsx` | Add session chip/dropdown in the header bar, next to program switcher |
+| `src/pages/ScoreEntry.tsx` | Remove local session state/UI. Consume from `SessionContext`. Keep the scoring logic identical. |
+| `src/pages/Dashboard.tsx` | Add session filtering to the evaluations query. When a session is selected, only show that session's data. When "all", show aggregated data (current behavior). |
+| `src/pages/PlayerDetail.tsx` | Group evaluations by session with headers. Show an "all sessions" aggregate summary at top. |
+| `src/App.tsx` | Wrap the coach routes with `SessionProvider` |
 
-### Detailed Changes in ScoreEntry.tsx
-
-1. **New state**: `selectedSession` (uuid), `sessions` (list from `tryout_sessions`), `showNewSession` (boolean for inline creation)
-
-2. **Fetch sessions** on mount — query `tryout_sessions` for the coach's program, ordered by date descending. Auto-select today's session if one exists.
-
-3. **Session selector UI** — a dropdown above the metric selector showing available sessions with a "+ New Session" option. Creating a new session requires just a name (date defaults to today).
-
-4. **Scope existing eval query** (line 67-76) — add `.eq("session_id", selectedSession)` so it only finds evals from the current session.
-
-5. **Include session_id in insert** (line 120-127) — add `session_id: selectedSession` to the evaluation insert.
-
-6. **Overwrite check** (line 112) — `getPlayerAttemptEval` already scoped by the filtered `existingEvals`, which is now session-scoped. So overwriting only happens within the same session, which is the correct behavior (fixing a typo).
-
-7. **Show previous session scores** — below the scoring card, show a small summary of the player's scores from other sessions for this metric (read-only context so the coach can see progression).
-
-### UI Layout (top to bottom)
+### Session Context Shape
 
 ```text
-+----------------------------------+
-| Score Entry              [Station Mode] |
-+----------------------------------+
-| Session: [Day 2 Tryouts v] [+ New] |
-+----------------------------------+
-| Metric: [60 Yard Dash (sec) v]  |
-+----------------------------------+
-| Search players...        [A-Z]  |
-+----------------------------------+
-| [Active player scoring card]    |
-|   Previous: 7.12s (Day 1)       |
-+----------------------------------+
-| Player list / Recent scores     |
-+----------------------------------+
+SessionContext
+  sessions: TryoutSession[]
+  selectedSessionId: string | "all"
+  setSession(id: string | "all")
+  createSession(name: string): Promise<TryoutSession>
+  currentSession: TryoutSession | null
 ```
 
-### Key Behavior Changes
+### Header Layout Change
 
-- Scores are always tied to a session — no more orphaned `session_id = null` evaluations
-- Same player + same metric + same attempt in different sessions = separate rows (no overwrite)
-- Same player + same metric + same attempt in the SAME session = overwrite (intentional correction)
-- Player list attempt dots show completion for the **current session** only
-- Previous session scores shown as read-only context below the scoring card
+```text
+Before:
+  [Logo]  [Program Name v]  [spacer]
+
+After:
+  [Logo]  [Program Name v]  [Session chip v]
+```
+
+The session chip is compact -- just shows the session name (truncated) with a dropdown arrow. Tapping it opens a dropdown with all sessions, an "All Sessions" option, and a "+ New Session" action.
+
+### Dashboard Query Change
+When `selectedSessionId !== "all"`, the evaluations query adds `.eq("session_id", selectedSessionId)`. The rest of the aggregation logic stays the same -- it just operates on a filtered set.
+
+### Player Detail Grouping
+Fetch evaluations with `session_id` included. Join with `tryout_sessions` to get names/dates. Render as collapsible sections per session, newest first, with the aggregate "best overall" shown prominently at the top of each metric card.
+
+### No Database Changes Required
+The `tryout_sessions` table and `evaluations.session_id` column already exist. This is purely a frontend restructuring.
 
