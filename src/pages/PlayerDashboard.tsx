@@ -4,10 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, User, Lock, Eye } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { User, Lock, Eye } from "lucide-react";
 import PlayerProfileSettings from "@/components/PlayerProfileSettings";
 import { aggregateValues } from "@/lib/metrics";
 import PlayerPhotoUpload from "@/components/PlayerPhotoUpload";
@@ -45,8 +43,7 @@ interface ProgramData {
 }
 
 export default function PlayerDashboard() {
-  const { playerInfo, signOut, refreshPlayer } = useAuth();
-  const navigate = useNavigate();
+  const { playerInfo, refreshPlayer } = useAuth();
   const [player, setPlayer] = useState<PlayerData | null>(null);
   const [program, setProgram] = useState<ProgramData | null>(null);
   const [metrics, setMetrics] = useState<Metric[]>([]);
@@ -75,14 +72,9 @@ export default function PlayerDashboard() {
     fetchData();
   }, [playerInfo]);
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate("/auth");
-  };
-
   if (loading || !player) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <div className="text-center animate-scale-in">
           <img src={rostrLogo} alt="Rostr" className="mx-auto mb-4 h-20 w-20 rounded-3xl shadow-glow animate-pulse-soft object-cover" />
           <p className="text-muted-foreground font-medium">Loading...</p>
@@ -91,7 +83,6 @@ export default function PlayerDashboard() {
     );
   }
 
-  // Group evals by metric
   const evalsByMetric = new Map<string, number[]>();
   evals.forEach((e) => {
     const arr = evalsByMetric.get(e.metric_id) || [];
@@ -102,126 +93,113 @@ export default function PlayerDashboard() {
   const visibleMetrics = metrics.filter((m) => m.visible_to_players);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur-2xl">
-        <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
-          <span className="text-sm font-bold truncate">{program?.name}</span>
-          <Button variant="ghost" size="sm" onClick={handleSignOut} className="text-muted-foreground">
-            <LogOut className="h-4 w-4" />
-          </Button>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-lg px-4 pt-4 pb-8 animate-fade-in">
-        {/* Player hero */}
-        <div className="page-hero mb-5">
-          <div className="flex items-center gap-4">
-            <PlayerPhotoUpload
-              playerId={player.id}
-              currentUrl={player.photo_url}
-              onUploaded={async (url) => {
-                await supabase.from("players").update({ photo_url: url }).eq("id", player.id);
-                setPlayer({ ...player, photo_url: url });
-                toast.success("Photo updated");
-                refreshPlayer();
-              }}
-              size="lg"
-              className="border-2 border-white/30 rounded-full"
-            />
-            <div>
-              <h1 className="text-2xl font-extrabold text-white">
-                {player.first_name} {player.last_name}
-              </h1>
-              <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                {player.player_number && (
-                  <span className="rounded-lg bg-white/20 px-2 py-0.5 text-xs font-semibold text-white">#{player.player_number}</span>
-                )}
-                {player.grade && (
-                  <span className="rounded-lg bg-white/20 px-2 py-0.5 text-xs font-semibold text-white">Grade {player.grade}</span>
-                )}
-                {player.positions?.map((p) => (
-                  <span key={p} className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">{p}</span>
-                ))}
-              </div>
+    <div className="mx-auto max-w-lg px-4 pt-4 pb-8 animate-fade-in">
+      {/* Player hero */}
+      <div className="page-hero mb-5">
+        <div className="flex items-center gap-4">
+          <PlayerPhotoUpload
+            playerId={player.id}
+            currentUrl={player.photo_url}
+            onUploaded={async (url) => {
+              await supabase.from("players").update({ photo_url: url }).eq("id", player.id);
+              setPlayer({ ...player, photo_url: url });
+              toast.success("Photo updated");
+              refreshPlayer();
+            }}
+            size="lg"
+            className="border-2 border-white/30 rounded-full"
+          />
+          <div>
+            <h1 className="text-2xl font-extrabold text-white">
+              {player.first_name} {player.last_name}
+            </h1>
+            <p className="text-sm text-white/70">{program?.name}</p>
+            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+              {player.player_number && (
+                <span className="rounded-lg bg-white/20 px-2 py-0.5 text-xs font-semibold text-white">#{player.player_number}</span>
+              )}
+              {player.grade && (
+                <span className="rounded-lg bg-white/20 px-2 py-0.5 text-xs font-semibold text-white">Grade {player.grade}</span>
+              )}
+              {player.positions?.map((p) => (
+                <span key={p} className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">{p}</span>
+              ))}
             </div>
           </div>
         </div>
+      </div>
 
-        <Tabs defaultValue="evaluations" className="w-full">
-          <TabsList className="w-full mb-4">
-            <TabsTrigger value="evaluations" className="flex-1 gap-1.5">
-              <Eye className="h-4 w-4" /> My Evaluations
-            </TabsTrigger>
-            <TabsTrigger value="profile" className="flex-1 gap-1.5">
-              <User className="h-4 w-4" /> My Profile
-            </TabsTrigger>
-          </TabsList>
+      <Tabs defaultValue="evaluations" className="w-full">
+        <TabsList className="w-full mb-4">
+          <TabsTrigger value="evaluations" className="flex-1 gap-1.5">
+            <Eye className="h-4 w-4" /> My Evaluations
+          </TabsTrigger>
+          <TabsTrigger value="profile" className="flex-1 gap-1.5">
+            <User className="h-4 w-4" /> My Profile
+          </TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="evaluations">
-            {canSeeResults ? (
-              <Card className="section-card">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg font-bold flex items-center gap-2">
-                    <Eye className="h-5 w-5" /> My Evaluations
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {visibleMetrics.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-4 text-center">No metrics to display yet.</p>
-                  ) : (
-                    visibleMetrics.map((m) => {
-                      const vals = evalsByMetric.get(m.id) || [];
-                      const computed = vals.length > 0
-                        ? aggregateValues(vals, m.aggregation as any, m.metric_type as any)
-                        : null;
+        <TabsContent value="evaluations">
+          {canSeeResults ? (
+            <Card className="section-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <Eye className="h-5 w-5" /> My Evaluations
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {visibleMetrics.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">No metrics to display yet.</p>
+                ) : (
+                  visibleMetrics.map((m) => {
+                    const vals = evalsByMetric.get(m.id) || [];
+                    const computed = vals.length > 0
+                      ? aggregateValues(vals, m.aggregation as any, m.metric_type as any)
+                      : null;
 
-                      return (
-                        <div key={m.id} className="rounded-xl bg-muted/40 p-3.5">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <span className="font-semibold text-sm">{m.name}</span>
-                              {m.unit && <span className="text-xs text-muted-foreground ml-1">({m.unit})</span>}
-                            </div>
-                            {computed !== null ? (
-                              <span className="text-xl font-extrabold">{computed.toFixed(1)}</span>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">—</span>
-                            )}
+                    return (
+                      <div key={m.id} className="rounded-xl bg-muted/40 p-3.5">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="font-semibold text-sm">{m.name}</span>
+                            {m.unit && <span className="text-xs text-muted-foreground ml-1">({m.unit})</span>}
                           </div>
-                          {vals.length > 1 && (
-                            <div className="flex gap-1.5 mt-2 flex-wrap">
-                              {vals.map((v, i) => (
-                                <Badge key={i} variant="secondary" className="text-xs font-medium">
-                                  {v}
-                                </Badge>
-                              ))}
-                            </div>
+                          {computed !== null ? (
+                            <span className="text-xl font-extrabold">{computed.toFixed(1)}</span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
                           )}
                         </div>
-                      );
-                    })
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="section-card">
-                <CardContent className="py-12 text-center">
-                  <Lock className="mx-auto h-12 w-12 text-muted-foreground/40 mb-3" />
-                  <h3 className="text-lg font-bold mb-1">Results Not Yet Available</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Your coach hasn't published evaluation results yet. Check back later!
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
+                        {vals.length > 1 && (
+                          <div className="flex gap-1.5 mt-2 flex-wrap">
+                            {vals.map((v, i) => (
+                              <Badge key={i} variant="secondary" className="text-xs font-medium">{v}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="section-card">
+              <CardContent className="py-12 text-center">
+                <Lock className="mx-auto h-12 w-12 text-muted-foreground/40 mb-3" />
+                <h3 className="text-lg font-bold mb-1">Results Not Yet Available</h3>
+                <p className="text-sm text-muted-foreground">
+                  Your coach hasn't published evaluation results yet. Check back later!
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
-          <TabsContent value="profile">
-            <PlayerProfileSettings playerId={player.id} />
-          </TabsContent>
-        </Tabs>
-      </div>
+        <TabsContent value="profile">
+          <PlayerProfileSettings playerId={player.id} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
