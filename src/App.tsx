@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SessionProvider } from "@/contexts/SessionContext";
 import AppLayout from "@/components/AppLayout";
 import UnifiedNavShell from "@/components/UnifiedNavShell";
+import DevRoleSwitcher from "@/components/DevRoleSwitcher";
 import Auth from "@/pages/Auth";
 import ProgramSetup from "@/pages/ProgramSetup";
 import Roster from "@/pages/Roster";
@@ -156,6 +157,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <DevRoleSwitcher />
           <Routes>
             <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
             <Route path="/setup" element={<SetupRoute />} />

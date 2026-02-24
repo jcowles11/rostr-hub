@@ -72,6 +72,8 @@ interface AuthContextType {
   switchProgram: (coachId: string) => void;
   switchOrg: (orgId: string) => void;
   deleteProgram: (programId: string) => Promise<boolean>;
+  devRoleOverride: UserRole;
+  setDevRoleOverride: (role: UserRole) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -94,6 +96,8 @@ const AuthContext = createContext<AuthContextType>({
   switchProgram: () => {},
   switchOrg: () => {},
   deleteProgram: async () => false,
+  devRoleOverride: null,
+  setDevRoleOverride: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -110,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [scoutInfo, setScoutInfo] = useState<ScoutInfo | null>(null);
   const [userRole, setUserRole] = useState<UserRole>(null);
   const [loading, setLoading] = useState(true);
+  const [devRoleOverride, setDevRoleOverride] = useState<UserRole>(null);
 
   const fetchCoaches = async (userId: string) => {
     const { data } = await supabase
@@ -458,7 +463,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, coach, playerInfo, evaluatorInfo, scoutInfo, allCoaches, organizations, currentOrg, userRole, loading, signOut, refreshCoach, refreshPlayer, refreshEvaluator, refreshScout, switchProgram, switchOrg, deleteProgram }}>
+    <AuthContext.Provider value={{ session, user, coach, playerInfo, evaluatorInfo, scoutInfo, allCoaches, organizations, currentOrg, userRole: devRoleOverride || userRole, loading, signOut, refreshCoach, refreshPlayer, refreshEvaluator, refreshScout, switchProgram, switchOrg, deleteProgram, devRoleOverride, setDevRoleOverride }}>
       {children}
     </AuthContext.Provider>
   );
