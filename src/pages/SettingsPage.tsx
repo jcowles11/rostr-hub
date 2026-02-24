@@ -158,6 +158,13 @@ export default function SettingsPage() {
             trailing={<ChevronRight className="h-4 w-4 text-muted-foreground" />}
           />
           <TileButton
+            icon={<Layers className="h-4 w-4" />}
+            label="Roster Board"
+            subtitle="Drag & drop roster assignments"
+            onClick={() => navigate("/roster-board")}
+            trailing={<ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          />
+          <TileButton
             icon={<SlidersHorizontal className="h-4 w-4" />}
             label="Metrics & Drills"
             subtitle={`${expanded === "metrics" ? "Collapse" : "Configure scoring metrics"}`}

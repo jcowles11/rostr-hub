@@ -48,7 +48,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!user) return <Navigate to="/auth" replace />;
 
   if (userRole === "player") {
-    return playerInfo ? <Navigate to="/player-dashboard" replace /> : <Navigate to="/player-link" replace />;
+    return playerInfo ? <Navigate to="/social" replace /> : <Navigate to="/player-link" replace />;
   }
 
   if (userRole === "evaluator") {
