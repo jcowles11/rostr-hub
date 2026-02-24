@@ -1,13 +1,13 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSession } from "@/contexts/SessionContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Check, ChevronLeft, ChevronRight, X, Plus, Calendar } from "lucide-react";
+import { Search, Check, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 
 interface Player {
   id: string;
@@ -35,13 +35,6 @@ interface Evaluation {
   value: number;
 }
 
-interface TryoutSession {
-  id: string;
-  name: string;
-  session_date: string;
-  notes: string | null;
-}
-
 interface PreviousScore {
   session_name: string;
   session_date: string;
@@ -51,6 +44,7 @@ interface PreviousScore {
 
 export default function ScoreEntry() {
   const { coach } = useAuth();
+  const { selectedSessionId } = useSession();
   const [players, setPlayers] = useState<Player[]>([]);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [search, setSearch] = useState("");
@@ -66,36 +60,20 @@ export default function ScoreEntry() {
   const [existingEvals, setExistingEvals] = useState<Evaluation[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Session state
-  const [sessions, setSessions] = useState<TryoutSession[]>([]);
-  const [selectedSession, setSelectedSession] = useState<string>("");
-  const [showNewSession, setShowNewSession] = useState(false);
-  const [newSessionName, setNewSessionName] = useState("");
-  const [creatingSession, setCreatingSession] = useState(false);
   const [previousScores, setPreviousScores] = useState<PreviousScore[]>([]);
 
-  // Fetch players, metrics, and sessions on mount
+  const selectedSession = selectedSessionId !== "all" ? selectedSessionId : "";
+
+  // Fetch players and metrics on mount
   useEffect(() => {
     if (!coach) return;
     Promise.all([
       supabase.from("players").select("id, first_name, last_name, player_number").eq("program_id", coach.program_id).order("last_name").order("first_name"),
       supabase.from("metrics").select("id, name, unit, category, metric_type, min_value, max_value, max_attempts").eq("program_id", coach.program_id).order("sort_order"),
-      supabase.from("tryout_sessions").select("id, name, session_date, notes").eq("program_id", coach.program_id).order("session_date", { ascending: false }),
-    ]).then(([pRes, mRes, sRes]) => {
+    ]).then(([pRes, mRes]) => {
       setPlayers(pRes.data || []);
       setMetrics(mRes.data || []);
       if (mRes.data && mRes.data.length > 0) setSelectedMetric(mRes.data[0].id);
-
-      const sessionsList = sRes.data || [];
-      setSessions(sessionsList);
-      // Auto-select today's session if one exists
-      const today = format(new Date(), "yyyy-MM-dd");
-      const todaySession = sessionsList.find((s) => s.session_date === today);
-      if (todaySession) {
-        setSelectedSession(todaySession.id);
-      } else if (sessionsList.length > 0) {
-        setSelectedSession(sessionsList[0].id);
-      }
     });
   }, [coach]);
 
@@ -246,25 +224,6 @@ export default function ScoreEntry() {
     enterStationMode(idx >= 0 ? idx : 0);
   };
 
-  const handleCreateSession = async () => {
-    if (!coach || !newSessionName.trim()) return;
-    setCreatingSession(true);
-    const { data, error } = await supabase
-      .from("tryout_sessions")
-      .insert({ program_id: coach.program_id, name: newSessionName.trim() })
-      .select()
-      .single();
-    if (error) {
-      toast.error("Failed to create session");
-    } else if (data) {
-      setSessions((prev) => [data, ...prev]);
-      setSelectedSession(data.id);
-      setShowNewSession(false);
-      setNewSessionName("");
-      toast.success(`Session "${data.name}" created`);
-    }
-    setCreatingSession(false);
-  };
 
   const playerDisplay = (p: Player) => (
     <>
@@ -333,51 +292,12 @@ export default function ScoreEntry() {
         </div>
       </div>
 
-      {/* Session selector */}
-      <div className="mb-4">
-        {showNewSession ? (
-          <div className="flex gap-2">
-            <Input
-              value={newSessionName}
-              onChange={(e) => setNewSessionName(e.target.value)}
-              placeholder="Session name (e.g. Day 2 Tryouts)"
-              className="tap-target text-base h-12 rounded-xl flex-1"
-              autoFocus
-              onKeyDown={(e) => { if (e.key === "Enter") handleCreateSession(); }}
-            />
-            <Button onClick={handleCreateSession} disabled={!newSessionName.trim() || creatingSession} className="h-12 rounded-xl px-4">
-              <Check className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" onClick={() => { setShowNewSession(false); setNewSessionName(""); }} className="h-12 rounded-xl px-4">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <Select value={selectedSession} onValueChange={setSelectedSession}>
-              <SelectTrigger className="tap-target text-base font-semibold h-12 rounded-xl flex-1">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <SelectValue placeholder="Select session..." />
-                </div>
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                {sessions.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.name} · {format(new Date(s.session_date + "T00:00:00"), "MMM d")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" onClick={() => setShowNewSession(true)} className="h-12 rounded-xl px-3 shrink-0" title="New session">
-              <Plus className="h-5 w-5" />
-            </Button>
-          </div>
-        )}
-        {!selectedSession && !showNewSession && sessions.length === 0 && (
-          <p className="text-xs text-muted-foreground mt-1.5">No sessions yet — create one to start scoring.</p>
-        )}
-      </div>
+      {/* Session notice */}
+      {sessionDisabled && (
+        <div className="mb-4 rounded-xl bg-muted/60 p-3 text-center">
+          <p className="text-sm text-muted-foreground font-medium">Select a session from the header to start scoring.</p>
+        </div>
+      )}
 
       {/* Metric selector */}
       <div className="mb-4">

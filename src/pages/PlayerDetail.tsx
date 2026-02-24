@@ -3,6 +3,7 @@ import rostrLogo from "@/assets/rostr-logo.png";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSession } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,12 +11,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Star, AlertTriangle, Eye, MessageSquare, Send, Phone, HeartPulse, Pencil, Trash2, Plus, Check, X, ExternalLink } from "lucide-react";
+import { ArrowLeft, Star, AlertTriangle, Eye, MessageSquare, Send, Phone, HeartPulse, Pencil, Trash2, Plus, Check, X, ExternalLink, ChevronDown, ChevronRight } from "lucide-react";
 import PlayerPhotoUpload from "@/components/PlayerPhotoUpload";
 import { aggregateValues, AGGREGATION_LABELS } from "@/lib/metrics";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getSportPositions, sportHasBatsThrows } from "@/lib/sports";
+import { format } from "date-fns";
 
 interface Player {
   id: string;
@@ -42,6 +44,13 @@ interface Evaluation {
   metric_id: string;
   coach_id: string;
   created_at: string;
+  session_id: string | null;
+}
+
+interface SessionInfo {
+  id: string;
+  name: string;
+  session_date: string;
 }
 
 interface Metric { id: string; name: string; unit: string; metric_type: string; category: string; aggregation: string; }
@@ -51,12 +60,15 @@ interface Note { id: string; content: string; flag: string | null; coach_id: str
 export default function PlayerDetail() {
   const { id } = useParams<{ id: string }>();
   const { coach } = useAuth();
+  const { selectedSessionId, sessions: globalSessions } = useSession();
   const navigate = useNavigate();
   const [player, setPlayer] = useState<Player | null>(null);
   const [evals, setEvals] = useState<Evaluation[]>([]);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [sessionInfos, setSessionInfos] = useState<SessionInfo[]>([]);
+  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set(["aggregate"]));
   const [newNote, setNewNote] = useState("");
   const [newFlag, setNewFlag] = useState<string>("");
   const [coachFilter, setCoachFilter] = useState<string>("all");
@@ -75,18 +87,20 @@ export default function PlayerDetail() {
 
   const fetchAll = async () => {
     if (!coach || !id) return;
-    const [pRes, eRes, mRes, cRes, nRes] = await Promise.all([
+    const [pRes, eRes, mRes, cRes, nRes, sRes] = await Promise.all([
       supabase.from("players").select("*").eq("id", id).single(),
-      supabase.from("evaluations").select("*").eq("player_id", id),
+      supabase.from("evaluations").select("id, value, metric_id, coach_id, created_at, session_id").eq("player_id", id),
       supabase.from("metrics").select("id, name, unit, metric_type, category, aggregation").eq("program_id", coach.program_id).order("sort_order"),
       supabase.from("coaches").select("id, full_name, color").eq("program_id", coach.program_id),
       supabase.from("player_notes").select("id, content, flag, coach_id, created_at").eq("player_id", id).order("created_at", { ascending: false }),
+      supabase.from("tryout_sessions").select("id, name, session_date").eq("program_id", coach.program_id).order("session_date", { ascending: false }),
     ]);
     setPlayer(pRes.data);
     setEvals(eRes.data || []);
     setMetrics(mRes.data || []);
     setCoaches(cRes.data || []);
     setNotes(nRes.data || []);
+    setSessionInfos(sRes.data || []);
   };
 
   useEffect(() => {
@@ -104,12 +118,99 @@ export default function PlayerDetail() {
 
   const filteredEvals = coachFilter === "all" ? evals : evals.filter((e) => e.coach_id === coachFilter);
 
+  // Group evals by session
+  const sessionMap = new Map<string, SessionInfo>(sessionInfos.map((s) => [s.id, s]));
+  const evalsBySession = new Map<string, Evaluation[]>();
+  filteredEvals.forEach((e) => {
+    const key = e.session_id || "unsorted";
+    const arr = evalsBySession.get(key) || [];
+    arr.push(e);
+    evalsBySession.set(key, arr);
+  });
+
+  // Sort session keys: newest first, "unsorted" last
+  const sessionKeys = [...evalsBySession.keys()].sort((a, b) => {
+    if (a === "unsorted") return 1;
+    if (b === "unsorted") return -1;
+    const aDate = sessionMap.get(a)?.session_date || "";
+    const bDate = sessionMap.get(b)?.session_date || "";
+    return bDate.localeCompare(aDate);
+  });
+
+  // Aggregate evals across ALL sessions for each metric
   const evalsByMetric = new Map<string, Evaluation[]>();
   filteredEvals.forEach((e) => {
     const arr = evalsByMetric.get(e.metric_id) || [];
     arr.push(e);
     evalsByMetric.set(e.metric_id, arr);
   });
+
+  const toggleSession = (key: string) => {
+    setExpandedSessions((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const renderEvalChip = (e: Evaluation) => {
+    const c = getCoach(e.coach_id);
+    const isEditing = editingEval === e.id;
+    const isOwnEval = e.coach_id === coach?.id;
+
+    if (isEditing) {
+      return (
+        <span key={e.id} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-white shadow-sm animate-fade-in" style={{ backgroundColor: c?.color || "hsl(var(--primary))" }}>
+          <Input
+            ref={editInputRef}
+            type="number"
+            inputMode="decimal"
+            value={editValue}
+            onChange={(ev) => setEditValue(ev.target.value)}
+            onKeyDown={(ev) => {
+              if (ev.key === "Enter") handleUpdateEval(e.id);
+              if (ev.key === "Escape") setEditingEval(null);
+            }}
+            className="h-6 w-16 text-center text-xs font-bold bg-white/20 border-white/30 text-white rounded"
+            autoFocus
+          />
+          <button onClick={() => handleUpdateEval(e.id)} className="hover:bg-white/20 rounded p-0.5"><Check className="h-3 w-3" /></button>
+          <button onClick={() => setEditingEval(null)} className="hover:bg-white/20 rounded p-0.5"><X className="h-3 w-3" /></button>
+        </span>
+      );
+    }
+
+    return (
+      <span
+        key={e.id}
+        className={cn(
+          "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-white shadow-sm group",
+          isOwnEval && "cursor-pointer"
+        )}
+        style={{ backgroundColor: c?.color || "hsl(var(--primary))" }}
+        onClick={() => {
+          if (!isOwnEval) return;
+          setEditingEval(e.id);
+          setEditValue(e.value.toString());
+          setTimeout(() => editInputRef.current?.focus(), 50);
+        }}
+      >
+        {c?.full_name?.split(" ")[0] || "?"}: {e.value}
+        {isOwnEval && (
+          <>
+            <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <button
+              onClick={(ev) => { ev.stopPropagation(); handleDeleteEval(e.id); }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/20 rounded p-0.5"
+            >
+              <Trash2 className="h-2.5 w-2.5" />
+            </button>
+          </>
+        )}
+      </span>
+    );
+  };
 
   const addNote = async () => {
     if (!coach || !id || !newNote.trim()) return;
@@ -323,141 +424,111 @@ export default function PlayerDetail() {
         </Select>
       </div>
 
-      {/* Scores by metric */}
+      {/* Scores by metric - grouped by session */}
       <Card className="section-card mb-4">
         <CardHeader className="pb-2"><CardTitle className="text-lg font-bold">Evaluations</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          {metrics.map((m) => {
-            const mEvals = evalsByMetric.get(m.id) || [];
-            const vals = mEvals.map((e) => e.value);
-            const computed = vals.length > 0 ? aggregateValues(vals, m.aggregation as any, m.metric_type as any) : null;
-            const label = AGGREGATION_LABELS[m.aggregation] || "Best";
-            const isAdding = addingMetric === m.id;
+          {/* Aggregate summary (all sessions) */}
+          <button
+            onClick={() => toggleSession("aggregate")}
+            className="flex items-center gap-2 w-full text-left"
+          >
+            {expandedSessions.has("aggregate") ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+            <span className="text-sm font-bold">Overall Summary</span>
+            <span className="text-[10px] text-muted-foreground font-medium">All Sessions</span>
+          </button>
+          {expandedSessions.has("aggregate") && (
+            <div className="space-y-2 ml-6 animate-fade-in">
+              {metrics.map((m) => {
+                const mEvals = evalsByMetric.get(m.id) || [];
+                const vals = mEvals.map((e) => e.value);
+                const computed = vals.length > 0 ? aggregateValues(vals, m.aggregation as any, m.metric_type as any) : null;
+                const label = AGGREGATION_LABELS[m.aggregation] || "Best";
+                const isAdding = addingMetric === m.id;
+                return (
+                  <div key={m.id} className="rounded-xl bg-muted/40 p-3 transition-colors hover:bg-muted/60">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-semibold text-sm">{m.name}</span>
+                        {mEvals.length > 0 && (
+                          <span className="text-[10px] text-muted-foreground ml-1.5 font-medium">({label} of {mEvals.length})</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {computed !== null && (
+                          <span className="text-xl font-extrabold">{computed?.toFixed(1)} <span className="text-xs font-medium text-muted-foreground">{m.unit}</span></span>
+                        )}
+                        <button
+                          onClick={() => { setAddingMetric(isAdding ? null : m.id); setAddValue(""); setTimeout(() => addInputRef.current?.focus(), 50); }}
+                          className="rounded-lg p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                          title="Add score"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    {isAdding && (
+                      <div className="flex items-center gap-2 mt-2 animate-fade-in">
+                        <Input ref={addInputRef} type="number" inputMode="decimal" value={addValue} onChange={(e) => setAddValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleAddEval(m.id); if (e.key === "Escape") setAddingMetric(null); }} placeholder={m.unit} className="h-9 w-24 text-center font-bold rounded-lg" />
+                        <Button size="sm" disabled={!addValue || savingEval} onClick={() => handleAddEval(m.id)} className="h-9 rounded-lg gradient-primary border-0"><Check className="h-4 w-4" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => setAddingMetric(null)} className="h-9 rounded-lg"><X className="h-4 w-4" /></Button>
+                      </div>
+                    )}
+                    {mEvals.length === 0 && !isAdding && <p className="text-xs text-muted-foreground mt-1">No scores yet</p>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Per-session groups */}
+          {sessionKeys.map((sessionKey) => {
+            const sessEvals = evalsBySession.get(sessionKey) || [];
+            const sessInfo = sessionKey !== "unsorted" ? sessionMap.get(sessionKey) : null;
+            const sessionLabel = sessInfo ? sessInfo.name : "Unassigned";
+            const sessionDate = sessInfo ? format(new Date(sessInfo.session_date + "T00:00:00"), "MMM d, yyyy") : "";
+            const isExpanded = expandedSessions.has(sessionKey);
+
+            // Group this session's evals by metric
+            const sessEvalsByMetric = new Map<string, Evaluation[]>();
+            sessEvals.forEach((e) => {
+              const arr = sessEvalsByMetric.get(e.metric_id) || [];
+              arr.push(e);
+              sessEvalsByMetric.set(e.metric_id, arr);
+            });
 
             return (
-              <div key={m.id} className="rounded-xl bg-muted/40 p-3.5 transition-colors hover:bg-muted/60">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <span className="font-semibold text-sm">{m.name}</span>
-                    {mEvals.length > 0 && (
-                      <span className="text-[10px] text-muted-foreground ml-1.5 font-medium">({label} of {mEvals.length})</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {computed !== null && (
-                      <span className="text-xl font-extrabold">{computed?.toFixed(1)} <span className="text-xs font-medium text-muted-foreground">{m.unit}</span></span>
-                    )}
-                    <button
-                      onClick={() => {
-                        setAddingMetric(isAdding ? null : m.id);
-                        setAddValue("");
-                        setTimeout(() => addInputRef.current?.focus(), 50);
-                      }}
-                      className="rounded-lg p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                      title="Add score"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Add new score inline */}
-                {isAdding && (
-                  <div className="flex items-center gap-2 mb-2 animate-fade-in">
-                    <Input
-                      ref={addInputRef}
-                      type="number"
-                      inputMode="decimal"
-                      value={addValue}
-                      onChange={(e) => setAddValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleAddEval(m.id);
-                        if (e.key === "Escape") setAddingMetric(null);
-                      }}
-                      placeholder={m.unit}
-                      className="h-9 w-24 text-center font-bold rounded-lg"
-                    />
-                    <Button
-                      size="sm"
-                      disabled={!addValue || savingEval}
-                      onClick={() => handleAddEval(m.id)}
-                      className="h-9 rounded-lg gradient-primary border-0"
-                    >
-                      <Check className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setAddingMetric(null)}
-                      className="h-9 rounded-lg"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-
-                {/* Existing scores */}
-                <div className="flex flex-wrap gap-1.5">
-                  {mEvals.map((e) => {
-                    const c = getCoach(e.coach_id);
-                    const isEditing = editingEval === e.id;
-                    const isOwnEval = e.coach_id === coach?.id;
-
-                    if (isEditing) {
+              <div key={sessionKey}>
+                <button
+                  onClick={() => toggleSession(sessionKey)}
+                  className="flex items-center gap-2 w-full text-left mt-2"
+                >
+                  {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  <span className="text-sm font-bold">{sessionLabel}</span>
+                  {sessionDate && <span className="text-[10px] text-muted-foreground font-medium">{sessionDate}</span>}
+                  <span className="text-[10px] text-muted-foreground">({sessEvals.length} scores)</span>
+                </button>
+                {isExpanded && (
+                  <div className="space-y-2 ml-6 mt-1 animate-fade-in">
+                    {metrics.filter((m) => sessEvalsByMetric.has(m.id)).map((m) => {
+                      const mEvals = sessEvalsByMetric.get(m.id) || [];
+                      const vals = mEvals.map((e) => e.value);
+                      const computed = vals.length > 0 ? aggregateValues(vals, m.aggregation as any, m.metric_type as any) : null;
                       return (
-                        <span key={e.id} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-white shadow-sm animate-fade-in" style={{ backgroundColor: c?.color || "hsl(var(--primary))" }}>
-                          <Input
-                            ref={editInputRef}
-                            type="number"
-                            inputMode="decimal"
-                            value={editValue}
-                            onChange={(ev) => setEditValue(ev.target.value)}
-                            onKeyDown={(ev) => {
-                              if (ev.key === "Enter") handleUpdateEval(e.id);
-                              if (ev.key === "Escape") setEditingEval(null);
-                            }}
-                            className="h-6 w-16 text-center text-xs font-bold bg-white/20 border-white/30 text-white rounded"
-                            autoFocus
-                          />
-                          <button onClick={() => handleUpdateEval(e.id)} className="hover:bg-white/20 rounded p-0.5"><Check className="h-3 w-3" /></button>
-                          <button onClick={() => setEditingEval(null)} className="hover:bg-white/20 rounded p-0.5"><X className="h-3 w-3" /></button>
-                        </span>
+                        <div key={m.id} className="rounded-xl bg-muted/40 p-3 transition-colors hover:bg-muted/60">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="font-semibold text-sm">{m.name}</span>
+                            {computed !== null && (
+                              <span className="text-lg font-extrabold">{computed?.toFixed(1)} <span className="text-xs font-medium text-muted-foreground">{m.unit}</span></span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {mEvals.map((e) => renderEvalChip(e))}
+                          </div>
+                        </div>
                       );
-                    }
-
-                    return (
-                      <span
-                        key={e.id}
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-white shadow-sm group",
-                          isOwnEval && "cursor-pointer"
-                        )}
-                        style={{ backgroundColor: c?.color || "hsl(var(--primary))" }}
-                        onClick={() => {
-                          if (!isOwnEval) return;
-                          setEditingEval(e.id);
-                          setEditValue(e.value.toString());
-                          setTimeout(() => editInputRef.current?.focus(), 50);
-                        }}
-                      >
-                        {c?.full_name?.split(" ")[0] || "?"}: {e.value}
-                        {isOwnEval && (
-                          <>
-                            <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <button
-                              onClick={(ev) => { ev.stopPropagation(); handleDeleteEval(e.id); }}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/20 rounded p-0.5"
-                            >
-                              <Trash2 className="h-2.5 w-2.5" />
-                            </button>
-                          </>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-                {mEvals.length === 0 && !isAdding && (
-                  <p className="text-xs text-muted-foreground">No scores yet</p>
+                    })}
+                  </div>
                 )}
               </div>
             );
