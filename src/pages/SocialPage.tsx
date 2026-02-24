@@ -82,12 +82,12 @@ function PlayerOnboardingSplash({ onContinue }: { onContinue: () => void }) {
 }
 
 export default function SocialPage() {
-  const { devRoleOverride } = useAuth();
-  const isPlayerDemo = devRoleOverride === "player";
+  const { devRoleOverride, userRole } = useAuth();
+  const effectiveRole = devRoleOverride || userRole;
 
-  // Show onboarding splash once per demo session
+  // Show onboarding splash once per session for any player (demo or real)
   const [showSplash, setShowSplash] = useState(() => {
-    if (!isPlayerDemo) return false;
+    if (effectiveRole !== "player") return false;
     const seen = sessionStorage.getItem("rostr_player_onboard_seen");
     return !seen;
   });
