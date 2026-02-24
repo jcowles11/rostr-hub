@@ -99,11 +99,11 @@ export default function UnifiedNavShell({ children, showBottomNav = true }: Prop
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto pb-24">{children}</main>
+      <main className="flex-1 overflow-y-auto pb-20 sm:pb-8">{children}</main>
 
       {/* Mobile bottom nav */}
       {showBottomNav && (
-        <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card/90 backdrop-blur-2xl shadow-nav">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card/90 backdrop-blur-2xl shadow-nav sm:hidden">
           <div className="mx-auto flex max-w-lg items-center justify-around px-2 py-2">
             {navItems.map(({ key, icon: Icon, label, path }) => {
               const active = activeKey === key;
