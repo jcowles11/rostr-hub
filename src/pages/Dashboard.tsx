@@ -7,7 +7,7 @@ import { useSession } from "@/contexts/SessionContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Star, AlertTriangle, Eye, ChevronDown, AlertCircle, CalendarDays } from "lucide-react";
+import { Search, Star, AlertTriangle, Eye, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { aggregateValues, computePercentiles } from "@/lib/metrics";
@@ -53,9 +53,6 @@ export default function Dashboard() {
   const [sortBy, setSortBy] = useState<"name" | "score">("score");
   const [selectedMetric, setSelectedMetric] = useState(ALL_METRICS);
   const [filterMode, setFilterMode] = useState<"all" | "evaluated" | "not_evaluated">("all");
-  const [unassignedCount, setUnassignedCount] = useState(0);
-  const [bulkAssignSessionId, setBulkAssignSessionId] = useState("");
-  const [bulkAssigning, setBulkAssigning] = useState(false);
 
   useEffect(() => {
     if (!coach) return;
@@ -64,15 +61,12 @@ export default function Dashboard() {
       if (selectedSessionId !== "all") {
         evalsQuery = evalsQuery.eq("session_id", selectedSessionId);
       }
-      const [pRes, eRes, nRes, mRes, unassignedRes] = await Promise.all([
+      const [pRes, eRes, nRes, mRes] = await Promise.all([
         supabase.from("players").select("id, first_name, last_name, grade, positions, player_number").eq("program_id", coach.program_id).order("last_name"),
         evalsQuery,
         supabase.from("player_notes").select("player_id, flag").eq("program_id", coach.program_id).not("flag", "is", null),
         supabase.from("metrics").select("id, name, unit, metric_type, aggregation").eq("program_id", coach.program_id).order("sort_order"),
-        supabase.from("evaluations").select("id", { count: "exact", head: true }).eq("program_id", coach.program_id).is("session_id", null),
       ]);
-
-      setUnassignedCount(unassignedRes.count || 0);
 
       const metricsList = (mRes.data || []) as MetricInfo[];
       setMetrics(metricsList);
@@ -210,55 +204,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Bulk-assign unassigned scores banner */}
-      {unassignedCount > 0 && sessions.length > 0 && (
-        <div className="mb-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3 space-y-2">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">{unassignedCount} score{unassignedCount > 1 ? "s" : ""} not assigned to an event</p>
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Assign them to an event so they appear when filtering.</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
-            <Select value={bulkAssignSessionId} onValueChange={setBulkAssignSessionId}>
-              <SelectTrigger className="flex-1 h-8 rounded-lg text-xs">
-                <SelectValue placeholder="Select an event…" />
-              </SelectTrigger>
-              <SelectContent>
-                {sessions.map((s) => (
-                  <SelectItem key={s.id} value={s.id} className="text-xs">{s.name} ({s.session_date})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              size="sm"
-              className="h-8 rounded-lg text-xs font-bold shrink-0"
-              disabled={!bulkAssignSessionId || bulkAssigning}
-              onClick={async () => {
-                if (!coach || !bulkAssignSessionId) return;
-                setBulkAssigning(true);
-                const { error } = await supabase
-                  .from("evaluations")
-                  .update({ session_id: bulkAssignSessionId })
-                  .eq("program_id", coach.program_id)
-                  .is("session_id", null);
-                if (error) {
-                  toast.error("Failed to assign scores");
-                } else {
-                  toast.success(`${unassignedCount} score${unassignedCount > 1 ? "s" : ""} assigned to event`);
-                  setUnassignedCount(0);
-                  setBulkAssignSessionId("");
-                }
-                setBulkAssigning(false);
-              }}
-            >
-              {bulkAssigning ? "Assigning..." : "Assign All"}
-            </Button>
-          </div>
-        </div>
-      )}
       <div className="mb-3">
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-1.5 w-full rounded-xl border bg-card px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-muted focus:outline-none">
