@@ -153,11 +153,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            {/* Session chip */}
+            {/* Event chip */}
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-1 rounded-xl px-2 py-1.5 text-xs font-bold transition-colors hover:bg-muted focus:outline-none max-w-[130px]">
                 <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <span className="truncate">{selectedSessionId === "all" ? "All Sessions" : (currentSession?.name || "Session")}</span>
+                <span className="truncate">{selectedSessionId === "all" ? "All Events" : (currentSession?.name || "Event")}</span>
                 <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 bg-popover border shadow-lg z-50">
@@ -165,7 +165,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   onClick={() => setSession("all")}
                   className={cn("cursor-pointer font-medium", selectedSessionId === "all" && "bg-accent")}
                 >
-                  <span className="flex-1">All Sessions</span>
+                  <span className="flex-1">All Events</span>
                   {selectedSessionId === "all" && <span className="text-xs text-primary font-bold">✓</span>}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -182,11 +182,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 ))}
                 <DropdownMenuSeparator />
                 {showNewSession ? (
-                  <div className="px-2 py-1.5 flex gap-1.5">
+                   <div className="px-2 py-1.5 flex gap-1.5">
                     <Input
                       value={newSessionName}
                       onChange={(e) => setNewSessionName(e.target.value)}
-                      placeholder="Session name..."
+                      placeholder="Event name..."
                       className="h-8 text-xs rounded-lg flex-1"
                       autoFocus
                       onKeyDown={(e) => {
@@ -225,7 +225,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   </div>
                 ) : (
                   <DropdownMenuItem onClick={() => setShowNewSession(true)} className="cursor-pointer font-medium text-primary">
-                    <Plus className="mr-2 h-4 w-4" /> New Session
+                    <Plus className="mr-2 h-4 w-4" /> New Event
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>

@@ -299,10 +299,10 @@ export default function ScoreEntry() {
         </div>
       </div>
 
-      {/* Session notice */}
+      {/* Event notice */}
       {sessionDisabled && (
         <div className="mb-4 rounded-xl bg-muted/60 p-3 text-center">
-          <p className="text-sm text-muted-foreground font-medium">Select a session from the header to start scoring.</p>
+          <p className="text-sm text-muted-foreground font-medium">Select an event from the header to start scoring.</p>
         </div>
       )}
 

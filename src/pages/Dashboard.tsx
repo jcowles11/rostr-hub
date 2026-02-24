@@ -216,15 +216,15 @@ export default function Dashboard() {
           <div className="flex items-start gap-2">
             <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">{unassignedCount} score{unassignedCount > 1 ? "s" : ""} not assigned to a session</p>
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Assign them to a session so they appear when filtering.</p>
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">{unassignedCount} score{unassignedCount > 1 ? "s" : ""} not assigned to an event</p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Assign them to an event so they appear when filtering.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
             <Select value={bulkAssignSessionId} onValueChange={setBulkAssignSessionId}>
               <SelectTrigger className="flex-1 h-8 rounded-lg text-xs">
-                <SelectValue placeholder="Select a session…" />
+                <SelectValue placeholder="Select an event…" />
               </SelectTrigger>
               <SelectContent>
                 {sessions.map((s) => (
@@ -247,7 +247,7 @@ export default function Dashboard() {
                 if (error) {
                   toast.error("Failed to assign scores");
                 } else {
-                  toast.success(`${unassignedCount} score${unassignedCount > 1 ? "s" : ""} assigned to session`);
+                  toast.success(`${unassignedCount} score${unassignedCount > 1 ? "s" : ""} assigned to event`);
                   setUnassignedCount(0);
                   setBulkAssignSessionId("");
                 }

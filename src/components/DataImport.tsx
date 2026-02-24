@@ -772,21 +772,21 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
               </div>
             </div>
 
-            {/* Session picker */}
+            {/* Event picker */}
             <div className="rounded-xl border p-3 space-y-2">
               <div className="flex items-center gap-2">
                 <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-sm font-semibold">Assign to Session</Label>
+                <Label className="text-sm font-semibold">Assign to Event</Label>
               </div>
-              <p className="text-xs text-muted-foreground">Link imported scores to a tryout session so they appear when filtering by session.</p>
+              <p className="text-xs text-muted-foreground">Link imported scores to an event so they appear when filtering.</p>
               {!creatingSession ? (
                 <div className="flex gap-2">
                   <Select value={importSessionId} onValueChange={setImportSessionId}>
                     <SelectTrigger className="flex-1 h-9 rounded-lg text-sm">
-                      <SelectValue placeholder="No session (unassigned)" />
+                      <SelectValue placeholder="No event (unassigned)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">No session (unassigned)</SelectItem>
+                      <SelectItem value="none">No event (unassigned)</SelectItem>
                       {sessions.map((s) => (
                         <SelectItem key={s.id} value={s.id}>{s.name} ({s.session_date})</SelectItem>
                       ))}
@@ -801,14 +801,14 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
                   <Input
                     value={newSessionName}
                     onChange={(e) => setNewSessionName(e.target.value)}
-                    placeholder="Session name (e.g. Day 1)"
+                    placeholder="Event name (e.g. Fall Tryouts)"
                     className="flex-1 h-9 rounded-lg text-sm"
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && newSessionName.trim()) {
                         createSession(newSessionName.trim()).then((s) => {
                           if (s) {
                             setImportSessionId(s.id);
-                            toast.success(`Session "${s.name}" created`);
+                            toast.success(`Event "${s.name}" created`);
                           }
                           setCreatingSession(false);
                           setNewSessionName("");
@@ -822,7 +822,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
                     createSession(newSessionName.trim()).then((s) => {
                       if (s) {
                         setImportSessionId(s.id);
-                        toast.success(`Session "${s.name}" created`);
+                            toast.success(`Event "${s.name}" created`);
                       }
                       setCreatingSession(false);
                       setNewSessionName("");
