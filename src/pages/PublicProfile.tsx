@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle, MapPin, Ruler, Weight, GraduationCap, Trophy, Youtube, Instagram, Twitter, User, Award, Copy, Mail, Phone, ExternalLink, Share2, Link2 } from "lucide-react";
+import { CheckCircle, MapPin, Ruler, Weight, GraduationCap, Trophy, Youtube, Instagram, Twitter, User, Award, Copy, Mail, Phone, ExternalLink, Share2, Link2, Heart } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface MetricEntry {
   name: string;
@@ -160,9 +162,12 @@ function copyToClipboard(text: string, label: string) {
 
 export default function PublicProfile() {
   const { slug } = useParams<{ slug: string }>();
+  const { user } = useAuth();
   const [data, setData] = useState<PublicProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [isFollowed, setIsFollowed] = useState(false);
+  const [followPlayerId, setFollowPlayerId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!slug) return;
@@ -177,6 +182,42 @@ export default function PublicProfile() {
     };
     fetchProfile();
   }, [slug]);
+
+  // Get the player id for follow functionality
+  useEffect(() => {
+    if (!slug || !user) return;
+    const getPlayerId = async () => {
+      const { data: players } = await supabase
+        .from("players")
+        .select("id")
+        .eq("profile_slug", slug)
+        .eq("profile_public", true)
+        .maybeSingle();
+      if (players) {
+        setFollowPlayerId(players.id);
+        // Check if already following
+        const { data: follow } = await supabase
+          .from("follows")
+          .select("id")
+          .eq("follower_id", user.id)
+          .eq("followed_player_id", players.id)
+          .maybeSingle();
+        setIsFollowed(!!follow);
+      }
+    };
+    getPlayerId();
+  }, [slug, user]);
+
+  const toggleFollow = async () => {
+    if (!user || !followPlayerId) return;
+    if (isFollowed) {
+      setIsFollowed(false);
+      await supabase.from("follows").delete().eq("follower_id", user.id).eq("followed_player_id", followPlayerId);
+    } else {
+      setIsFollowed(true);
+      await supabase.from("follows").insert({ follower_id: user.id, followed_player_id: followPlayerId });
+    }
+  };
 
   if (loading) {
     return (
@@ -254,6 +295,22 @@ export default function PublicProfile() {
 
           {/* Share button */}
           <div className="flex gap-2 mt-4">
+            {user && followPlayerId && (
+              <Button
+                size="sm"
+                variant="secondary"
+                className={cn(
+                  "text-xs gap-1",
+                  isFollowed
+                    ? "bg-white/25 text-white border-0 hover:bg-white/30"
+                    : "bg-white/15 text-white border-0 hover:bg-white/25"
+                )}
+                onClick={toggleFollow}
+              >
+                <Heart className={cn("h-3.5 w-3.5", isFollowed && "fill-current")} />
+                {isFollowed ? "Following" : "Follow"}
+              </Button>
+            )}
             <Button size="sm" variant="secondary" className="bg-white/15 text-white border-0 hover:bg-white/25 text-xs" onClick={() => copyToClipboard(profileUrl, "Profile link")}>
               <Share2 className="h-3.5 w-3.5 mr-1" /> Share Profile
             </Button>
