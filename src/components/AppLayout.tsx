@@ -31,8 +31,8 @@ const navItems = [
   { path: "/", icon: Users, label: "Roster" },
   { path: "/score", icon: ClipboardList, label: "Score" },
   { path: "/dashboard", icon: BarChart3, label: "Stats" },
-  { path: "/roster-board", icon: Layers, label: "Board" },
   { path: "/social", icon: Globe, label: "Social" },
+  { path: "/settings", icon: Settings, label: "More" },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {

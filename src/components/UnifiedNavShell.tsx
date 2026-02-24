@@ -1,16 +1,14 @@
 import { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Users, Globe, Search, User, LogOut } from "lucide-react";
+import { Globe, Search, User, LogOut } from "lucide-react";
 import rostrLogo from "@/assets/rostr-logo.png";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 
-type Section = "coach" | "social" | "scout" | "profile";
-
 interface NavItem {
-  section: Section;
-  icon: typeof Users;
+  key: string;
+  icon: typeof Globe;
   label: string;
   path: string;
 }
@@ -18,36 +16,31 @@ interface NavItem {
 function getNavItems(role: string | null): NavItem[] {
   const items: NavItem[] = [];
 
-  if (role === "coach") {
-    items.push({ section: "coach", icon: Users, label: "Coach", path: "/" });
-  }
-
-  // Social is available to all authenticated roles
-  items.push({ section: "social", icon: Globe, label: "Social", path: "/social" });
-
   if (role === "scout") {
-    items.push({ section: "scout", icon: Search, label: "Scout", path: "/scout" });
+    items.push({ key: "search", icon: Search, label: "Search", path: "/scout" });
+    items.push({ key: "social", icon: Globe, label: "Social", path: "/social" });
+    items.push({ key: "profile", icon: User, label: "Profile", path: "/scout-profile" });
+  } else if (role === "player") {
+    items.push({ key: "social", icon: Globe, label: "Social", path: "/social" });
+    items.push({ key: "profile", icon: User, label: "Profile", path: "/player-dashboard" });
+  } else if (role === "evaluator") {
+    items.push({ key: "social", icon: Globe, label: "Social", path: "/social" });
+    items.push({ key: "profile", icon: User, label: "Profile", path: "/evaluator" });
+  } else {
+    items.push({ key: "social", icon: Globe, label: "Social", path: "/social" });
+    items.push({ key: "profile", icon: User, label: "Profile", path: "/settings" });
   }
-
-  items.push({ section: "profile", icon: User, label: "Profile", path: getProfilePath(role) });
 
   return items;
 }
 
-function getProfilePath(role: string | null): string {
-  switch (role) {
-    case "player": return "/player-dashboard";
-    case "evaluator": return "/evaluator";
-    case "scout": return "/scout";
-    default: return "/settings";
-  }
-}
-
-function getActiveSection(pathname: string, role: string | null): Section {
+function getActiveKey(pathname: string, role: string | null): string {
   if (pathname === "/social" || pathname.startsWith("/social")) return "social";
-  if (pathname === "/scout") return "scout";
-  if (pathname === "/player-dashboard" || pathname === "/evaluator" || pathname === "/settings") return "profile";
-  if (role === "coach" && ["/", "/score", "/dashboard", "/roster-board", "/export", "/plan", "/settings"].some(p => pathname === p || pathname.startsWith("/player/"))) return "coach";
+  if (role === "scout" && pathname === "/scout") return "search";
+  if (pathname === "/player-dashboard") return "profile";
+  if (pathname === "/evaluator") return "profile";
+  if (pathname === "/scout-profile") return "profile";
+  if (pathname === "/settings") return "profile";
   return "social";
 }
 
@@ -62,7 +55,7 @@ export default function UnifiedNavShell({ children, showBottomNav = true }: Prop
   const { userRole, signOut, scoutInfo, playerInfo, evaluatorInfo, coach } = useAuth();
 
   const navItems = getNavItems(userRole);
-  const activeSection = getActiveSection(location.pathname, userRole);
+  const activeKey = getActiveKey(location.pathname, userRole);
 
   const handleSignOut = async () => {
     await signOut();
@@ -83,13 +76,13 @@ export default function UnifiedNavShell({ children, showBottomNav = true }: Prop
 
           {/* Desktop nav tabs */}
           <nav className="hidden sm:flex items-center gap-1">
-            {navItems.map(({ section, icon: Icon, label, path }) => (
+            {navItems.map(({ key, icon: Icon, label, path }) => (
               <button
-                key={section}
+                key={key}
                 onClick={() => navigate(path)}
                 className={cn(
                   "flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-all",
-                  activeSection === section
+                  activeKey === key
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                 )}
@@ -119,11 +112,11 @@ export default function UnifiedNavShell({ children, showBottomNav = true }: Prop
       {showBottomNav && (
         <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card/90 backdrop-blur-2xl shadow-nav sm:hidden">
           <div className="mx-auto flex max-w-lg items-center justify-around px-2 py-2">
-            {navItems.map(({ section, icon: Icon, label, path }) => {
-              const active = activeSection === section;
+            {navItems.map(({ key, icon: Icon, label, path }) => {
+              const active = activeKey === key;
               return (
                 <button
-                  key={section}
+                  key={key}
                   onClick={() => navigate(path)}
                   className={cn(
                     "relative flex flex-col items-center gap-0.5 rounded-2xl px-4 py-2 tap-target transition-all duration-300 ease-out",
