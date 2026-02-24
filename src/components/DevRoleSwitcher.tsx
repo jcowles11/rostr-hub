@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Bug, ChevronUp, Shield, User, Eye, Search } from "lucide-react";
 
@@ -14,15 +14,25 @@ const ROLES = [
 export default function DevRoleSwitcher() {
   const { user, userRole, setDevRoleOverride, devRoleOverride } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [open, setOpen] = useState(false);
 
-  if (!user) return null;
+  // Show if logged in AND (?demo=1 in URL OR already overriding)
+  const isDemoMode = searchParams.get("demo") === "1";
+
+  // Persist demo mode in sessionStorage so it survives navigation
+  useEffect(() => {
+    if (isDemoMode) sessionStorage.setItem("rostr_demo_mode", "1");
+  }, [isDemoMode]);
+
+  const showSwitcher = user && (isDemoMode || sessionStorage.getItem("rostr_demo_mode") === "1" || devRoleOverride);
+
+  if (!showSwitcher) return null;
 
   const activeRole = devRoleOverride || userRole;
 
   const handleSwitch = (role: typeof ROLES[number]) => {
     if (role.key === devRoleOverride) {
-      // Clear override — go back to real role
       setDevRoleOverride(null);
     } else {
       setDevRoleOverride(role.key as any);
