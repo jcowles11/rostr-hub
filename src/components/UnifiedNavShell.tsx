@@ -83,31 +83,12 @@ export default function UnifiedNavShell({ children, showBottomNav = true }: Prop
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2.5">
           <div className="flex items-center gap-2.5">
             <img src={rostrLogo} alt="Rostr" className="h-7 w-7 rounded-lg object-cover" />
-            <span className="text-sm font-extrabold tracking-tight hidden sm:block">Rostr</span>
+            <span className="text-sm font-extrabold tracking-tight">Rostr</span>
           </div>
-
-          {/* Desktop nav tabs */}
-          <nav className="hidden sm:flex items-center gap-1">
-            {navItems.map(({ key, icon: Icon, label, path }) => (
-              <button
-                key={key}
-                onClick={() => navigate(path)}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-all",
-                  activeKey === key
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </button>
-            ))}
-          </nav>
 
           <div className="flex items-center gap-2">
             {displayName && (
-              <span className="text-xs text-muted-foreground font-medium hidden sm:block truncate max-w-[120px]">
+              <span className="text-xs text-muted-foreground font-medium truncate max-w-[120px]">
                 {displayName}
               </span>
             )}
@@ -118,11 +99,11 @@ export default function UnifiedNavShell({ children, showBottomNav = true }: Prop
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto pb-20 sm:pb-8">{children}</main>
+      <main className="flex-1 overflow-y-auto pb-24">{children}</main>
 
       {/* Mobile bottom nav */}
       {showBottomNav && (
-        <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card/90 backdrop-blur-2xl shadow-nav sm:hidden">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card/90 backdrop-blur-2xl shadow-nav">
           <div className="mx-auto flex max-w-lg items-center justify-around px-2 py-2">
             {navItems.map(({ key, icon: Icon, label, path }) => {
               const active = activeKey === key;
