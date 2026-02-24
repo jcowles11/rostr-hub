@@ -18,6 +18,7 @@ interface RosterUploadProps {
 }
 
 type ColumnMapping = {
+  player_name: string; // single combined name column
   first_name: string;
   last_name: string;
   grade: string;
@@ -27,9 +28,10 @@ type ColumnMapping = {
   throws: string;
 };
 
-const PLAYER_FIELDS: { key: keyof ColumnMapping; label: string; required: boolean }[] = [
-  { key: "first_name", label: "First Name", required: true },
-  { key: "last_name", label: "Last Name", required: true },
+const PLAYER_FIELDS: { key: keyof ColumnMapping; label: string; required: boolean; hint?: string }[] = [
+  { key: "player_name", label: "Full Name", required: false, hint: "Single column with first & last name" },
+  { key: "first_name", label: "First Name", required: false },
+  { key: "last_name", label: "Last Name", required: false },
   { key: "grade", label: "Grade", required: false },
   { key: "positions", label: "Position(s)", required: false },
   { key: "jersey_number_preference", label: "Jersey #", required: false },
@@ -37,15 +39,37 @@ const PLAYER_FIELDS: { key: keyof ColumnMapping; label: string; required: boolea
   { key: "throws", label: "Throws", required: false },
 ];
 
+function splitFullName(fullName: string): { first: string; last: string } {
+  const trimmed = fullName.trim();
+  if (!trimmed) return { first: "", last: "" };
+  // Handle "Last, First" format
+  if (trimmed.includes(",")) {
+    const [last, ...rest] = trimmed.split(",");
+    return { first: rest.join(",").trim(), last: last.trim() };
+  }
+  // Handle "First Last" format
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) return { first: parts[0], last: "" };
+  const first = parts.slice(0, -1).join(" ");
+  const last = parts[parts.length - 1];
+  return { first, last };
+}
+
 function guessMapping(headers: string[]): ColumnMapping {
   const lower = headers.map((h) => h.toLowerCase().trim());
   const find = (terms: string[]) => {
-    const idx = lower.findIndex((h) => terms.some((t) => h.includes(t)));
+    const idx = lower.findIndex((h) => terms.some((t) => h === t || h.includes(t)));
     return idx >= 0 ? headers[idx] : "";
   };
+  // Check for combined name column
+  const playerName = find(["player name", "player_name", "playername", "full name", "full_name", "fullname", "athlete name", "athlete", "name"]);
+  const firstName = find(["first name", "first_name", "firstname", "first"]);
+  const lastName = find(["last name", "last_name", "lastname", "last", "surname"]);
+
   return {
-    first_name: find(["first name", "first_name", "firstname", "first"]),
-    last_name: find(["last name", "last_name", "lastname", "last", "surname"]),
+    player_name: (!firstName && !lastName) ? playerName : "",
+    first_name: firstName,
+    last_name: lastName,
     grade: find(["grade", "year", "class"]),
     positions: find(["position", "pos"]),
     jersey_number_preference: find(["jersey", "number", "#", "num"]),
@@ -61,7 +85,7 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [mapping, setMapping] = useState<ColumnMapping>({
-    first_name: "", last_name: "", grade: "", positions: "", jersey_number_preference: "", bats: "", throws: "",
+    player_name: "", first_name: "", last_name: "", grade: "", positions: "", jersey_number_preference: "", bats: "", throws: "",
   });
   const [importing, setImporting] = useState(false);
   const [importCount, setImportCount] = useState(0);
@@ -70,7 +94,7 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
     setStep("upload");
     setHeaders([]);
     setRows([]);
-    setMapping({ first_name: "", last_name: "", grade: "", positions: "", jersey_number_preference: "", bats: "", throws: "" });
+    setMapping({ player_name: "", first_name: "", last_name: "", grade: "", positions: "", jersey_number_preference: "", bats: "", throws: "" });
     setImporting(false);
     setImportCount(0);
     if (fileRef.current) fileRef.current.value = "";
@@ -123,17 +147,31 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
     }
   };
 
-  const mappedPlayers = rows.map((row) => ({
-    first_name: (row[mapping.first_name] || "").trim(),
-    last_name: (row[mapping.last_name] || "").trim(),
-    grade: mapping.grade ? parseInt(row[mapping.grade]) || null : null,
-    positions: mapping.positions
-      ? (row[mapping.positions] || "").split(/[,\/;]/).map((s) => s.trim().toUpperCase()).filter(Boolean)
-      : [],
-    jersey_number_preference: mapping.jersey_number_preference ? parseInt(row[mapping.jersey_number_preference]) || null : null,
-    bats: mapping.bats ? (row[mapping.bats] || "").trim().substring(0, 1).toUpperCase() || null : null,
-    throws: mapping.throws ? (row[mapping.throws] || "").trim().substring(0, 1).toUpperCase() || null : null,
-  })).filter((p) => p.first_name && p.last_name);
+  const useFullName = !!mapping.player_name && !mapping.first_name && !mapping.last_name;
+  const hasValidNameMapping = useFullName || (!!mapping.first_name && !!mapping.last_name);
+
+  const mappedPlayers = rows.map((row) => {
+    let firstName: string, lastName: string;
+    if (useFullName) {
+      const split = splitFullName(row[mapping.player_name] || "");
+      firstName = split.first;
+      lastName = split.last;
+    } else {
+      firstName = (row[mapping.first_name] || "").trim();
+      lastName = (row[mapping.last_name] || "").trim();
+    }
+    return {
+      first_name: firstName,
+      last_name: lastName,
+      grade: mapping.grade ? parseInt(row[mapping.grade]) || null : null,
+      positions: mapping.positions
+        ? (row[mapping.positions] || "").split(/[,\/;]/).map((s) => s.trim().toUpperCase()).filter(Boolean)
+        : [],
+      jersey_number_preference: mapping.jersey_number_preference ? parseInt(row[mapping.jersey_number_preference]) || null : null,
+      bats: mapping.bats ? (row[mapping.bats] || "").trim().substring(0, 1).toUpperCase() || null : null,
+      throws: mapping.throws ? (row[mapping.throws] || "").trim().substring(0, 1).toUpperCase() || null : null,
+    };
+  }).filter((p) => p.first_name && p.last_name);
 
   const handleImport = async () => {
     if (!coach || importing) return;
@@ -228,10 +266,16 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
               ))}
             </div>
 
-            {(!mapping.first_name || !mapping.last_name) && (
+            {!hasValidNameMapping && (
               <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-lg p-3">
                 <AlertCircle className="h-4 w-4 shrink-0" />
-                First Name and Last Name mappings are required.
+                Map either a Full Name column, or both First Name and Last Name columns.
+              </div>
+            )}
+            {useFullName && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                Names will be split automatically. Supports "First Last" and "Last, First" formats.
               </div>
             )}
 
@@ -239,7 +283,7 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
               <Button variant="outline" className="flex-1 h-11 rounded-xl" onClick={reset}>Back</Button>
               <Button
                 className="flex-1 h-11 rounded-xl gradient-primary border-0 font-bold"
-                disabled={!mapping.first_name || !mapping.last_name}
+                disabled={!hasValidNameMapping}
                 onClick={() => setStep("preview")}
               >
                 Preview ({mappedPlayers.length} players)

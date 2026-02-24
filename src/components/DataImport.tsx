@@ -35,6 +35,7 @@ type Step = "upload" | "identify" | "map_metrics" | "preview" | "done";
 
 // Mapping spreadsheet columns to identify players
 interface PlayerIdMapping {
+  player_name: string; // single combined name column
   first_name: string;
   last_name: string;
 }
@@ -42,15 +43,31 @@ interface PlayerIdMapping {
 // Mapping spreadsheet columns to metrics
 type MetricColumnMap = Record<string, string>; // header -> metric_id
 
+function splitFullName(fullName: string): { first: string; last: string } {
+  const trimmed = fullName.trim();
+  if (!trimmed) return { first: "", last: "" };
+  if (trimmed.includes(",")) {
+    const [last, ...rest] = trimmed.split(",");
+    return { first: rest.join(",").trim(), last: last.trim() };
+  }
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) return { first: parts[0], last: "" };
+  return { first: parts.slice(0, -1).join(" "), last: parts[parts.length - 1] };
+}
+
 function guessPlayerColumns(headers: string[]): PlayerIdMapping {
   const lower = headers.map((h) => h.toLowerCase().trim());
   const find = (terms: string[]) => {
-    const idx = lower.findIndex((h) => terms.some((t) => h.includes(t)));
+    const idx = lower.findIndex((h) => terms.some((t) => h === t || h.includes(t)));
     return idx >= 0 ? headers[idx] : "";
   };
+  const firstName = find(["first name", "first_name", "firstname", "first"]);
+  const lastName = find(["last name", "last_name", "lastname", "last", "surname"]);
+  const playerName = find(["player name", "player_name", "playername", "full name", "full_name", "fullname", "athlete name", "athlete", "name"]);
   return {
-    first_name: find(["first name", "first_name", "firstname", "first"]),
-    last_name: find(["last name", "last_name", "lastname", "last", "surname"]),
+    player_name: (!firstName && !lastName) ? playerName : "",
+    first_name: firstName,
+    last_name: lastName,
   };
 }
 
@@ -86,7 +103,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
   const [step, setStep] = useState<Step>("upload");
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
-  const [playerMapping, setPlayerMapping] = useState<PlayerIdMapping>({ first_name: "", last_name: "" });
+  const [playerMapping, setPlayerMapping] = useState<PlayerIdMapping>({ player_name: "", first_name: "", last_name: "" });
   const [metricMapping, setMetricMapping] = useState<MetricColumnMap>({});
   const [existingPlayers, setExistingPlayers] = useState<ExistingPlayer[]>([]);
   const [metrics, setMetrics] = useState<MetricInfo[]>([]);
@@ -111,7 +128,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
     setStep("upload");
     setHeaders([]);
     setRows([]);
-    setPlayerMapping({ first_name: "", last_name: "" });
+    setPlayerMapping({ player_name: "", first_name: "", last_name: "" });
     setMetricMapping({});
     setMatchedRows([]);
     setImporting(false);
@@ -162,10 +179,20 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
   };
 
   // Match rows to existing players
+  const useFullName = !!playerMapping.player_name && !playerMapping.first_name && !playerMapping.last_name;
+  const hasValidNameMapping = useFullName || (!!playerMapping.first_name && !!playerMapping.last_name);
+
   const buildMatchedRows = () => {
     const matched: MatchedRow[] = rows.map((row, i) => {
-      const firstName = (row[playerMapping.first_name] || "").trim();
-      const lastName = (row[playerMapping.last_name] || "").trim();
+      let firstName: string, lastName: string;
+      if (useFullName) {
+        const split = splitFullName(row[playerMapping.player_name] || "");
+        firstName = split.first;
+        lastName = split.last;
+      } else {
+        firstName = (row[playerMapping.first_name] || "").trim();
+        lastName = (row[playerMapping.last_name] || "").trim();
+      }
 
       // Try exact match
       const match = existingPlayers.find(
@@ -323,14 +350,13 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         {step === "identify" && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              <span className="font-semibold text-foreground">{rows.length}</span> rows found. First, identify the player name columns:
+              <span className="font-semibold text-foreground">{rows.length}</span> rows found. Identify the player name column(s):
             </p>
             <div className="space-y-3">
-              {(["first_name", "last_name"] as const).map((key) => (
+              {(["player_name", "first_name", "last_name"] as const).map((key) => (
                 <div key={key} className="flex items-center gap-3">
                   <Label className="w-24 text-sm shrink-0">
-                    {key === "first_name" ? "First Name" : "Last Name"}
-                    <span className="text-destructive ml-0.5">*</span>
+                    {key === "player_name" ? "Full Name" : key === "first_name" ? "First Name" : "Last Name"}
                   </Label>
                   <Select value={playerMapping[key] || "__none__"}
                     onValueChange={(v) => setPlayerMapping({ ...playerMapping, [key]: v === "__none__" ? "" : v })}
@@ -345,17 +371,23 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
               ))}
             </div>
 
-            {(!playerMapping.first_name || !playerMapping.last_name) && (
+            {!hasValidNameMapping && (
               <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-lg p-3">
                 <AlertCircle className="h-4 w-4 shrink-0" />
-                Both name columns are required.
+                Map either a Full Name column, or both First Name and Last Name columns.
+              </div>
+            )}
+            {useFullName && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                Names will be split automatically. Supports "First Last" and "Last, First" formats.
               </div>
             )}
 
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1 h-11 rounded-xl" onClick={reset}>Back</Button>
               <Button className="flex-1 h-11 rounded-xl gradient-primary border-0 font-bold"
-                disabled={!playerMapping.first_name || !playerMapping.last_name}
+                disabled={!hasValidNameMapping}
                 onClick={() => setStep("map_metrics")}
               >
                 Next: Map Metrics
