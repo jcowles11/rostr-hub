@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
@@ -33,10 +33,12 @@ const SessionContext = createContext<SessionContextType>({
 export const useSession = () => useContext(SessionContext);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const { coach } = useAuth();
+  const { coach, devRoleOverride } = useAuth();
   const [sessions, setSessions] = useState<TryoutSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+
+  const isDemo = useMemo(() => !!devRoleOverride || !!sessionStorage.getItem("rostr_demo_mode"), [devRoleOverride]);
 
   useEffect(() => {
     if (!coach) {
@@ -55,13 +57,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
       const list = data || [];
       setSessions(list);
-      // Default to "All Events" — coaches can manually pick an event
-      setSelectedSessionId("all");
+      // In demo mode, auto-select the first session so Score Entry works immediately
+      if (isDemo && list.length > 0) {
+        setSelectedSessionId(list[0].id);
+      } else {
+        setSelectedSessionId("all");
+      }
       setLoading(false);
     };
 
     fetchSessions();
-  }, [coach?.program_id]);
+  }, [coach?.program_id, isDemo]);
 
   const setSession = useCallback((id: string) => {
     setSelectedSessionId(id);

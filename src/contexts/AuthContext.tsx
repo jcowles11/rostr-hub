@@ -462,79 +462,85 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
-  // Demo mode: when overriding to coach but no coach record exists, temporarily link user to a program
+  // Demo mode: when entering coach demo, pick the program with the most players
   useEffect(() => {
-    if (devRoleOverride === "coach" && !coach && user) {
-      (async () => {
-        // First check if user already has a coach record
-        const { data: existingCoach } = await supabase
-          .from("coaches")
-          .select("id, program_id, full_name, role, color, programs(name, levels, logo_url, sport, organization_id, organizations(id, name, logo_url))")
-          .eq("user_id", user.id)
-          .limit(1)
-          .maybeSingle();
+    if (devRoleOverride !== "coach" || !user) return;
 
-        if (existingCoach) {
-          const pd = existingCoach.programs as any;
-          const info: CoachInfo = {
-            id: existingCoach.id, program_id: existingCoach.program_id,
-            full_name: existingCoach.full_name, role: existingCoach.role, color: existingCoach.color,
-            program_name: pd?.name, program_levels: pd?.levels, logo_url: pd?.logo_url,
-            sport: pd?.sport, organization_id: pd?.organization_id, organization_name: pd?.organizations?.name,
-          };
-          setCoach(info);
-          setAllCoaches([info]);
-          return;
+    (async () => {
+      // Check if user already has coach records
+      const { data: existingCoaches } = await supabase
+        .from("coaches")
+        .select("id, program_id, full_name, role, color, programs(name, levels, logo_url, sport, organization_id, organizations(id, name, logo_url))")
+        .eq("user_id", user.id);
+
+      const toCoachInfo = (c: any): CoachInfo => {
+        const pd = c.programs as any;
+        return {
+          id: c.id, program_id: c.program_id,
+          full_name: c.full_name, role: c.role, color: c.color,
+          program_name: pd?.name, program_levels: pd?.levels, logo_url: pd?.logo_url,
+          sport: pd?.sport, organization_id: pd?.organization_id, organization_name: pd?.organizations?.name,
+        };
+      };
+
+      if (existingCoaches && existingCoaches.length > 0) {
+        // Pick the program with the most players for the best demo experience
+        let bestCoach = existingCoaches[0];
+        if (existingCoaches.length > 1) {
+          const counts = await Promise.all(
+            existingCoaches.map(async (c) => {
+              const { count } = await supabase
+                .from("players")
+                .select("id", { count: "exact", head: true })
+                .eq("program_id", c.program_id);
+              return { coach: c, count: count || 0 };
+            })
+          );
+          counts.sort((a, b) => b.count - a.count);
+          bestCoach = counts[0].coach;
         }
+        setCoach(toCoachInfo(bestCoach));
+        setAllCoaches(existingCoaches.map(toCoachInfo));
+        return;
+      }
 
-        // Find any program to join as demo coach
-        const { data: anyProgram } = await supabase
-          .from("programs")
-          .select("id, organization_id")
-          .limit(1)
-          .maybeSingle();
+      // No coach records — create one for demo
+      const { data: anyProgram } = await supabase
+        .from("programs")
+        .select("id, organization_id")
+        .limit(1)
+        .maybeSingle();
 
-        if (!anyProgram) return;
+      if (!anyProgram) return;
 
-        const displayName = user.user_metadata?.full_name || user.email || "Demo Coach";
+      const displayName = user.user_metadata?.full_name || user.email || "Demo Coach";
 
-        // Insert a coach record for this user
-        const { data: newCoach, error } = await supabase
-          .from("coaches")
-          .insert({
-            user_id: user.id,
-            program_id: anyProgram.id,
-            full_name: displayName,
-            email: user.email || "",
-            role: "head_coach" as const,
-          })
-          .select("id, program_id, full_name, role, color, programs(name, levels, logo_url, sport, organization_id, organizations(id, name, logo_url))")
-          .single();
+      const { data: newCoach, error } = await supabase
+        .from("coaches")
+        .insert({
+          user_id: user.id,
+          program_id: anyProgram.id,
+          full_name: displayName,
+          email: user.email || "",
+          role: "head_coach" as const,
+        })
+        .select("id, program_id, full_name, role, color, programs(name, levels, logo_url, sport, organization_id, organizations(id, name, logo_url))")
+        .single();
 
-        if (!error && newCoach) {
-          // Also add as org member so RLS passes
-          await supabase.from("organization_members").insert({
-            user_id: user.id,
-            organization_id: anyProgram.organization_id,
-            program_id: anyProgram.id,
-            email: user.email || "",
-            full_name: displayName,
-            role: "admin" as const,
-          });
-
-          const pd = newCoach.programs as any;
-          const info: CoachInfo = {
-            id: newCoach.id, program_id: newCoach.program_id,
-            full_name: newCoach.full_name, role: newCoach.role, color: newCoach.color,
-            program_name: pd?.name, program_levels: pd?.levels, logo_url: pd?.logo_url,
-            sport: pd?.sport, organization_id: pd?.organization_id, organization_name: pd?.organizations?.name,
-          };
-          setCoach(info);
-          setAllCoaches([info]);
-        }
-      })();
-    }
-  }, [devRoleOverride, coach, user]);
+      if (!error && newCoach) {
+        await supabase.from("organization_members").insert({
+          user_id: user.id,
+          organization_id: anyProgram.organization_id,
+          program_id: anyProgram.id,
+          email: user.email || "",
+          full_name: displayName,
+          role: "admin" as const,
+        });
+        setCoach(toCoachInfo(newCoach));
+        setAllCoaches([toCoachInfo(newCoach)]);
+      }
+    })();
+  }, [devRoleOverride, user]);
 
   return (
     <AuthContext.Provider value={{ session, user, coach, playerInfo, evaluatorInfo, scoutInfo, allCoaches, organizations, currentOrg, userRole: devRoleOverride || userRole, loading, signOut, refreshCoach, refreshPlayer, refreshEvaluator, refreshScout, switchProgram, switchOrg, deleteProgram, devRoleOverride, setDevRoleOverride }}>
