@@ -49,21 +49,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
 
     const fetchSessions = async () => {
-      const { data } = await supabase
-        .from("tryout_sessions")
-        .select("id, name, session_date, notes")
-        .eq("program_id", coach.program_id)
-        .order("session_date", { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from("tryout_sessions")
+          .select("id, name, session_date, notes")
+          .eq("program_id", coach.program_id)
+          .order("session_date", { ascending: false });
 
-      const list = data || [];
-      setSessions(list);
-      // In demo mode, auto-select the first session so Score Entry works immediately
-      if (isDemo && list.length > 0) {
-        setSelectedSessionId(list[0].id);
-      } else {
-        setSelectedSessionId("all");
+        if (error) {
+          console.error("[SessionContext] fetchSessions error:", error.message);
+        }
+
+        const list = data || [];
+        setSessions(list);
+        if (isDemo && list.length > 0) {
+          setSelectedSessionId(list[0].id);
+        } else {
+          setSelectedSessionId("all");
+        }
+      } catch (err) {
+        console.error("[SessionContext] fetchSessions unexpected error:", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchSessions();
