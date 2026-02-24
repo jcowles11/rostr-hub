@@ -22,6 +22,7 @@ import PlayerDashboard from "@/pages/PlayerDashboard";
 import PlayerLinkPage from "@/pages/PlayerLinkPage";
 import PublicProfile from "@/pages/PublicProfile";
 import EvaluatorDashboard from "@/pages/EvaluatorDashboard";
+import EvaluatorProfile from "@/pages/EvaluatorProfile";
 import ScoutDashboard from "@/pages/ScoutDashboard";
 import NotFound from "@/pages/NotFound";
 
@@ -136,6 +137,7 @@ const App = () => (
             <Route path="/evaluator" element={<EvaluatorRoute><EvaluatorDashboard /></EvaluatorRoute>} />
             <Route path="/scout" element={<ScoutRoute><ScoutDashboard /></ScoutRoute>} />
             <Route path="/p/:slug" element={<PublicProfile />} />
+            <Route path="/evaluator/:id" element={<EvaluatorProfile />} />
             <Route path="/" element={<ProtectedRoute><Roster /></ProtectedRoute>} />
             <Route path="/score" element={<ProtectedRoute><ScoreEntry /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
