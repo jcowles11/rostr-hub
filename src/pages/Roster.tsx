@@ -5,8 +5,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, UserPlus, Share2, Users, X, Upload, Database, Globe } from "lucide-react";
+import { Search, Plus, UserPlus, Share2, Users, X, Upload, Database, Globe, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
@@ -40,6 +50,8 @@ export default function Roster() {
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [dataImportOpen, setDataImportOpen] = useState(false);
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   const sport = coach?.sport || "baseball";
   const positions = getSportPositions(sport);
@@ -119,6 +131,36 @@ export default function Roster() {
     }
   };
 
+  const handleDeleteAll = async () => {
+    if (!coach) return;
+    setDeletingAll(true);
+    try {
+      const playerIds = players.map((p) => p.id);
+      // Delete in batches to handle >1000 rows
+      const batchSize = 500;
+      for (let i = 0; i < playerIds.length; i += batchSize) {
+        const batch = playerIds.slice(i, i + batchSize);
+        // Delete child records first
+        await Promise.all([
+          supabase.from("evaluations").delete().in("player_id", batch),
+          supabase.from("player_notes").delete().in("player_id", batch),
+          supabase.from("roster_assignments").delete().in("player_id", batch),
+          supabase.from("session_attendance").delete().in("player_id", batch),
+        ]);
+        // Then delete players
+        await supabase.from("players").delete().in("id", batch);
+      }
+      // Final delete all players for this program (in case batch missed any)
+      await supabase.from("players").delete().eq("program_id", coach.program_id);
+      toast.success(`Deleted ${players.length} players and all their data`);
+      setPlayers([]);
+    } catch (err) {
+      toast.error("Failed to delete players");
+    }
+    setDeletingAll(false);
+    setDeleteAllOpen(false);
+  };
+
   const copyRegLink = async () => {
     if (!coach) return;
     const { data } = await supabase
@@ -174,6 +216,11 @@ export default function Roster() {
             <Button variant="ghost" size="icon" className="tap-target text-white/80 hover:text-white hover:bg-white/10" onClick={copyRegLink} title="Share registration link">
               <Share2 className="h-5 w-5" />
             </Button>
+            {players.length > 0 && (
+              <Button variant="ghost" size="icon" className="tap-target text-white/80 hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteAllOpen(true)} title="Delete all players">
+                <Trash2 className="h-5 w-5" />
+              </Button>
+            )}
             <Dialog open={addOpen} onOpenChange={setAddOpen}>
               <DialogTrigger asChild>
                 <Button size="icon" className="tap-target bg-white/20 hover:bg-white/30 text-white border-0">
@@ -352,6 +399,23 @@ export default function Roster() {
 
       <RosterUpload open={uploadOpen} onOpenChange={setUploadOpen} onSuccess={fetchPlayers} />
       <DataImport open={dataImportOpen} onOpenChange={setDataImportOpen} onSuccess={fetchPlayers} />
+
+      <AlertDialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete all {players.length} players?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete every player on this roster along with all their evaluations, notes, and roster assignments. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingAll}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAll} disabled={deletingAll} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deletingAll ? "Deleting..." : "Delete All Players"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
