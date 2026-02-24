@@ -27,7 +27,8 @@ function getNavItems(role: string | null): NavItem[] {
     items.push({ key: "notifications", icon: Bell, label: "Alerts", path: "/notifications" });
     items.push({ key: "profile", icon: User, label: "Profile", path: "/player-dashboard" });
   } else if (role === "evaluator") {
-    items.push({ key: "social", icon: Globe, label: "Social", path: "/social" });
+    items.push({ key: "feed", icon: Home, label: "Feed", path: "/social" });
+    items.push({ key: "search", icon: Search, label: "Search", path: "/search" });
     items.push({ key: "notifications", icon: Bell, label: "Alerts", path: "/notifications" });
     items.push({ key: "profile", icon: User, label: "Profile", path: "/evaluator" });
   } else {
@@ -40,17 +41,17 @@ function getNavItems(role: string | null): NavItem[] {
 }
 
 function getActiveKey(pathname: string, role: string | null): string {
-  if (role === "player") {
+  if (role === "player" || role === "evaluator") {
     if (pathname === "/social" || pathname.startsWith("/social")) return "feed";
     if (pathname === "/search") return "search";
     if (pathname === "/player-dashboard") return "profile";
+    if (pathname === "/evaluator") return "profile";
     return "feed";
   }
   if (pathname === "/notifications") return "notifications";
   if (pathname === "/social" || pathname.startsWith("/social")) return "social";
   if (role === "scout" && pathname === "/scout") return "search";
   if (pathname === "/player-dashboard") return "profile";
-  if (pathname === "/evaluator") return "profile";
   if (pathname === "/scout-profile") return "profile";
   if (pathname === "/settings") return "profile";
   return "social";

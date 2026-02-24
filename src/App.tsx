@@ -123,7 +123,7 @@ function SearchRoute() {
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/auth" replace />;
   const effectiveRole = devRoleOverride || userRole;
-  if (effectiveRole === "player" || effectiveRole === "scout") {
+  if (effectiveRole === "player" || effectiveRole === "scout" || effectiveRole === "evaluator") {
     return <UnifiedNavShell><SearchPage /></UnifiedNavShell>;
   }
   return <Navigate to="/" replace />;
