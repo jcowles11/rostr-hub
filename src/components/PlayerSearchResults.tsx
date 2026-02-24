@@ -24,7 +24,7 @@ interface Props {
 export default function PlayerSearchResults({ results, loading, searched, onClearSearch }: Props) {
   const { scoutInfo, userRole, devRoleOverride } = useAuth();
   const effectiveRole = devRoleOverride || userRole;
-  const isScout = effectiveRole === "scout" && !!scoutInfo;
+  const isScout = effectiveRole === "scout";
 
   const [savingId, setSavingId] = useState<string | null>(null);
   const [lists, setLists] = useState<{ id: string; name: string }[]>([]);
