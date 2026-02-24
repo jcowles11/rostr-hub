@@ -194,6 +194,11 @@ export default function ScoreEntry() {
       if (stationMode) {
         if (stationIndex < filtered.length - 1) {
           setStationIndex((i) => i + 1);
+        } else if (maxAttempts > 1 && currentAttempt < maxAttempts) {
+          // Last player — wrap to first player on next attempt
+          setStationIndex(0);
+          setCurrentAttempt((a) => a + 1);
+          toast.info(`Starting Attempt ${currentAttempt + 1}`, { duration: 2000 });
         }
       }
     }
@@ -272,7 +277,9 @@ export default function ScoreEntry() {
           <div>
             <h1 className="text-2xl font-extrabold text-white tracking-tight">Score Entry</h1>
             <p className="text-white/70 text-sm mt-0.5">
-              {stationMode ? "Station Mode — cycle through players" : "Tap a player to start scoring"}
+              {stationMode
+                ? `Station Mode — Attempt ${currentAttempt}${maxAttempts > 1 ? ` of ${maxAttempts}` : ""}`
+                : "Tap a player to start scoring"}
             </p>
           </div>
           <Button
