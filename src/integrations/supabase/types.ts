@@ -64,6 +64,7 @@ export type Database = {
           metric_id: string
           player_id: string
           program_id: string
+          season_id: string | null
           session_id: string | null
           updated_at: string
           value: number
@@ -76,6 +77,7 @@ export type Database = {
           metric_id: string
           player_id: string
           program_id: string
+          season_id?: string | null
           session_id?: string | null
           updated_at?: string
           value: number
@@ -88,6 +90,7 @@ export type Database = {
           metric_id?: string
           player_id?: string
           program_id?: string
+          season_id?: string | null
           session_id?: string | null
           updated_at?: string
           value?: number
@@ -119,6 +122,13 @@ export type Database = {
             columns: ["program_id"]
             isOneToOne: false
             referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evaluations_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
             referencedColumns: ["id"]
           },
           {
@@ -749,6 +759,44 @@ export type Database = {
         }
         Relationships: []
       }
+      seasons: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          id: string
+          is_active: boolean
+          name: string
+          program_id: string
+          start_date: string | null
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          program_id: string
+          start_date?: string | null
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          program_id?: string
+          start_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seasons_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       session_attendance: {
         Row: {
           checked_in: boolean
@@ -827,6 +875,7 @@ export type Database = {
           name: string
           notes: string | null
           program_id: string
+          season_id: string | null
           session_date: string
         }
         Insert: {
@@ -835,6 +884,7 @@ export type Database = {
           name: string
           notes?: string | null
           program_id: string
+          season_id?: string | null
           session_date?: string
         }
         Update: {
@@ -843,6 +893,7 @@ export type Database = {
           name?: string
           notes?: string | null
           program_id?: string
+          season_id?: string | null
           session_date?: string
         }
         Relationships: [
@@ -851,6 +902,13 @@ export type Database = {
             columns: ["program_id"]
             isOneToOne: false
             referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tryout_sessions_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
             referencedColumns: ["id"]
           },
         ]

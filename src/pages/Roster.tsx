@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Plus, UserPlus, Share2, Users, X, Upload, Database, Globe, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -36,6 +37,18 @@ interface Player {
   photo_url: string | null;
   profile_slug: string | null;
   profile_public: boolean;
+  team_id: string | null;
+}
+
+interface Team {
+  id: string;
+  name: string;
+}
+
+interface Season {
+  id: string;
+  name: string;
+  is_active: boolean;
 }
 
 export default function Roster() {
@@ -53,6 +66,12 @@ export default function Roster() {
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
 
+  // Team + Season filters
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [seasons, setSeasons] = useState<Season[]>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string>("all");
+
   const sport = coach?.sport || "baseball";
   const positions = getSportPositions(sport);
   const showBatsThrows = sportHasBatsThrows(sport);
@@ -67,7 +86,7 @@ export default function Roster() {
     if (!coach) return;
     const { data } = await supabase
       .from("players")
-      .select("id, first_name, last_name, grade, positions, jersey_number_preference, player_number, photo_url, profile_slug, profile_public")
+      .select("id, first_name, last_name, grade, positions, jersey_number_preference, player_number, photo_url, profile_slug, profile_public, team_id")
       .eq("program_id", coach.program_id)
       .order("last_name")
       .order("first_name");
@@ -76,13 +95,30 @@ export default function Roster() {
   };
 
   useEffect(() => {
+    if (!coach) return;
     fetchPlayers();
+    // Fetch teams
+    supabase
+      .from("teams")
+      .select("id, name")
+      .eq("program_id", coach.program_id)
+      .order("name")
+      .then(({ data }) => setTeams(data || []));
+    // Fetch seasons
+    supabase
+      .from("seasons")
+      .select("id, name, is_active")
+      .eq("program_id", coach.program_id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => setSeasons(data || []));
   }, [coach]);
 
   const filtered = players
     .filter((p) => {
       const q = search.toLowerCase();
-      return p.last_name.toLowerCase().includes(q) || p.first_name.toLowerCase().includes(q);
+      const matchesSearch = p.last_name.toLowerCase().includes(q) || p.first_name.toLowerCase().includes(q);
+      const matchesTeam = selectedTeamId === "all" || p.team_id === selectedTeamId;
+      return matchesSearch && matchesTeam;
     })
     .sort((a, b) => {
       if (sortBy === "number") {
@@ -326,6 +362,71 @@ export default function Roster() {
           {sortBy === "alpha" ? <span className="font-bold text-sm">A-Z</span> : <span className="font-bold text-sm">#</span>}
         </Button>
       </div>
+
+      {/* Team + Season filter chips */}
+      {(teams.length > 0 || seasons.length > 0) && (
+        <div className="flex gap-2 mb-4 overflow-x-auto no-scrollbar">
+          {teams.length > 0 && (
+            <div className="flex gap-1 shrink-0">
+              <button
+                onClick={() => setSelectedTeamId("all")}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors border whitespace-nowrap",
+                  selectedTeamId === "all"
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                )}
+              >
+                All Teams
+              </button>
+              {teams.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setSelectedTeamId(t.id === selectedTeamId ? "all" : t.id)}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors border whitespace-nowrap",
+                    selectedTeamId === t.id
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                  )}
+                >
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          )}
+          {seasons.length > 0 && (
+            <div className="flex gap-1 shrink-0">
+              <span className="text-[10px] text-muted-foreground font-bold uppercase self-center mr-1">Season:</span>
+              <button
+                onClick={() => setSelectedSeasonId("all")}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors border whitespace-nowrap",
+                  selectedSeasonId === "all"
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                )}
+              >
+                All Time
+              </button>
+              {seasons.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setSelectedSeasonId(s.id === selectedSeasonId ? "all" : s.id)}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors border whitespace-nowrap",
+                    selectedSeasonId === s.id
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                  )}
+                >
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="space-y-2 stagger-list">
         {loading ? (
