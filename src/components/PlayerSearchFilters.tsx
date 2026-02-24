@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Search, X, ChevronRight } from "lucide-react";
+import { Search, X, ChevronRight, ChevronDown, SlidersHorizontal } from "lucide-react";
 
 export interface MetricFilter {
   metricName: string;
@@ -75,6 +75,7 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
   const [gpaMin, setGpaMin] = useState("");
   const [highSchool, setHighSchool] = useState("");
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const togglePosition = (pos: string) => {
     setSelectedPositions((prev) =>
@@ -88,7 +89,6 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
     );
   };
 
-  // --- Metric toggle helpers ---
   const isMetricActive = (name: string) => metricFilters.some((mf) => mf.metricName === name);
 
   const toggleMetric = (name: string) => {
@@ -121,9 +121,12 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
     return `${mf.metricName}${parts.length ? " " + parts.join(" & ") : ""}`;
   };
 
-  const handleSearch = () => {
-    let effectiveState = selectedState || undefined;
+  const advancedFilterCount = [
+    highSchool, recruitingStatus, selectedState, gpaMin,
+    ...selectedRegions,
+  ].filter(Boolean).length;
 
+  const handleSearch = () => {
     onSearch({
       nameSearch: nameSearch || undefined,
       sport: sport || undefined,
@@ -134,7 +137,7 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
       throws: throws_ || undefined,
       metricFilters: metricFilters.length ? metricFilters : undefined,
       recruitingStatus: recruitingStatus || undefined,
-      state: effectiveState,
+      state: selectedState || undefined,
       gpaMin: gpaMin ? Number(gpaMin) : undefined,
       highSchool: highSchool || undefined,
     });
@@ -160,10 +163,12 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
     <Card className="section-card h-fit">
       <CardHeader className="pb-3">
         <CardTitle className="text-base font-bold flex items-center gap-2">
-          <Search className="h-4 w-4" /> Filters
+          <Search className="h-4 w-4" /> Search Players
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* ─── PRIMARY FILTERS ─── */}
+
         {/* Player Name */}
         <div className="space-y-1.5">
           <Label className="text-xs font-semibold">Player Name</Label>
@@ -244,7 +249,7 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
           </div>
         </div>
 
-        {/* ── Metrics (scout only, now after Bats/Throws) ── */}
+        {/* ─── METRICS (scout only, always visible) ─── */}
         {isScout && (
           <div className="space-y-2">
             <Label className="text-xs font-semibold">Metrics</Label>
@@ -324,89 +329,107 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
           </div>
         )}
 
-        {/* Scout-only filters (remaining) */}
-        {isScout && (
-          <>
-            {/* High School */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">High School</Label>
-              <Input
-                placeholder="Search by high school..."
-                value={highSchool}
-                onChange={(e) => setHighSchool(e.target.value)}
-                className="h-9 text-sm rounded-lg"
-              />
-            </div>
-
-            {/* Recruiting Status */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Recruiting Status</Label>
-              <Select value={recruitingStatus} onValueChange={setRecruitingStatus}>
-                <SelectTrigger className="h-9 text-sm rounded-lg"><SelectValue placeholder="All players" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="uncommitted">Uncommitted Only</SelectItem>
-                  <SelectItem value="committed">Committed Only</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Region */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Region</Label>
-              <div className="flex flex-wrap gap-1.5">
-                {Object.keys(REGIONS).map((region) => (
-                  <button
-                    key={region}
-                    onClick={() => toggleRegion(region)}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
-                      selectedRegions.includes(region)
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {region}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* State */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">State</Label>
-              <Select value={selectedState} onValueChange={setSelectedState}>
-                <SelectTrigger className="h-9 text-sm rounded-lg"><SelectValue placeholder="Any state" /></SelectTrigger>
-                <SelectContent>
-                  {US_STATES.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* GPA Minimum */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">GPA Minimum</Label>
-              <Input
-                type="number"
-                step="0.1"
-                min="0"
-                max="5.0"
-                placeholder="e.g. 3.5"
-                value={gpaMin}
-                onChange={(e) => setGpaMin(e.target.value)}
-                className="h-9 text-sm rounded-lg"
-              />
-            </div>
-          </>
-        )}
-
-        {/* Actions */}
+        {/* Search / Clear buttons (always accessible) */}
         <div className="flex gap-2 pt-2">
           <Button onClick={handleSearch} disabled={loading} className="flex-1 gradient-primary border-0 text-primary-foreground font-bold rounded-xl">
             {loading ? "Searching..." : "Search"}
           </Button>
           <Button variant="outline" onClick={handleClear} className="rounded-xl">Clear</Button>
         </div>
+
+        {/* ─── ADVANCED SEARCH (scout only) ─── */}
+        {isScout && (
+          <div className="border-t border-border pt-3">
+            <button
+              onClick={() => setAdvancedOpen(!advancedOpen)}
+              className="flex items-center gap-2 w-full text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span className="flex-1 text-left">Advanced Search</span>
+              {advancedFilterCount > 0 && (
+                <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] leading-none">
+                  {advancedFilterCount}
+                </Badge>
+              )}
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {advancedOpen && (
+              <div className="space-y-4 pt-3">
+                {/* High School */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">High School</Label>
+                  <Input
+                    placeholder="Search by high school..."
+                    value={highSchool}
+                    onChange={(e) => setHighSchool(e.target.value)}
+                    className="h-9 text-sm rounded-lg"
+                  />
+                </div>
+
+                {/* Recruiting Status */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Recruiting Status</Label>
+                  <Select value={recruitingStatus} onValueChange={setRecruitingStatus}>
+                    <SelectTrigger className="h-9 text-sm rounded-lg"><SelectValue placeholder="All players" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="uncommitted">Uncommitted Only</SelectItem>
+                      <SelectItem value="committed">Committed Only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Region */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Region</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.keys(REGIONS).map((region) => (
+                      <button
+                        key={region}
+                        onClick={() => toggleRegion(region)}
+                        className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                          selectedRegions.includes(region)
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {region}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* State */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">State</Label>
+                  <Select value={selectedState} onValueChange={setSelectedState}>
+                    <SelectTrigger className="h-9 text-sm rounded-lg"><SelectValue placeholder="Any state" /></SelectTrigger>
+                    <SelectContent>
+                      {US_STATES.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* GPA Minimum */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">GPA Minimum</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="5.0"
+                    placeholder="e.g. 3.5"
+                    value={gpaMin}
+                    onChange={(e) => setGpaMin(e.target.value)}
+                    className="h-9 text-sm rounded-lg"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
