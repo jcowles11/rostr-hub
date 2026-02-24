@@ -64,10 +64,11 @@ interface Props {
 export default function UnifiedNavShell({ children, showBottomNav = true }: Props) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { userRole, signOut, scoutInfo, playerInfo, evaluatorInfo, coach } = useAuth();
+  const { userRole, signOut, scoutInfo, playerInfo, evaluatorInfo, coach, devRoleOverride } = useAuth();
 
-  const navItems = getNavItems(userRole);
-  const activeKey = getActiveKey(location.pathname, userRole);
+  const effectiveRole = devRoleOverride || userRole;
+  const navItems = getNavItems(effectiveRole);
+  const activeKey = getActiveKey(location.pathname, effectiveRole);
 
   const handleSignOut = async () => {
     await signOut();

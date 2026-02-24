@@ -124,13 +124,16 @@ function ScoutRoute({ children }: { children: React.ReactNode }) {
 
 /** Social is accessible to all authenticated users — coaches stay in AppLayout, others use UnifiedNavShell */
 function SocialRoute() {
-  const { user, coach, userRole, loading } = useAuth();
+  const { user, coach, userRole, loading, devRoleOverride } = useAuth();
 
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/auth" replace />;
 
+  // Use effective role (demo override takes priority)
+  const effectiveRole = devRoleOverride || userRole;
+
   // Coaches: render Social inside AppLayout (keeps coach header + bottom nav)
-  if (userRole === "coach" || coach) {
+  if (effectiveRole === "coach" && coach) {
     return (
       <SessionProvider>
         <AppLayout>
@@ -140,7 +143,7 @@ function SocialRoute() {
     );
   }
 
-  // Everyone else: use UnifiedNavShell
+  // Everyone else (including demo player/scout/evaluator): use UnifiedNavShell
   return (
     <UnifiedNavShell>
       <SocialPage />
