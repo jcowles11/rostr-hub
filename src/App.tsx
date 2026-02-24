@@ -27,6 +27,7 @@ import EvaluatorDashboard from "@/pages/EvaluatorDashboard";
 import EvaluatorProfile from "@/pages/EvaluatorProfile";
 import ScoutDashboard from "@/pages/ScoutDashboard";
 import SocialPage from "@/pages/SocialPage";
+import JoinProgram from "@/pages/JoinProgram";
 import SearchPage from "@/pages/SearchPage";
 import NotificationsPage from "@/pages/NotificationsPage";
 import DemoTour from "@/pages/DemoTour";
@@ -177,6 +178,7 @@ const App = () => (
             <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
             <Route path="/setup" element={<SetupRoute />} />
             <Route path="/demo" element={<DemoTour />} />
+            <Route path="/join/:code" element={<JoinProgram />} />
             <Route path="/register/:code" element={<PlayerRegister />} />
             <Route path="/player-dashboard" element={<PlayerRoute><UnifiedNavShell><PlayerDashboard /></UnifiedNavShell></PlayerRoute>} />
             <Route path="/search" element={<PlayerRoute><UnifiedNavShell><SearchPage /></UnifiedNavShell></PlayerRoute>} />

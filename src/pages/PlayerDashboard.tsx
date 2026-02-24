@@ -5,7 +5,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Lock, Eye } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { User, Lock, Eye, Link2 } from "lucide-react";
 import PlayerProfileSettings from "@/components/PlayerProfileSettings";
 import { aggregateValues } from "@/lib/metrics";
 import PlayerPhotoUpload from "@/components/PlayerPhotoUpload";
@@ -95,8 +97,13 @@ export default function PlayerDashboard() {
 
   const visibleMetrics = metrics.filter((m) => m.visible_to_players);
 
+  const isStandalone = !playerInfo?.program_id;
+
   return (
     <div className="mx-auto max-w-lg px-4 pt-4 pb-8 animate-fade-in">
+      {/* Join Program card for standalone players */}
+      {isStandalone && <JoinProgramCard />}
+
       {/* Player hero */}
       <div className="page-hero mb-5">
         <div className="flex items-center gap-4">
@@ -116,7 +123,7 @@ export default function PlayerDashboard() {
             <h1 className="text-2xl font-extrabold text-white">
               {player.first_name} {player.last_name}
             </h1>
-            <p className="text-sm text-white/70">{program?.name}</p>
+            <p className="text-sm text-white/70">{program?.name || "Independent Player"}</p>
             <div className="flex flex-wrap items-center gap-1.5 mt-1">
               {player.player_number && (
                 <span className="rounded-lg bg-white/20 px-2 py-0.5 text-xs font-semibold text-white">#{player.player_number}</span>
@@ -204,5 +211,88 @@ export default function PlayerDashboard() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function JoinProgramCard() {
+  const { user, refreshPlayer } = useAuth();
+  const [regCode, setRegCode] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleJoin = async () => {
+    if (!user || !regCode.trim()) return;
+    setLoading(true);
+
+    const { data: program } = await supabase
+      .from("programs")
+      .select("id, name")
+      .eq("registration_code", regCode.trim().toLowerCase())
+      .maybeSingle();
+
+    if (!program) {
+      toast.error("Invalid registration code");
+      setLoading(false);
+      return;
+    }
+
+    // Find this user's player record (standalone)
+    const { data: playerRecord } = await supabase
+      .from("players")
+      .select("id")
+      .eq("user_id", user.id)
+      .is("program_id", null)
+      .maybeSingle();
+
+    if (playerRecord) {
+      const { error } = await supabase
+        .from("players")
+        .update({ program_id: program.id })
+        .eq("id", playerRecord.id);
+
+      if (error) {
+        toast.error("Failed to join. Check the code and try again.");
+        setLoading(false);
+        return;
+      }
+    } else {
+      toast.error("Could not find your player profile");
+      setLoading(false);
+      return;
+    }
+
+    await refreshPlayer();
+    toast.success(`Joined ${program.name}!`);
+    setLoading(false);
+    setRegCode("");
+  };
+
+  return (
+    <Card className="mb-4 border-dashed border-primary/30 bg-primary/5">
+      <CardContent className="py-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Link2 className="h-4 w-4 text-primary" />
+          <span className="text-sm font-bold">Join a Program</span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Have a registration code from your coach? Enter it below to connect your profile.
+        </p>
+        <div className="flex gap-2">
+          <Input
+            value={regCode}
+            onChange={(e) => setRegCode(e.target.value)}
+            placeholder="Enter code"
+            className="h-10 rounded-xl flex-1"
+          />
+          <Button
+            onClick={handleJoin}
+            disabled={loading || !regCode.trim()}
+            size="sm"
+            className="h-10 rounded-xl px-4"
+          >
+            {loading ? "Joining..." : "Join"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
