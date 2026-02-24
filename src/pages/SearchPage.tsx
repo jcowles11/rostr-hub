@@ -37,7 +37,7 @@ export default function SearchPage() {
     setLoading(true);
     setSearched(true);
     // Use authenticated search that finds all active players (not just public profiles)
-    const { data, error } = await supabase.rpc("search_players_authenticated" as any, {
+    const { data, error } = await supabase.rpc("search_players_authenticated", {
       _name_search: q.trim(),
       _limit: 30,
     });
