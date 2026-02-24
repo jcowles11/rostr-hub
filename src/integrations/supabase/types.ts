@@ -55,6 +55,100 @@ export type Database = {
           },
         ]
       }
+      conversation_requests: {
+        Row: {
+          created_at: string
+          id: string
+          initial_message: string
+          player_id: string
+          responded_at: string | null
+          scout_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          initial_message: string
+          player_id: string
+          responded_at?: string | null
+          scout_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          initial_message?: string
+          player_id?: string
+          responded_at?: string | null
+          scout_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_requests_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_requests_scout_id_fkey"
+            columns: ["scout_id"]
+            isOneToOne: false
+            referencedRelation: "scouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          created_at: string
+          id: string
+          last_message_at: string
+          player_id: string
+          request_id: string | null
+          scout_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          player_id: string
+          request_id?: string | null
+          scout_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          player_id?: string
+          request_id?: string | null
+          scout_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_scout_id_fkey"
+            columns: ["scout_id"]
+            isOneToOne: false
+            referencedRelation: "scouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evaluations: {
         Row: {
           attempt_number: number
@@ -255,6 +349,44 @@ export type Database = {
             columns: ["followed_player_id"]
             isOneToOne: false
             referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          body: string
+          conversation_id: string
+          created_at: string
+          id: string
+          read_at: string | null
+          sender_id: string
+          sender_role: string
+        }
+        Insert: {
+          body: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_id: string
+          sender_role: string
+        }
+        Update: {
+          body?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_id?: string
+          sender_role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -913,28 +1045,174 @@ export type Database = {
           },
         ]
       }
-      scouts: {
+      scout_list_members: {
         Row: {
           created_at: string
+          id: string
+          list_id: string
+          player_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          list_id: string
+          player_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          list_id?: string
+          player_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scout_list_members_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "scout_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scout_list_members_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scout_lists: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          scout_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          scout_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          scout_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scout_lists_scout_id_fkey"
+            columns: ["scout_id"]
+            isOneToOne: false
+            referencedRelation: "scouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scout_saved_prospects: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          player_id: string
+          scout_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          player_id: string
+          scout_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          player_id?: string
+          scout_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scout_saved_prospects_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scout_saved_prospects_scout_id_fkey"
+            columns: ["scout_id"]
+            isOneToOne: false
+            referencedRelation: "scouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scouts: {
+        Row: {
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string
+          division: string | null
           full_name: string
           id: string
+          location_city: string | null
+          location_state: string | null
+          notification_preferences: Json | null
           organization_name: string
+          photo_url: string | null
+          positions_recruiting: string[] | null
+          recruiting_territories: string[] | null
+          sport: string
           title: string | null
           user_id: string
         }
         Insert: {
+          contact_email?: string | null
+          contact_phone?: string | null
           created_at?: string
+          division?: string | null
           full_name: string
           id?: string
+          location_city?: string | null
+          location_state?: string | null
+          notification_preferences?: Json | null
           organization_name?: string
+          photo_url?: string | null
+          positions_recruiting?: string[] | null
+          recruiting_territories?: string[] | null
+          sport?: string
           title?: string | null
           user_id: string
         }
         Update: {
+          contact_email?: string | null
+          contact_phone?: string | null
           created_at?: string
+          division?: string | null
           full_name?: string
           id?: string
+          location_city?: string | null
+          location_state?: string | null
+          notification_preferences?: Json | null
           organization_name?: string
+          photo_url?: string | null
+          positions_recruiting?: string[] | null
+          recruiting_territories?: string[] | null
+          sport?: string
           title?: string | null
           user_id?: string
         }
@@ -1099,6 +1377,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_conversation_request: {
+        Args: { _request_id: string }
+        Returns: Json
+      }
+      decline_conversation_request: {
+        Args: { _request_id: string }
+        Returns: undefined
+      }
       get_public_profile: { Args: { _slug: string }; Returns: Json }
       get_social_feed: { Args: { _limit?: number }; Returns: Json }
       has_program_access: {

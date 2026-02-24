@@ -205,13 +205,21 @@ Deno.serve(async (req) => {
     }).select().single();
 
     // 6) Create scout record for demo user
-    await admin.from("scouts").insert({
+    const { data: demoScout } = await admin.from("scouts").insert({
       user_id: demoUserId,
       full_name: "Demo Scout",
       organization_name: "Demo University",
-    });
+      division: "D1",
+      location_state: "TX",
+      location_city: "Austin",
+      positions_recruiting: ["P", "SS", "CF"],
+      recruiting_territories: ["TX", "FL", "GA", "CA"],
+      contact_email: "demo@rostr.app",
+      title: "Recruiting Coordinator",
+    }).select().single();
 
     // Create 5 more scout accounts
+    const scoutIds: string[] = demoScout ? [demoScout.id] : [];
     for (let i = 0; i < 5; i++) {
       const email = `scout${i}@demo.rostr.app`;
       const { data: authUser } = await admin.auth.admin.createUser({
@@ -221,11 +229,14 @@ Deno.serve(async (req) => {
         user_metadata: { account_type: "scout" },
       });
       if (authUser?.user) {
-        await admin.from("scouts").insert({
+        const { data: sc } = await admin.from("scouts").insert({
           user_id: authUser.user.id,
           full_name: SCOUT_NAMES[i + 1] || `Scout ${i}`,
           organization_name: SCOUT_ORGS[i + 1] || "University",
-        });
+          division: pick(["D1", "D2", "D3", "NAIA", "JUCO"]),
+          location_state: pick(STATES),
+        }).select().single();
+        if (sc) scoutIds.push(sc.id);
       }
     }
 
@@ -414,16 +425,124 @@ Deno.serve(async (req) => {
       await admin.from("posts").insert(postInserts.slice(i, i + 500));
     }
 
+    // 12) Seed scout prospect data
+    const LIST_NAMES = ["2027 RHP Targets", "JUCO Transfers", "Infield Needs", "Top Exit Velo", "Spring Watchlist"];
+    
+    for (const scoutId of scoutIds) {
+      // Save 30 prospects per scout
+      const prospectPlayers = pickN(players!, Math.min(30, players!.length));
+      const prospectInserts = prospectPlayers.map(p => ({
+        scout_id: scoutId,
+        player_id: p.id,
+        status: pick(["new", "contacted", "engaged", "not_interested", "committed"]),
+        notes: Math.random() > 0.5 ? pick(["Strong arm", "Great bat speed", "High ceiling", "Needs development", "Must see live", "Top of board"]) : null,
+      }));
+      for (let i = 0; i < prospectInserts.length; i += 500) {
+        await admin.from("scout_saved_prospects").insert(prospectInserts.slice(i, i + 500));
+      }
+
+      // Create 5 lists per scout
+      for (const listName of LIST_NAMES) {
+        const { data: list } = await admin.from("scout_lists").insert({
+          scout_id: scoutId,
+          name: listName,
+          description: `${listName} tracking list`,
+        }).select().single();
+        
+        if (list) {
+          const listPlayers = pickN(prospectPlayers, rand(4, 10));
+          const memberInserts = listPlayers.map(p => ({ list_id: list.id, player_id: p.id }));
+          await admin.from("scout_list_members").insert(memberInserts);
+        }
+      }
+    }
+
+    // 13) Seed conversation requests and messages
+    // Create 20 pending requests across scouts to players
+    const playersWithUser = players!.filter(p => demoPlayer && p.id !== demoPlayer.id).slice(0, 40);
+    for (let i = 0; i < 20 && i < scoutIds.length * 7; i++) {
+      const scoutId = scoutIds[i % scoutIds.length];
+      const targetPlayer = playersWithUser[i];
+      if (!targetPlayer) continue;
+      
+      await admin.from("conversation_requests").insert({
+        scout_id: scoutId,
+        player_id: targetPlayer.id,
+        initial_message: pick([
+          "Hi! I'm a recruiter and I'd love to learn more about your game. Would you be open to chatting?",
+          "Great showcase performance! We have a spot that could be a good fit. Mind if we connect?",
+          "I've been following your stats this season. Our program is looking for players like you.",
+          "Your coach speaks highly of you. I'd love to discuss our program and what we can offer.",
+          "Impressive exit velo numbers! We're building something special and think you could be a great addition.",
+        ]),
+        status: "pending",
+      });
+    }
+
+    // Create 10 accepted conversations with messages
+    for (let i = 0; i < 10 && i < scoutIds.length * 4; i++) {
+      const scoutId = scoutIds[i % scoutIds.length];
+      const targetPlayer = playersWithUser[20 + i];
+      if (!targetPlayer) continue;
+
+      // Create accepted request
+      const { data: req } = await admin.from("conversation_requests").insert({
+        scout_id: scoutId,
+        player_id: targetPlayer.id,
+        initial_message: "I'd love to discuss our program with you. Are you available for a chat?",
+        status: "accepted",
+        responded_at: new Date().toISOString(),
+      }).select().single();
+
+      // Create conversation
+      const { data: convo } = await admin.from("conversations").insert({
+        scout_id: scoutId,
+        player_id: targetPlayer.id,
+        request_id: req?.id,
+      }).select().single();
+
+      if (convo) {
+        // Add back-and-forth messages
+        const msgInserts = [
+          { conversation_id: convo.id, sender_role: "scout", sender_id: scoutId, body: "I'd love to discuss our program with you. Are you available for a chat?" },
+          { conversation_id: convo.id, sender_role: "player", sender_id: targetPlayer.id, body: "Thanks for reaching out! I'd love to hear more about your program." },
+          { conversation_id: convo.id, sender_role: "scout", sender_id: scoutId, body: "We're looking for talented players for next season. Your stats are impressive!" },
+          { conversation_id: convo.id, sender_role: "player", sender_id: targetPlayer.id, body: "That means a lot. What positions are you recruiting for?" },
+        ];
+        await admin.from("messages").insert(msgInserts);
+      }
+    }
+
+    // Also create requests targeting the demo player specifically
+    if (demoPlayer) {
+      for (let i = 1; i < Math.min(4, scoutIds.length); i++) {
+        await admin.from("conversation_requests").insert({
+          scout_id: scoutIds[i],
+          player_id: demoPlayer.id,
+          initial_message: pick([
+            "We're interested in your talent! Would you be open to learning more about our program?",
+            "Great season! I'd love to talk about what we can offer you at our university.",
+            "Your metrics caught our eye. Can we set up a time to chat?",
+          ]),
+          status: "pending",
+        });
+      }
+    }
+
     const summary = {
       message: "Demo data seeded successfully!",
       counts: {
-        players: players!.length + 1, // +1 for demo player
+        players: players!.length + 1,
         programs: programs!.length,
         coaches: coaches!.length,
         posts: postInserts.length,
         evaluator_entries: evalEntryInserts.length,
-        scouts: 6,
+        scouts: scoutIds.length,
         evaluators: 3,
+        saved_prospects: scoutIds.length * 30,
+        lists: scoutIds.length * 5,
+        conversation_requests: 20 + (demoPlayer ? 3 : 0),
+        conversations: 10,
       },
     };
 

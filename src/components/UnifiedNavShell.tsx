@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Globe, Search, User, LogOut, Home, Bell } from "lucide-react";
+import { Globe, Search, User, LogOut, Home, Bell, Bookmark, List, MessageSquare } from "lucide-react";
 import rostrLogo from "@/assets/rostr-logo.png";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,13 +18,14 @@ function getNavItems(role: string | null): NavItem[] {
 
   if (role === "scout") {
     items.push({ key: "search", icon: Search, label: "Search", path: "/scout" });
-    items.push({ key: "social", icon: Globe, label: "Social", path: "/social" });
-    items.push({ key: "notifications", icon: Bell, label: "Alerts", path: "/notifications" });
-    items.push({ key: "profile", icon: User, label: "Profile", path: "/scout-profile" });
+    items.push({ key: "prospects", icon: Bookmark, label: "Prospects", path: "/scout/prospects" });
+    items.push({ key: "lists", icon: List, label: "Lists", path: "/scout/lists" });
+    items.push({ key: "messages", icon: MessageSquare, label: "Messages", path: "/scout/messages" });
+    items.push({ key: "profile", icon: User, label: "Profile", path: "/scout/profile" });
   } else if (role === "player") {
     items.push({ key: "feed", icon: Home, label: "Feed", path: "/social" });
     items.push({ key: "search", icon: Search, label: "Search", path: "/search" });
-    items.push({ key: "notifications", icon: Bell, label: "Alerts", path: "/notifications" });
+    items.push({ key: "messages", icon: MessageSquare, label: "Messages", path: "/player/messages" });
     items.push({ key: "profile", icon: User, label: "Profile", path: "/player-dashboard" });
   } else if (role === "evaluator") {
     items.push({ key: "feed", icon: Home, label: "Feed", path: "/social" });
@@ -41,18 +42,29 @@ function getNavItems(role: string | null): NavItem[] {
 }
 
 function getActiveKey(pathname: string, role: string | null): string {
-  if (role === "player" || role === "evaluator") {
+  if (role === "scout") {
+    if (pathname === "/scout") return "search";
+    if (pathname === "/scout/prospects") return "prospects";
+    if (pathname === "/scout/lists") return "lists";
+    if (pathname === "/scout/messages") return "messages";
+    if (pathname === "/scout/profile") return "profile";
+    return "search";
+  }
+  if (role === "player") {
     if (pathname === "/social" || pathname.startsWith("/social")) return "feed";
     if (pathname === "/search") return "search";
+    if (pathname === "/player/messages") return "messages";
     if (pathname === "/player-dashboard") return "profile";
+    return "feed";
+  }
+  if (role === "evaluator") {
+    if (pathname === "/social" || pathname.startsWith("/social")) return "feed";
+    if (pathname === "/search") return "search";
     if (pathname === "/evaluator") return "profile";
     return "feed";
   }
   if (pathname === "/notifications") return "notifications";
   if (pathname === "/social" || pathname.startsWith("/social")) return "social";
-  if (role === "scout" && pathname === "/scout") return "search";
-  if (pathname === "/player-dashboard") return "profile";
-  if (pathname === "/scout-profile") return "profile";
   if (pathname === "/settings") return "profile";
   return "social";
 }
@@ -94,7 +106,7 @@ export default function UnifiedNavShell({ children, showBottomNav = true }: Prop
                 onClick={() => {
                   const profilePath =
                     effectiveRole === "player" ? "/player-dashboard" :
-                    effectiveRole === "scout" ? "/scout-profile" :
+                    effectiveRole === "scout" ? "/scout/profile" :
                     effectiveRole === "evaluator" ? "/evaluator" :
                     "/settings";
                   navigate(profilePath);
@@ -124,7 +136,7 @@ export default function UnifiedNavShell({ children, showBottomNav = true }: Prop
                   key={key}
                   onClick={() => navigate(path)}
                   className={cn(
-                    "relative flex flex-col items-center gap-0.5 rounded-2xl px-4 py-2 tap-target transition-all duration-300 ease-out",
+                    "relative flex flex-col items-center gap-0.5 rounded-2xl px-3 py-2 tap-target transition-all duration-300 ease-out",
                     active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
