@@ -39,8 +39,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { coach, allCoaches, organizations, currentOrg, switchProgram, switchOrg, deleteProgram } = useAuth();
-  const { sessions, selectedSessionId, setSession, createSession, currentSession } = useSession();
+  const { sessions, selectedSessionId, setSession, createSession, deleteSession, currentSession } = useSession();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleteEventTarget, setDeleteEventTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showNewSession, setShowNewSession] = useState(false);
   const [newSessionName, setNewSessionName] = useState("");
@@ -173,11 +174,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   <DropdownMenuItem
                     key={s.id}
                     onClick={() => setSession(s.id)}
-                    className={cn("cursor-pointer font-medium", selectedSessionId === s.id && "bg-accent")}
+                    className={cn("cursor-pointer font-medium group", selectedSessionId === s.id && "bg-accent")}
                   >
                     <span className="truncate flex-1">{s.name}</span>
                     <span className="text-[10px] text-muted-foreground ml-1 shrink-0">{format(new Date(s.session_date + "T00:00:00"), "MMM d")}</span>
                     {selectedSessionId === s.id && <span className="text-xs text-primary font-bold ml-1">✓</span>}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeleteEventTarget({ id: s.id, name: s.name }); }}
+                      className="ml-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-0.5 rounded"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
@@ -268,6 +275,34 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {deleting ? "Deleting..." : "Delete Program"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={!!deleteEventTarget} onOpenChange={(open) => !open && setDeleteEventTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteEventTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete the event. Any scores assigned to it will be kept but become unassigned.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!deleteEventTarget) return;
+                setDeleting(true);
+                const ok = await deleteSession(deleteEventTarget.id);
+                if (ok) toast.success("Event deleted");
+                else toast.error("Failed to delete event");
+                setDeleting(false);
+                setDeleteEventTarget(null);
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting..." : "Delete Event"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
