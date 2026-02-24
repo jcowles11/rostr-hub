@@ -26,6 +26,11 @@ export interface SearchFilters {
 
 const POSITIONS = ["P", "C", "1B", "2B", "SS", "3B", "OF", "LF", "CF", "RF", "DH", "IF", "UT"];
 const SPORTS = ["baseball", "softball", "football", "basketball", "soccer", "lacrosse", "track", "volleyball"];
+const METRIC_OPTIONS = [
+  "30 Yard Dash", "60-Yard Dash", "Arm Velocity (C)", "Arm Velocity (IF)",
+  "Arm Velocity (OF)", "CH Velo", "Curveball Velocity", "Exit Velocity",
+  "Fastball Velo", "Fielding", "Hitting", "Home to First", "Hustle/Attitude",
+];
 
 interface Props {
   onSearch: (filters: SearchFilters) => void;
@@ -215,12 +220,16 @@ export default function PlayerSearchFilters({ onSearch, loading }: Props) {
             </div>
           ))}
           <div className="space-y-2 rounded-lg border border-dashed p-2.5">
-            <Input
-              placeholder="Metric name (e.g., 60 Yard Dash)"
-              value={newMetricName}
-              onChange={(e) => setNewMetricName(e.target.value)}
-              className="h-8 text-xs rounded-lg"
-            />
+            <Select value={newMetricName} onValueChange={setNewMetricName}>
+              <SelectTrigger className="h-8 text-xs rounded-lg">
+                <SelectValue placeholder="Select a metric..." />
+              </SelectTrigger>
+              <SelectContent>
+                {METRIC_OPTIONS.map((m) => (
+                  <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div className="flex gap-2">
               <Input
                 type="number"
