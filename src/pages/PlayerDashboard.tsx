@@ -57,16 +57,19 @@ export default function PlayerDashboard() {
   useEffect(() => {
     if (!playerInfo) return;
     const fetchData = async () => {
-      const [pRes, prRes, mRes, eRes] = await Promise.all([
-        supabase.from("players").select("id, first_name, last_name, grade, positions, player_number, photo_url, results_visible").eq("id", playerInfo.id).single(),
-        supabase.from("programs").select("name, results_public").eq("id", playerInfo.program_id).single(),
-        supabase.from("metrics").select("id, name, unit, metric_type, aggregation, visible_to_players").eq("program_id", playerInfo.program_id).order("sort_order"),
-        supabase.from("evaluations").select("metric_id, value, created_at").eq("player_id", playerInfo.id).order("created_at"),
-      ]);
+      const pRes = await supabase.from("players").select("id, first_name, last_name, grade, positions, player_number, photo_url, results_visible").eq("id", playerInfo.id).single();
       setPlayer(pRes.data);
-      setProgram(prRes.data);
-      setMetrics(mRes.data || []);
-      setEvals(eRes.data || []);
+
+      if (playerInfo.program_id) {
+        const [prRes, mRes, eRes] = await Promise.all([
+          supabase.from("programs").select("name, results_public").eq("id", playerInfo.program_id).single(),
+          supabase.from("metrics").select("id, name, unit, metric_type, aggregation, visible_to_players").eq("program_id", playerInfo.program_id).order("sort_order"),
+          supabase.from("evaluations").select("metric_id, value, created_at").eq("player_id", playerInfo.id).order("created_at"),
+        ]);
+        setProgram(prRes.data);
+        setMetrics(mRes.data || []);
+        setEvals(eRes.data || []);
+      }
       setLoading(false);
     };
     fetchData();

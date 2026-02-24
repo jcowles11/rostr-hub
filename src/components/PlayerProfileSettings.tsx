@@ -6,8 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Globe, Copy, Check, ExternalLink, Trophy, Link2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Globe, Copy, Check, ExternalLink, Trophy, Link2, User, Plus, X } from "lucide-react";
 import { toast } from "sonner";
+import { SPORTS } from "@/lib/sports";
 
 interface Props {
   playerId: string;
@@ -17,6 +19,12 @@ interface ProfileFields {
   profile_public: boolean;
   show_contact_info: boolean;
   graduation_year: number | null;
+  grade: number | null;
+  birthday: string | null;
+  high_school: string | null;
+  positions: string[] | null;
+  bats: string | null;
+  throws: string | null;
   height: string | null;
   weight: number | null;
   gpa: string | null;
@@ -36,72 +44,118 @@ interface ProfileFields {
   maxpreps_profile_url: string | null;
 }
 
+interface ClubTeam {
+  id: string;
+  name: string;
+  is_current: boolean;
+}
+
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
   "MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
   "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY",
 ];
 
+const GRADES = [
+  { value: 6, label: "6th" }, { value: 7, label: "7th" }, { value: 8, label: "8th" },
+  { value: 9, label: "Freshman (9th)" }, { value: 10, label: "Sophomore (10th)" },
+  { value: 11, label: "Junior (11th)" }, { value: 12, label: "Senior (12th)" },
+  { value: 13, label: "Post-Grad" },
+];
+
+const BATS_THROWS = ["R", "L", "S"];
+
+// Combine all sport positions for standalone players
+const ALL_POSITIONS = [...new Set(SPORTS.flatMap((s) => s.positions))];
+
 function isValidUrl(val: string | null): boolean {
   if (!val) return true;
-  try {
-    const u = new URL(val);
-    return u.protocol === "https:" || u.protocol === "http:";
-  } catch {
-    return false;
-  }
+  try { const u = new URL(val); return u.protocol === "https:" || u.protocol === "http:"; } catch { return false; }
 }
-
 function isValidEmail(val: string | null): boolean {
-  if (!val) return true;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+  if (!val) return true; return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
 }
-
 function isValidPhone(val: string | null): boolean {
-  if (!val) return true;
-  return /^[\d\s\-\(\)\+\.]{7,20}$/.test(val);
+  if (!val) return true; return /^[\d\s\-\(\)\+\.]{7,20}$/.test(val);
 }
 
 export default function PlayerProfileSettings({ playerId }: Props) {
   const [fields, setFields] = useState<ProfileFields | null>(null);
+  const [clubTeams, setClubTeams] = useState<ClubTeam[]>([]);
+  const [newClubTeam, setNewClubTeam] = useState("");
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     supabase
       .from("players")
-      .select("profile_public, show_contact_info, graduation_year, height, weight, gpa, social_twitter, social_instagram, highlight_video_url, profile_slug, recruiting_status, committed_school_name, committed_school_logo_url, commitment_date, city, state, email, phone, gamechanger_profile_url, maxpreps_profile_url")
+      .select("profile_public, show_contact_info, graduation_year, grade, birthday, high_school, positions, bats, throws, height, weight, gpa, social_twitter, social_instagram, highlight_video_url, profile_slug, recruiting_status, committed_school_name, committed_school_logo_url, commitment_date, city, state, email, phone, gamechanger_profile_url, maxpreps_profile_url")
       .eq("id", playerId)
       .single()
       .then(({ data }) => {
         if (data) setFields(data as unknown as ProfileFields);
       });
+
+    // Fetch club teams
+    supabase
+      .from("player_club_teams")
+      .select("id, name, is_current")
+      .eq("player_id", playerId)
+      .order("is_current", { ascending: false })
+      .then(({ data }) => {
+        if (data) setClubTeams(data);
+      });
   }, [playerId]);
 
   if (!fields) return null;
 
-  const profileUrl = fields.profile_slug
-    ? `${window.location.origin}/p/${fields.profile_slug}`
-    : null;
-
+  const profileUrl = fields.profile_slug ? `${window.location.origin}/p/${fields.profile_slug}` : null;
   const update = (partial: Partial<ProfileFields>) => setFields({ ...fields, ...partial });
 
+  const togglePosition = (pos: string) => {
+    const current = fields.positions || [];
+    if (current.includes(pos)) {
+      update({ positions: current.filter((p) => p !== pos) });
+    } else {
+      update({ positions: [...current, pos] });
+    }
+  };
+
+  const addClubTeam = async () => {
+    const name = newClubTeam.trim();
+    if (!name) return;
+    const { data, error } = await supabase
+      .from("player_club_teams")
+      .insert({ player_id: playerId, name, is_current: true } as any)
+      .select("id, name, is_current")
+      .single();
+    if (error) { toast.error("Failed to add club team"); return; }
+    if (data) setClubTeams([...clubTeams, data]);
+    setNewClubTeam("");
+  };
+
+  const removeClubTeam = async (id: string) => {
+    await supabase.from("player_club_teams").delete().eq("id", id);
+    setClubTeams(clubTeams.filter((t) => t.id !== id));
+  };
+
+  const toggleClubTeamCurrent = async (id: string, isCurrent: boolean) => {
+    await supabase.from("player_club_teams").update({ is_current: !isCurrent } as any).eq("id", id);
+    setClubTeams(clubTeams.map((t) => t.id === id ? { ...t, is_current: !isCurrent } : t));
+  };
+
   const save = async () => {
-    // Validation
     if (!isValidEmail(fields.email)) { toast.error("Invalid email format"); return; }
     if (!isValidPhone(fields.phone)) { toast.error("Invalid phone format"); return; }
     if (!isValidUrl(fields.highlight_video_url)) { toast.error("Invalid highlight video URL"); return; }
     if (!isValidUrl(fields.gamechanger_profile_url)) { toast.error("Invalid GameChanger URL"); return; }
     if (!isValidUrl(fields.maxpreps_profile_url)) { toast.error("Invalid MaxPreps URL"); return; }
-
     if (fields.recruiting_status === "committed" && !fields.committed_school_name?.trim()) {
-      toast.error("School name is required when committed");
-      return;
+      toast.error("School name is required when committed"); return;
     }
 
     setSaving(true);
     const { profile_slug, ...toSave } = fields;
-    // Clear commitment fields if uncommitted
     if (toSave.recruiting_status === "uncommitted") {
       toSave.committed_school_name = null;
       toSave.committed_school_logo_url = null;
@@ -109,11 +163,8 @@ export default function PlayerProfileSettings({ playerId }: Props) {
     }
     const { error } = await supabase.from("players").update(toSave as any).eq("id", playerId);
     setSaving(false);
-    if (error) {
-      toast.error("Failed to save profile settings");
-    } else {
-      toast.success("Profile updated");
-    }
+    if (error) toast.error("Failed to save profile settings");
+    else toast.success("Profile updated");
   };
 
   const copyLink = () => {
@@ -141,7 +192,6 @@ export default function PlayerProfileSettings({ playerId }: Props) {
             </div>
             <Switch checked={fields.profile_public} onCheckedChange={(v) => update({ profile_public: v })} />
           </div>
-
           {fields.profile_public && profileUrl && (
             <div className="flex items-center gap-2">
               <Input value={profileUrl} readOnly className="text-xs bg-muted/40 flex-1" />
@@ -149,19 +199,173 @@ export default function PlayerProfileSettings({ playerId }: Props) {
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </Button>
               <Button size="sm" variant="outline" asChild className="shrink-0">
-                <a href={profileUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4" />
-                </a>
+                <a href={profileUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" /></a>
               </Button>
             </div>
           )}
-
           <div className="flex items-center justify-between">
             <div>
               <p className="font-semibold text-sm">Show contact & academic info</p>
               <p className="text-xs text-muted-foreground">Email, phone, GPA and social handles visible on public profile</p>
             </div>
             <Switch checked={fields.show_contact_info} onCheckedChange={(v) => update({ show_contact_info: v })} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Personal Info */}
+      <Card className="section-card">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg font-bold flex items-center gap-2">
+            <User className="h-5 w-5" /> Personal Info
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Grade</Label>
+              <Select value={fields.grade?.toString() ?? ""} onValueChange={(v) => update({ grade: v ? Number(v) : null })}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select grade" /></SelectTrigger>
+                <SelectContent>
+                  {GRADES.map((g) => (<SelectItem key={g.value} value={g.value.toString()}>{g.label}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Birthday</Label>
+              <Input type="date" value={fields.birthday ?? ""} onChange={(e) => update({ birthday: e.target.value || null })} className="h-9 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs">Graduation Year</Label>
+              <Input type="number" placeholder="2027" value={fields.graduation_year ?? ""} onChange={(e) => update({ graduation_year: e.target.value ? Number(e.target.value) : null })} />
+            </div>
+            <div>
+              <Label className="text-xs">High School</Label>
+              <Input placeholder="Lincoln High School" value={fields.high_school ?? ""} onChange={(e) => update({ high_school: e.target.value || null })} />
+            </div>
+            <div>
+              <Label className="text-xs">Height</Label>
+              <Input placeholder="5'11&quot;" value={fields.height ?? ""} onChange={(e) => update({ height: e.target.value || null })} />
+            </div>
+            <div>
+              <Label className="text-xs">Weight (lbs)</Label>
+              <Input type="number" placeholder="175" value={fields.weight ?? ""} onChange={(e) => update({ weight: e.target.value ? Number(e.target.value) : null })} />
+            </div>
+            <div>
+              <Label className="text-xs">GPA</Label>
+              <Input placeholder="3.8" value={fields.gpa ?? ""} onChange={(e) => update({ gpa: e.target.value || null })} />
+            </div>
+          </div>
+
+          {/* Bats / Throws */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Bats</Label>
+              <Select value={fields.bats ?? ""} onValueChange={(v) => update({ bats: v || null })}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="B" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="R">Right</SelectItem>
+                  <SelectItem value="L">Left</SelectItem>
+                  <SelectItem value="S">Switch</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Throws</Label>
+              <Select value={fields.throws ?? ""} onValueChange={(v) => update({ throws: v || null })}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="T" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="R">Right</SelectItem>
+                  <SelectItem value="L">Left</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Positions */}
+          <div>
+            <Label className="text-xs mb-1.5 block">Positions</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {ALL_POSITIONS.map((pos) => {
+                const selected = fields.positions?.includes(pos);
+                return (
+                  <Badge
+                    key={pos}
+                    variant={selected ? "default" : "outline"}
+                    className="cursor-pointer text-xs transition-all"
+                    onClick={() => togglePosition(pos)}
+                  >
+                    {pos}
+                  </Badge>
+                );
+              })}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Location */}
+      <Card className="section-card">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-bold">Hometown</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">City</Label>
+              <Input placeholder="Austin" value={fields.city ?? ""} onChange={(e) => update({ city: e.target.value || null })} />
+            </div>
+            <div>
+              <Label className="text-xs">State</Label>
+              <Select value={fields.state ?? ""} onValueChange={(v) => update({ state: v || null })}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="State" /></SelectTrigger>
+                <SelectContent>
+                  {US_STATES.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Club Teams */}
+      <Card className="section-card">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-bold">Club Teams</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {clubTeams.length > 0 && (
+            <div className="space-y-2">
+              {clubTeams.map((team) => (
+                <div key={team.id} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{team.name}</span>
+                    <Badge
+                      variant={team.is_current ? "default" : "secondary"}
+                      className="text-[10px] cursor-pointer"
+                      onClick={() => toggleClubTeamCurrent(team.id, team.is_current)}
+                    >
+                      {team.is_current ? "Current" : "Past"}
+                    </Badge>
+                  </div>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removeClubTeam(team.id)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Input
+              placeholder="Add a club team..."
+              value={newClubTeam}
+              onChange={(e) => setNewClubTeam(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addClubTeam())}
+              className="flex-1"
+            />
+            <Button size="sm" variant="outline" onClick={addClubTeam} disabled={!newClubTeam.trim()}>
+              <Plus className="h-4 w-4" />
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -177,84 +381,29 @@ export default function PlayerProfileSettings({ playerId }: Props) {
           <div className="space-y-1.5">
             <Label className="text-xs">Status</Label>
             <Select value={fields.recruiting_status} onValueChange={(v) => update({ recruiting_status: v })}>
-              <SelectTrigger className="h-9 text-sm rounded-lg">
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger className="h-9 text-sm rounded-lg"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="uncommitted">Uncommitted</SelectItem>
                 <SelectItem value="committed">Committed</SelectItem>
               </SelectContent>
             </Select>
           </div>
-
           {fields.recruiting_status === "committed" && (
             <div className="space-y-3 rounded-xl bg-accent/5 border border-accent/10 p-3">
               <div>
                 <Label className="text-xs">School Name *</Label>
-                <Input
-                  placeholder="University of..."
-                  value={fields.committed_school_name ?? ""}
-                  onChange={(e) => update({ committed_school_name: e.target.value || null })}
-                />
+                <Input placeholder="University of..." value={fields.committed_school_name ?? ""} onChange={(e) => update({ committed_school_name: e.target.value || null })} />
               </div>
               <div>
                 <Label className="text-xs">School Logo URL (optional)</Label>
-                <Input
-                  placeholder="https://..."
-                  value={fields.committed_school_logo_url ?? ""}
-                  onChange={(e) => update({ committed_school_logo_url: e.target.value || null })}
-                />
+                <Input placeholder="https://..." value={fields.committed_school_logo_url ?? ""} onChange={(e) => update({ committed_school_logo_url: e.target.value || null })} />
               </div>
               <div>
                 <Label className="text-xs">Commitment Date</Label>
-                <Input
-                  type="date"
-                  value={fields.commitment_date ?? ""}
-                  onChange={(e) => update({ commitment_date: e.target.value || null })}
-                />
+                <Input type="date" value={fields.commitment_date ?? ""} onChange={(e) => update({ commitment_date: e.target.value || null })} />
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Bio & Location */}
-      <Card className="section-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-bold">Bio & Location</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs">Graduation Year</Label>
-              <Input type="number" placeholder="2027" value={fields.graduation_year ?? ""} onChange={(e) => update({ graduation_year: e.target.value ? Number(e.target.value) : null })} />
-            </div>
-            <div>
-              <Label className="text-xs">Height</Label>
-              <Input placeholder="5'11&quot;" value={fields.height ?? ""} onChange={(e) => update({ height: e.target.value || null })} />
-            </div>
-            <div>
-              <Label className="text-xs">Weight (lbs)</Label>
-              <Input type="number" placeholder="175" value={fields.weight ?? ""} onChange={(e) => update({ weight: e.target.value ? Number(e.target.value) : null })} />
-            </div>
-            <div>
-              <Label className="text-xs">GPA</Label>
-              <Input placeholder="3.8" value={fields.gpa ?? ""} onChange={(e) => update({ gpa: e.target.value || null })} />
-            </div>
-            <div>
-              <Label className="text-xs">City</Label>
-              <Input placeholder="Austin" value={fields.city ?? ""} onChange={(e) => update({ city: e.target.value || null })} />
-            </div>
-            <div>
-              <Label className="text-xs">State</Label>
-              <Select value={fields.state ?? ""} onValueChange={(v) => update({ state: v || null })}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="State" /></SelectTrigger>
-                <SelectContent>
-                  {US_STATES.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
         </CardContent>
       </Card>
 
