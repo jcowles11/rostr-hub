@@ -393,6 +393,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Auto-fetch role-specific data when dev override changes
+  useEffect(() => {
+    if (!user || !devRoleOverride) return;
+    if (devRoleOverride === "scout" && !scoutInfo) {
+      fetchScout(user.id);
+    }
+    if (devRoleOverride === "evaluator" && !evaluatorInfo) {
+      fetchEvaluator(user.id);
+    }
+    if (devRoleOverride === "player" && !playerInfo) {
+      fetchPlayer(user.id);
+    }
+  }, [devRoleOverride, user]);
+
   useEffect(() => {
     let initialLoad = true;
 
