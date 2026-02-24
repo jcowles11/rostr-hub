@@ -120,7 +120,6 @@ export default function EvaluatorDashboard() {
     let query = supabase
       .from("players")
       .select("id, first_name, last_name, positions, profile_slug, photo_url, programs(name)")
-      .eq("profile_public", true)
       .limit(10);
 
     if (terms.length >= 2) {
