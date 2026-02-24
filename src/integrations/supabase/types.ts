@@ -862,6 +862,7 @@ export type Database = {
               _name_search?: string
               _offset?: number
               _positions?: string[]
+              _recruiting_status?: string
               _sport?: string
               _throws?: string
             }
@@ -870,6 +871,7 @@ export type Database = {
         | {
             Args: {
               _bats?: string
+              _gpa_min?: number
               _grad_year_max?: number
               _grad_year_min?: number
               _limit?: number
@@ -878,6 +880,7 @@ export type Database = {
               _positions?: string[]
               _recruiting_status?: string
               _sport?: string
+              _state?: string
               _throws?: string
             }
             Returns: Json
