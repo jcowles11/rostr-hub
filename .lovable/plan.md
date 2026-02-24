@@ -1,104 +1,142 @@
 
 
-# Fix Spreadsheet Import: Smarter Column Detection
+# Handle All Messy Spreadsheet Formats
 
-## Problems Identified
+## Problem
 
-1. **B/T column leaking into metrics** -- The `mappedMetricHeaders` blocklist on the "Map Metrics" step filters out known player-info columns, but "b/t", "bats/throws" etc. are missing from this list. So the B/T column shows up as a mappable metric column.
+The current import system only handles one format: wide tables with clean numeric values and attempt columns ending in `_N`. The 4 uploaded CSVs reveal formats that will fail:
 
-2. **Over-aggressive metric auto-matching** -- `guessMetricColumns` uses bidirectional `includes()` matching (`hLower.includes(mLower) || mLower.includes(hLower)`). This means a column like "Velocity" could match "Arm Velocity (IF)" and vice versa, or unrelated partial matches could occur. Only columns that actually contain numeric data should be candidates.
+1. **Units embedded in cells** -- `85.4 mph`, `6.72 s` mixed with bare numbers
+2. **Long/tidy format** -- One row per measurement (`metric_name`, `trial`, `value` columns) instead of one row per player
+3. **Metadata header rows** -- Non-data rows before the actual table, European comma-decimals (`"8,03"`), extra columns like Team/Email
+4. **Packed trials in single cells** -- Multiple attempts in one cell (`8.03/6.72`, `74.8/85.4/79.7/89.6/73.9 mph`), dashes and "NA" as missing
 
-3. **Blocklist approach is fragile** -- The current approach maintains a hardcoded list of "skip" terms. Any column name a coach invents that isn't in the list will show up as a metric candidate. A better approach: show ALL non-name columns in the metric mapping step but default them to "Skip", and use smarter auto-matching that only matches when confident.
+## Solution: Pre-Processing Pipeline
 
-4. **No data-sniffing** -- The system doesn't look at actual cell values. A column full of "R/R", "L/R" values is obviously not a numeric metric. Checking whether a column has mostly numeric values would help auto-categorize.
+Add a data cleaning pipeline that normalizes any format into the existing wide-format structure before the current mapping UI takes over. The coach sees the same simple wizard -- the messy handling is invisible.
 
-## Plan
+## Changes
 
-### 1. Add a normalized column matching utility
+### 1. New utility functions in `src/lib/importUtils.ts`
 
-Create a `normalizeHeader(name)` function that lowercases, strips accents, collapses whitespace/underscores, and trims. Use it everywhere instead of raw `toLowerCase()`.
+- **`stripUnitsFromValue(val)`** -- Remove trailing "mph", "s", "sec", etc. and parse the number. Handle "N/A", "NA", "--", whitespace as null.
+- **`fixEuropeanDecimal(val)`** -- If a quoted value uses commas as decimal separators (e.g. `"8,03"`), convert to `8.03`. Only applies when the value has exactly one comma and no periods.
+- **`detectHeaderRow(rawRows)`** -- Scan the first ~15 rows to find the actual column header row by checking which row has the most non-empty string values that look like headers (not numbers, not metadata). Skips metadata rows like "Tryout Name, Rocky Mountain Showcase" and separator rows like "--- DATA BELOW ---".
+- **`isLongFormat(headers)`** -- Returns true if headers contain columns matching `metric_name`/`trial`/`value` patterns (indicating a tidy/long dataset).
+- **`pivotLongToWide(rows, headers)`** -- Converts long-format data to wide format: groups by player, creates columns like `MetricName_1`, `MetricName_2` etc. per trial number.
+- **`expandPackedCells(rows, headers)`** -- Detects columns where values contain `/` or `,` separated numbers (e.g. `8.03/6.72`). Splits them into separate attempt columns (e.g. `60yd_1`, `60yd_2`), stripping units from each part.
+- **`cleanAllValues(rows)`** -- Runs `fixEuropeanDecimal` and `stripUnitsFromValue` on every cell.
 
-### 2. Expand the player-info blocklist with data sniffing
+### 2. Updated `parseFile` in `src/components/DataImport.tsx`
 
-Replace the static blocklist with a smarter `isPlayerInfoColumn(header, rows)` function that:
-- Checks against an expanded list of known player-info terms (including "b/t", "bats/throws", "bat/throw", "ht", "height", "weight", "wt", "age", "dob", "birthday", "email", "phone", "class", "team", "school", "city", "state", "zip", "address", "parent", "guardian")
-- Also checks the actual data: if fewer than 30% of values in a column are parseable as numbers, it's probably not a metric
+Insert a pre-processing step between raw parsing and the existing `processData` function:
 
-### 3. Improve metric auto-matching confidence
+```text
+Raw CSV/Excel
+    |
+    v
+detectHeaderRow() -- skip metadata rows, find real headers
+    |
+    v
+isLongFormat()? -- if yes, pivotLongToWide()
+    |
+    v
+expandPackedCells() -- split multi-value cells into attempt columns
+    |
+    v
+cleanAllValues() -- strip units, fix European decimals
+    |
+    v
+processData() -- existing flow (guessPlayerColumns, groupAttemptColumns, etc.)
+```
 
-Change `guessMetricColumns` to use stricter matching:
-- Exact match (normalized): highest confidence
-- Header equals metric name after stripping units like "(mph)", "(sec)": good match
-- Only use `includes` as a fallback when the header is short and fully contained in the metric name (not the reverse)
-- Never auto-match if the column fails the numeric data sniff
+The coach never sees this pipeline -- they just get the familiar mapping wizard with correctly detected columns.
 
-### 4. Show all remaining columns in metric mapping step
+### 3. Smarter value parsing in `buildMatchedRows`
 
-Instead of pre-filtering `mappedMetricHeaders`, show ALL columns that aren't mapped as player name columns. Columns detected as player-info will default to "Skip" but remain visible so coaches can override. This ensures nothing gets silently hidden.
+Currently uses raw `parseFloat(row[col])`. Update to use `stripUnitsFromValue()` so any residual unit text in cells is handled at parse time too (defense in depth).
 
-### 5. Apply the same improvements to RosterUpload
+### 4. Handle B/T format variations
 
-The `guessMapping` function in RosterUpload already handles B/T well, but will benefit from the normalized matching utility for consistency.
+The `Bats R / Throws R` format in these files needs to be recognized. Update `isPlayerInfoColumn` to also match `bat_throw`, `bat throw`, and the `splitBatsThrows` function to handle `Bats R / Throws R` and `Bats S / Throws L` formats (not just `R/R`).
 
 ## Technical Details
 
-### File: `src/components/DataImport.tsx`
-
-**New helper functions:**
+### `src/lib/importUtils.ts` -- New functions
 
 ```typescript
-function normalizeHeader(name: string): string {
-  return name.toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[_\s]+/g, " ")
-    .trim();
+// Strip units and parse number from messy cell values
+export function stripUnitsFromValue(raw: string): number | null {
+  if (!raw) return null;
+  let val = raw.trim();
+  // Handle missing-value markers
+  if (/^(n\/?a|na|--|-|—|\.+|\s*)$/i.test(val)) return null;
+  // Fix European decimal (single comma, no period)
+  if (/^\d+,\d+$/.test(val)) val = val.replace(",", ".");
+  // Strip trailing unit words
+  val = val.replace(/\s*(mph|sec|s|ft|in|inches|lbs|kg|m\/s|rpm)\.?\s*$/i, "").trim();
+  const num = parseFloat(val);
+  return isFinite(num) ? num : null;
 }
 
-function isNumericColumn(rows: Record<string, string>[], header: string): boolean {
-  if (rows.length === 0) return false;
-  const sample = rows.slice(0, 20);
-  const numericCount = sample.filter(r => {
-    const val = (r[header] || "").trim();
-    return val !== "" && !isNaN(parseFloat(val));
-  }).length;
-  const nonEmptyCount = sample.filter(r => (r[header] || "").trim() !== "").length;
-  return nonEmptyCount > 0 && (numericCount / nonEmptyCount) >= 0.5;
+// Detect actual header row in data with metadata preamble
+export function detectHeaderRow(rawRows: string[][]): number {
+  // Score each row: headers have many non-numeric, non-empty cells
+  // Return index of best candidate (usually first row with 5+ string cells)
 }
 
-const PLAYER_INFO_TERMS = [
-  "first name", "last name", "first_name", "last_name", "firstname", "lastname",
-  "name", "first", "last", "surname", "player name", "player_name", "full name",
-  "full_name", "fullname", "athlete",
-  "grade", "year", "class",
-  "position", "pos",
-  "jersey", "number", "#", "num",
-  "bats", "throws", "b/t", "bats/throws", "bat/throw", "bats-throws",
-  "ht", "height", "wt", "weight", "age", "dob", "birthday",
-  "email", "phone", "team", "school", "city", "state", "zip", "address",
-  "parent", "guardian", "notes", "comment"
-];
+// Check if this is a long/tidy format
+export function isLongFormat(headers: string[]): boolean {
+  const norms = headers.map(normalizeHeader);
+  const hasMetricName = norms.some(n => 
+    ["metric name", "metricname", "metric", "drill", "test", "event"].includes(n));
+  const hasTrial = norms.some(n => 
+    ["trial", "attempt", "rep", "try"].includes(n));
+  const hasValue = norms.some(n => 
+    ["value", "score", "result", "measurement"].includes(n));
+  return hasMetricName && hasValue;
+}
 
-function isPlayerInfoColumn(header: string): boolean {
-  const norm = normalizeHeader(header);
-  return PLAYER_INFO_TERMS.some(t => norm === t || norm === t.replace(/[\s_]/g, ""));
+// Pivot long format to wide
+export function pivotLongToWide(rows, headers): { headers: string[], rows: Record<string,string>[] }
+
+// Expand packed multi-value cells
+export function expandPackedCells(rows, headers): { headers: string[], rows: Record<string,string>[] }
+```
+
+### `src/components/DataImport.tsx` -- Updated parseFile processData
+
+The `processData` function gains a pre-processing pipeline that calls the new utilities in sequence. The rest of the component (identify step, map_metrics step, preview, import) stays the same.
+
+### `src/lib/importUtils.ts` -- Updated splitBatsThrows
+
+Handle verbose formats like `Bats R / Throws R`:
+```typescript
+export function splitBatsThrows(val: string): { bats: string; throws: string } {
+  const trimmed = val.trim().toUpperCase();
+  if (!trimmed) return { bats: "", throws: "" };
+  // Handle "Bats R / Throws R" format
+  const verboseMatch = trimmed.match(/BATS?\s+([RLSB])\s*[\/\\|,]\s*THROWS?\s+([RLSB])/i);
+  if (verboseMatch) return { bats: verboseMatch[1], throws: verboseMatch[2] };
+  // Existing short format handling (R/R, L/R, etc.)
+  const parts = trimmed.split(/[\/\-\\|,]/);
+  if (parts.length >= 2) {
+    return { bats: parts[0].trim().substring(0, 1), throws: parts[1].trim().substring(0, 1) };
+  }
+  return { bats: "", throws: "" };
 }
 ```
 
-**Changes to `guessMetricColumns`:**
-- Use `normalizeHeader` for matching
-- Only auto-match columns that pass `isNumericColumn` check
-- Use stricter matching: exact normalized match or header fully contained in metric name (not reverse)
+## What Each Messy File Tests
 
-**Changes to `mappedMetricHeaders` (line 233-238):**
-- Replace the blocklist filter with: show all columns except the ones currently mapped as player name columns (first_name, last_name, player_name)
-- Each column gets a default mapping: auto-matched metric if confident, "Skip" otherwise
-- This means coaches see every column and can manually map any column to any metric
+| File | Key challenges handled |
+|---|---|
+| `messy_wide_units_in_cells.csv` | Units in cells (`85.4 mph`), `N/A`, mixed bare/unit numbers, verbose B/T |
+| `messy_long_tidy_measurements.csv` | Completely different row structure, auto-pivot to wide, `NA` text, typos like `7.two` |
+| `messy_metadata_then_table.csv` | Metadata preamble rows, separator row, European decimals (`"8,03"`), extra columns (Team, Email) |
+| `messy_packed_trials_single_cells.csv` | Multiple attempts in one cell (`8.03/6.72`), em-dash missing values, comma-separated values |
 
-**Changes to `guessPlayerColumns`:**
-- Use `normalizeHeader` for more robust matching
+## No Database Changes Required
 
-### File: `src/components/RosterUpload.tsx`
-
-- Use the same `normalizeHeader` function for `guessMapping`
-- Expand the B/T detection terms to match more variations
+All changes are in the front-end pre-processing pipeline. The existing database schema (players, evaluations, metrics) is unchanged.
 
