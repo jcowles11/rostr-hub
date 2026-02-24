@@ -5,6 +5,7 @@ import rostrLogo from "@/assets/rostr-logo.png";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
+import { useIsDemo } from "@/hooks/useIsDemo";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
@@ -27,7 +28,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const navItems = [
+const PRODUCTION_NAV = [
+  { path: "/", icon: Users, label: "Roster" },
+  { path: "/score", icon: ClipboardList, label: "Score" },
+  { path: "/dashboard", icon: BarChart3, label: "Stats" },
+  { path: "/settings", icon: Settings, label: "More" },
+];
+
+const DEMO_NAV = [
   { path: "/", icon: Users, label: "Roster" },
   { path: "/score", icon: ClipboardList, label: "Score" },
   { path: "/dashboard", icon: BarChart3, label: "Stats" },
@@ -40,6 +48,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { coach, allCoaches, organizations, currentOrg, switchProgram, switchOrg, deleteProgram } = useAuth();
   const { sessions, selectedSessionId, setSession, createSession, deleteSession, currentSession } = useSession();
+  const isDemo = useIsDemo();
+  const navItems = isDemo ? DEMO_NAV : PRODUCTION_NAV;
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleteEventTarget, setDeleteEventTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);

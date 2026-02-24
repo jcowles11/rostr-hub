@@ -36,6 +36,7 @@ import JoinProgram from "@/pages/JoinProgram";
 import SearchPage from "@/pages/SearchPage";
 import NotificationsPage from "@/pages/NotificationsPage";
 import DemoTour from "@/pages/DemoTour";
+import ReadinessChecklist from "@/pages/ReadinessChecklist";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -225,6 +226,7 @@ const App = () => (
             <Route path="/player/:id" element={<ProtectedRoute><PlayerDetail /></ProtectedRoute>} />
             <Route path="/plan" element={<ProtectedRoute><TryoutPlanner /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+            <Route path="/readiness" element={<ProtectedRoute><ReadinessChecklist /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
