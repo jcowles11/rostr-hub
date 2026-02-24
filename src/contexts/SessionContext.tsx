@@ -15,6 +15,7 @@ interface SessionContextType {
   selectedSessionId: string; // uuid or "all"
   setSession: (id: string) => void;
   createSession: (name: string) => Promise<TryoutSession | null>;
+  deleteSession: (id: string) => Promise<boolean>;
   currentSession: TryoutSession | null;
   loading: boolean;
 }
@@ -24,6 +25,7 @@ const SessionContext = createContext<SessionContextType>({
   selectedSessionId: "all",
   setSession: () => {},
   createSession: async () => null,
+  deleteSession: async () => false,
   currentSession: null,
   loading: true,
 });
@@ -53,15 +55,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
       const list = data || [];
       setSessions(list);
-
-      // Auto-select today's session if exists, otherwise "all"
-      const today = format(new Date(), "yyyy-MM-dd");
-      const todaySession = list.find((s) => s.session_date === today);
-      if (todaySession) {
-        setSelectedSessionId(todaySession.id);
-      } else {
-        setSelectedSessionId("all");
-      }
+      // Default to "All Events" — coaches can manually pick an event
+      setSelectedSessionId("all");
       setLoading(false);
     };
 
@@ -88,10 +83,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return newSession;
   }, [coach]);
 
+  const deleteSession = useCallback(async (id: string): Promise<boolean> => {
+    if (!coach) return false;
+    // Unassign evaluations from this session first
+    await supabase
+      .from("evaluations")
+      .update({ session_id: null })
+      .eq("session_id", id);
+    // Delete attendance records
+    await supabase.from("session_attendance").delete().eq("session_id", id);
+    // Delete the session
+    const { error } = await supabase.from("tryout_sessions").delete().eq("id", id);
+    if (error) return false;
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    if (selectedSessionId === id) setSelectedSessionId("all");
+    return true;
+  }, [coach, selectedSessionId]);
+
   const currentSession = sessions.find((s) => s.id === selectedSessionId) || null;
 
   return (
-    <SessionContext.Provider value={{ sessions, selectedSessionId, setSession, createSession, currentSession, loading }}>
+    <SessionContext.Provider value={{ sessions, selectedSessionId, setSession, createSession, deleteSession, currentSession, loading }}>
       {children}
     </SessionContext.Provider>
   );
