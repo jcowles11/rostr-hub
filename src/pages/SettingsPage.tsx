@@ -45,6 +45,83 @@ function TileButton({ icon, label, subtitle, onClick, trailing }: {
   );
 }
 
+function JoinRequestsManager({ programId }: { programId?: string }) {
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchRequests = async () => {
+    if (!programId) return;
+    const { data } = await supabase
+      .from("program_join_requests")
+      .select("*")
+      .eq("program_id", programId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+    setRequests(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchRequests(); }, [programId]);
+
+  const handleAction = async (id: string, userId: string, playerName: string, action: "approved" | "denied") => {
+    if (action === "approved") {
+      // Create a player record linked to this program
+      const parts = playerName.split(" ");
+      const firstName = parts[0] || "Player";
+      const lastName = parts.slice(1).join(" ") || "";
+      const { error: insertErr } = await supabase.from("players").insert({
+        program_id: programId!,
+        user_id: userId,
+        first_name: firstName,
+        last_name: lastName,
+      });
+      if (insertErr) {
+        // Player may already exist — try updating program_id
+        const { error: updateErr } = await supabase
+          .from("players")
+          .update({ program_id: programId })
+          .eq("user_id", userId);
+        if (updateErr) {
+          toast.error("Failed to add player");
+          return;
+        }
+      }
+    }
+
+    await supabase
+      .from("program_join_requests")
+      .update({ status: action, reviewed_at: new Date().toISOString() } as any)
+      .eq("id", id);
+
+    toast.success(action === "approved" ? "Player approved!" : "Request denied");
+    fetchRequests();
+  };
+
+  if (loading) return <p className="text-xs text-muted-foreground text-center py-2">Loading...</p>;
+  if (requests.length === 0) return <p className="text-xs text-muted-foreground text-center py-2">No pending requests</p>;
+
+  return (
+    <div className="space-y-2">
+      {requests.map((r) => (
+        <div key={r.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
+          <div>
+            <p className="text-sm font-semibold">{r.player_name}</p>
+            <p className="text-[10px] text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</p>
+          </div>
+          <div className="flex gap-1.5">
+            <Button size="sm" className="h-7 text-xs rounded-lg" onClick={() => handleAction(r.id, r.user_id, r.player_name, "approved")}>
+              Approve
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs rounded-lg" onClick={() => handleAction(r.id, r.user_id, r.player_name, "denied")}>
+              Deny
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { coach, signOut, refreshCoach } = useAuth();
   const navigate = useNavigate();
@@ -359,6 +436,18 @@ export default function SettingsPage() {
             subtitle="Link for players who already have an account"
             onClick={copyInviteLink}
           />
+          <TileButton
+            icon={<Users className="h-4 w-4" />}
+            label="Join Requests"
+            subtitle={`${expanded === "requests" ? "Collapse" : "Review player access requests"}`}
+            onClick={() => toggleExpand("requests")}
+            trailing={expanded === "requests" ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          />
+          {expanded === "requests" && (
+            <div className="rounded-2xl border bg-card p-4 animate-fade-in">
+              <JoinRequestsManager programId={coach?.program_id} />
+            </div>
+          )}
         </div>
       </div>
 
