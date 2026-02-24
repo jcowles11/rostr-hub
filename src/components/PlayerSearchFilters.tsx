@@ -5,7 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, X } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Search, X, ChevronRight } from "lucide-react";
 
 export interface MetricFilter {
   metricName: string;
@@ -30,11 +31,14 @@ export interface SearchFilters {
 
 const POSITIONS = ["P", "C", "1B", "2B", "SS", "3B", "OF", "LF", "CF", "RF", "DH", "IF", "UT"];
 const SPORTS = ["baseball", "softball", "football", "basketball", "soccer", "lacrosse", "track", "volleyball"];
-const METRIC_OPTIONS = [
-  "30 Yard Dash", "60-Yard Dash", "Arm Velocity (C)", "Arm Velocity (IF)",
-  "Arm Velocity (OF)", "CH Velo", "Curveball Velocity", "Exit Velocity",
-  "Fastball Velo", "Fielding", "Hitting", "Home to First", "Hustle/Attitude",
-];
+
+const METRIC_CATEGORIES: Record<string, string[]> = {
+  "Speed": ["30 Yard Dash", "60-Yard Dash", "Home to First"],
+  "Arm": ["Arm Velocity (C)", "Arm Velocity (IF)", "Arm Velocity (OF)"],
+  "Pitching": ["Fastball Velo", "CH Velo", "Curveball Velocity"],
+  "Hitting & Fielding": ["Exit Velocity", "Fielding", "Hitting", "Hustle/Attitude"],
+};
+
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN",
   "IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH",
@@ -66,9 +70,6 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
   const [bats, setBats] = useState("");
   const [throws_, setThrows] = useState("");
   const [metricFilters, setMetricFilters] = useState<MetricFilter[]>([]);
-  const [newMetricName, setNewMetricName] = useState("");
-  const [newMetricMin, setNewMetricMin] = useState("");
-  const [newMetricMax, setNewMetricMax] = useState("");
   const [recruitingStatus, setRecruitingStatus] = useState("");
   const [selectedState, setSelectedState] = useState("");
   const [gpaMin, setGpaMin] = useState("");
@@ -82,40 +83,46 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
   };
 
   const toggleRegion = (region: string) => {
-    setSelectedRegions((prev) => {
-      if (prev.includes(region)) {
-        return prev.filter((r) => r !== region);
-      }
-      return [...prev, region];
-    });
+    setSelectedRegions((prev) =>
+      prev.includes(region) ? prev.filter((r) => r !== region) : [...prev, region]
+    );
   };
 
-  const addMetricFilter = () => {
-    if (!newMetricName.trim()) return;
-    setMetricFilters((prev) => [
-      ...prev,
-      {
-        metricName: newMetricName.trim(),
-        min: newMetricMin ? Number(newMetricMin) : undefined,
-        max: newMetricMax ? Number(newMetricMax) : undefined,
-      },
-    ]);
-    setNewMetricName("");
-    setNewMetricMin("");
-    setNewMetricMax("");
+  // --- Metric toggle helpers ---
+  const isMetricActive = (name: string) => metricFilters.some((mf) => mf.metricName === name);
+
+  const toggleMetric = (name: string) => {
+    if (isMetricActive(name)) {
+      setMetricFilters((prev) => prev.filter((mf) => mf.metricName !== name));
+    } else {
+      setMetricFilters((prev) => [...prev, { metricName: name }]);
+    }
   };
 
-  const removeMetricFilter = (index: number) => {
-    setMetricFilters((prev) => prev.filter((_, i) => i !== index));
+  const updateMetricRange = (name: string, field: "min" | "max", value: string) => {
+    setMetricFilters((prev) =>
+      prev.map((mf) =>
+        mf.metricName === name
+          ? { ...mf, [field]: value ? Number(value) : undefined }
+          : mf
+      )
+    );
+  };
+
+  const getMetricFilter = (name: string) => metricFilters.find((mf) => mf.metricName === name);
+
+  const activeCountForCategory = (metrics: string[]) =>
+    metrics.filter((m) => isMetricActive(m)).length;
+
+  const formatChipLabel = (mf: MetricFilter) => {
+    const parts: string[] = [];
+    if (mf.min !== undefined) parts.push(`≥ ${mf.min}`);
+    if (mf.max !== undefined) parts.push(`≤ ${mf.max}`);
+    return `${mf.metricName}${parts.length ? " " + parts.join(" & ") : ""}`;
   };
 
   const handleSearch = () => {
-    // Combine selected state with region-derived states
     let effectiveState = selectedState || undefined;
-    if (!effectiveState && selectedRegions.length > 0) {
-      // If regions selected but no specific state, we pass the first region state
-      // Actually the RPC only supports a single _state. For multi-region we filter client-side.
-    }
 
     onSearch({
       nameSearch: nameSearch || undefined,
@@ -157,7 +164,7 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Name search */}
+        {/* Player Name */}
         <div className="space-y-1.5">
           <Label className="text-xs font-semibold">Player Name</Label>
           <Input
@@ -203,7 +210,7 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
           </div>
         </div>
 
-        {/* Grad year */}
+        {/* Grad Year */}
         <div className="space-y-1.5">
           <Label className="text-xs font-semibold">Graduation Year</Label>
           <div className="flex gap-2">
@@ -237,7 +244,87 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
           </div>
         </div>
 
-        {/* Scout-only filters */}
+        {/* ── Metrics (scout only, now after Bats/Throws) ── */}
+        {isScout && (
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold">Metrics</Label>
+
+            {/* Active filter chips */}
+            {metricFilters.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {metricFilters.map((mf) => (
+                  <Badge
+                    key={mf.metricName}
+                    variant="secondary"
+                    className="text-xs gap-1 pr-1 cursor-pointer"
+                    onClick={() => toggleMetric(mf.metricName)}
+                  >
+                    {formatChipLabel(mf)}
+                    <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {/* Category collapsibles */}
+            {Object.entries(METRIC_CATEGORIES).map(([category, metrics]) => {
+              const activeCount = activeCountForCategory(metrics);
+              return (
+                <Collapsible key={category}>
+                  <CollapsibleTrigger className="flex items-center w-full gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-muted/50 hover:bg-muted transition-colors group">
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+                    <span className="flex-1 text-left">{category}</span>
+                    {activeCount > 0 && (
+                      <Badge variant="default" className="h-4 min-w-4 px-1 text-[10px] leading-none">
+                        {activeCount}
+                      </Badge>
+                    )}
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-1 space-y-1 pl-2">
+                    {metrics.map((metric) => {
+                      const active = isMetricActive(metric);
+                      const filter = getMetricFilter(metric);
+                      return (
+                        <div key={metric} className="space-y-1">
+                          <button
+                            onClick={() => toggleMetric(metric)}
+                            className={`w-full text-left rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                              active
+                                ? "bg-primary/10 text-primary border border-primary/20"
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                            }`}
+                          >
+                            {metric}
+                          </button>
+                          {active && (
+                            <div className="flex gap-1.5 pl-2.5">
+                              <Input
+                                type="number"
+                                placeholder="Min"
+                                value={filter?.min ?? ""}
+                                onChange={(e) => updateMetricRange(metric, "min", e.target.value)}
+                                className="h-7 text-xs rounded-md flex-1"
+                              />
+                              <Input
+                                type="number"
+                                placeholder="Max"
+                                value={filter?.max ?? ""}
+                                onChange={(e) => updateMetricRange(metric, "max", e.target.value)}
+                                className="h-7 text-xs rounded-md flex-1"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Scout-only filters (remaining) */}
         {isScout && (
           <>
             {/* High School */}
@@ -263,7 +350,7 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
               </Select>
             </div>
 
-            {/* Region multi-select */}
+            {/* Region */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Region</Label>
               <div className="flex flex-wrap gap-1.5">
@@ -283,7 +370,7 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
               </div>
             </div>
 
-            {/* State filter */}
+            {/* State */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">State</Label>
               <Select value={selectedState} onValueChange={setSelectedState}>
@@ -309,41 +396,6 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
                 onChange={(e) => setGpaMin(e.target.value)}
                 className="h-9 text-sm rounded-lg"
               />
-            </div>
-
-            {/* Metric filters */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Metric Filters</Label>
-              {metricFilters.map((mf, i) => (
-                <div key={i} className="flex items-center gap-1.5 rounded-lg bg-muted/50 p-2">
-                  <Badge variant="secondary" className="text-xs shrink-0">{mf.metricName}</Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {mf.min !== undefined && `≥ ${mf.min}`}
-                    {mf.min !== undefined && mf.max !== undefined && " & "}
-                    {mf.max !== undefined && `≤ ${mf.max}`}
-                  </span>
-                  <button onClick={() => removeMetricFilter(i)} className="ml-auto text-muted-foreground hover:text-destructive">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-              <div className="space-y-2 rounded-lg border border-dashed p-2.5">
-                <Select value={newMetricName} onValueChange={setNewMetricName}>
-                  <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue placeholder="Select a metric..." /></SelectTrigger>
-                  <SelectContent>
-                    {METRIC_OPTIONS.map((m) => (
-                      <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex gap-2">
-                  <Input type="number" placeholder="Min" value={newMetricMin} onChange={(e) => setNewMetricMin(e.target.value)} className="h-8 text-xs rounded-lg" />
-                  <Input type="number" placeholder="Max" value={newMetricMax} onChange={(e) => setNewMetricMax(e.target.value)} className="h-8 text-xs rounded-lg" />
-                </div>
-                <Button type="button" variant="outline" size="sm" onClick={addMetricFilter} disabled={!newMetricName.trim()} className="w-full h-8 text-xs">
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Add Filter
-                </Button>
-              </div>
             </div>
           </>
         )}
