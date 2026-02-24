@@ -230,6 +230,35 @@ export type Database = {
         }
         Relationships: []
       }
+      follows: {
+        Row: {
+          created_at: string
+          followed_player_id: string
+          follower_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          followed_player_id: string
+          follower_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          followed_player_id?: string
+          follower_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follows_followed_player_id_fkey"
+            columns: ["followed_player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       metrics: {
         Row: {
           aggregation: Database["public"]["Enums"]["aggregation_method"]

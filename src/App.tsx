@@ -27,6 +27,7 @@ import EvaluatorDashboard from "@/pages/EvaluatorDashboard";
 import EvaluatorProfile from "@/pages/EvaluatorProfile";
 import ScoutDashboard from "@/pages/ScoutDashboard";
 import SocialPage from "@/pages/SocialPage";
+import SearchPage from "@/pages/SearchPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -163,6 +164,7 @@ const App = () => (
             <Route path="/setup" element={<SetupRoute />} />
             <Route path="/register/:code" element={<PlayerRegister />} />
             <Route path="/player-dashboard" element={<PlayerRoute><UnifiedNavShell><PlayerDashboard /></UnifiedNavShell></PlayerRoute>} />
+            <Route path="/search" element={<PlayerRoute><UnifiedNavShell><SearchPage /></UnifiedNavShell></PlayerRoute>} />
             <Route path="/player-link" element={<PlayerLinkPage />} />
             <Route path="/evaluator" element={<EvaluatorRoute><UnifiedNavShell><EvaluatorDashboard /></UnifiedNavShell></EvaluatorRoute>} />
             <Route path="/scout" element={<ScoutRoute><UnifiedNavShell><ScoutDashboard /></UnifiedNavShell></ScoutRoute>} />
