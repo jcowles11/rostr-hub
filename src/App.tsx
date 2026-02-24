@@ -1,9 +1,11 @@
+import { useEffect } from "react";
 import rostrLogo from "@/assets/rostr-logo.png";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { toast } from "sonner";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SessionProvider } from "@/contexts/SessionContext";
 import AppLayout from "@/components/AppLayout";
@@ -39,8 +41,37 @@ import DemoTour from "@/pages/DemoTour";
 import ReadinessChecklist from "@/pages/ReadinessChecklist";
 import NotFound from "@/pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      staleTime: 30_000,
+    },
+  },
+});
 
+function GlobalErrorBoundary() {
+  useEffect(() => {
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      console.error("[Rostr] Unhandled promise rejection:", event.reason);
+      // Prevent the browser from showing a generic error / crashing the page
+      event.preventDefault();
+    };
+
+    const handleError = (event: ErrorEvent) => {
+      console.error("[Rostr] Uncaught error:", event.error);
+    };
+
+    window.addEventListener("unhandledrejection", handleRejection);
+    window.addEventListener("error", handleError);
+    return () => {
+      window.removeEventListener("unhandledrejection", handleRejection);
+      window.removeEventListener("error", handleError);
+    };
+  }, []);
+
+  return null;
+}
 function LoadingScreen() {
   return (
     <div className="flex min-h-screen items-center justify-center">
@@ -193,6 +224,7 @@ function SetupRoute() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
+      <GlobalErrorBoundary />
       <Toaster />
       <Sonner />
       <BrowserRouter>

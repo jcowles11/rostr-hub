@@ -117,56 +117,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [devRoleOverride, setDevRoleOverride] = useState<UserRole>(null);
 
   const fetchCoaches = async (userId: string) => {
-    const { data } = await supabase
-      .from("coaches")
-      .select("id, program_id, full_name, role, color, programs(name, levels, logo_url, sport, organization_id, organizations(id, name, logo_url))")
-      .eq("user_id", userId);
+    try {
+      const { data, error } = await supabase
+        .from("coaches")
+        .select("id, program_id, full_name, role, color, programs(name, levels, logo_url, sport, organization_id, organizations(id, name, logo_url))")
+        .eq("user_id", userId);
 
-    if (data && data.length > 0) {
-      const coaches: CoachInfo[] = data.map((d) => {
-        const programData = d.programs as unknown as {
-          name: string; levels: string[]; logo_url: string | null; sport: string;
-          organization_id: string; organizations: { id: string; name: string; logo_url: string | null } | null;
-        } | null;
-        return {
-          id: d.id,
-          program_id: d.program_id,
-          full_name: d.full_name,
-          role: d.role,
-          color: d.color,
-          program_name: programData?.name,
-          program_levels: programData?.levels,
-          logo_url: programData?.logo_url,
-          sport: programData?.sport,
-          organization_id: programData?.organization_id,
-          organization_name: programData?.organizations?.name,
-        };
-      });
-      setAllCoaches(coaches);
+      if (error) {
+        console.error("[AuthContext] fetchCoaches error:", error.message);
+        return false;
+      }
 
-      const orgMap = new Map<string, OrgInfo>();
-      coaches.forEach((c) => {
-        if (c.organization_id) {
-          const programData = data.find((d) => d.id === c.id)?.programs as any;
-          const orgData = programData?.organizations;
-          if (orgData) {
-            orgMap.set(c.organization_id, { id: orgData.id, name: orgData.name, logo_url: orgData.logo_url });
+      if (data && data.length > 0) {
+        const coaches: CoachInfo[] = data.map((d) => {
+          const programData = d.programs as unknown as {
+            name: string; levels: string[]; logo_url: string | null; sport: string;
+            organization_id: string; organizations: { id: string; name: string; logo_url: string | null } | null;
+          } | null;
+          return {
+            id: d.id,
+            program_id: d.program_id,
+            full_name: d.full_name,
+            role: d.role,
+            color: d.color,
+            program_name: programData?.name,
+            program_levels: programData?.levels,
+            logo_url: programData?.logo_url,
+            sport: programData?.sport,
+            organization_id: programData?.organization_id,
+            organization_name: programData?.organizations?.name,
+          };
+        });
+        setAllCoaches(coaches);
+
+        const orgMap = new Map<string, OrgInfo>();
+        coaches.forEach((c) => {
+          if (c.organization_id) {
+            const programData = data.find((d) => d.id === c.id)?.programs as any;
+            const orgData = programData?.organizations;
+            if (orgData) {
+              orgMap.set(c.organization_id, { id: orgData.id, name: orgData.name, logo_url: orgData.logo_url });
+            }
           }
-        }
-      });
-      const orgs = Array.from(orgMap.values());
-      setOrganizations(orgs);
+        });
+        const orgs = Array.from(orgMap.values());
+        setOrganizations(orgs);
 
-      const lastProgramId = localStorage.getItem(`rostr_active_program_${userId}`);
-      const restored = coaches.find((c) => c.program_id === lastProgramId);
-      const activeCoach = restored || coaches[0];
-      setCoach(activeCoach);
+        const lastProgramId = localStorage.getItem(`rostr_active_program_${userId}`);
+        const restored = coaches.find((c) => c.program_id === lastProgramId);
+        const activeCoach = restored || coaches[0];
+        setCoach(activeCoach);
 
-      const activeOrg = orgs.find((o) => o.id === activeCoach.organization_id) || orgs[0] || null;
-      setCurrentOrg(activeOrg);
+        const activeOrg = orgs.find((o) => o.id === activeCoach.organization_id) || orgs[0] || null;
+        setCurrentOrg(activeOrg);
 
-      return true;
-    } else {
+        return true;
+      } else {
+        setAllCoaches([]);
+        setOrganizations([]);
+        setCurrentOrg(null);
+        setCoach(null);
+        return false;
+      }
+    } catch (err) {
+      console.error("[AuthContext] fetchCoaches unexpected error:", err);
       setAllCoaches([]);
       setOrganizations([]);
       setCurrentOrg(null);
@@ -176,60 +190,93 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const fetchPlayer = async (userId: string) => {
-    const { data } = await supabase
-      .from("players")
-      .select("id, program_id, first_name, last_name, player_number, photo_url, programs(name)")
-      .eq("user_id", userId)
-      .limit(1)
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from("players")
+        .select("id, program_id, first_name, last_name, player_number, photo_url, programs(name)")
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle();
 
-    if (data) {
-      const programData = data.programs as unknown as { name: string } | null;
-      setPlayerInfo({
-        id: data.id,
-        program_id: data.program_id,
-        first_name: data.first_name,
-        last_name: data.last_name,
-        player_number: data.player_number,
-        photo_url: data.photo_url,
-        program_name: programData?.name,
-      });
-      return true;
+      if (error) {
+        console.error("[AuthContext] fetchPlayer error:", error.message);
+        return false;
+      }
+
+      if (data) {
+        const programData = data.programs as unknown as { name: string } | null;
+        setPlayerInfo({
+          id: data.id,
+          program_id: data.program_id,
+          first_name: data.first_name,
+          last_name: data.last_name,
+          player_number: data.player_number,
+          photo_url: data.photo_url,
+          program_name: programData?.name,
+        });
+        return true;
+      }
+      setPlayerInfo(null);
+      return false;
+    } catch (err) {
+      console.error("[AuthContext] fetchPlayer unexpected error:", err);
+      setPlayerInfo(null);
+      return false;
     }
-    setPlayerInfo(null);
-    return false;
   };
 
   const fetchEvaluator = async (userId: string) => {
-    const { data } = await supabase
-      .from("evaluators")
-      .select("id, user_id, full_name, organization_name, title, sport, verified")
-      .eq("user_id", userId)
-      .limit(1)
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from("evaluators")
+        .select("id, user_id, full_name, organization_name, title, sport, verified")
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle();
 
-    if (data) {
-      setEvaluatorInfo(data as EvaluatorInfo);
-      return true;
+      if (error) {
+        console.error("[AuthContext] fetchEvaluator error:", error.message);
+        return false;
+      }
+
+      if (data) {
+        setEvaluatorInfo(data as EvaluatorInfo);
+        return true;
+      }
+      setEvaluatorInfo(null);
+      return false;
+    } catch (err) {
+      console.error("[AuthContext] fetchEvaluator unexpected error:", err);
+      setEvaluatorInfo(null);
+      return false;
     }
-    setEvaluatorInfo(null);
-    return false;
   };
 
   const fetchScout = async (userId: string) => {
-    const { data } = await supabase
-      .from("scouts")
-      .select("id, user_id, full_name, organization_name, title")
-      .eq("user_id", userId)
-      .limit(1)
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from("scouts")
+        .select("id, user_id, full_name, organization_name, title")
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle();
 
-    if (data) {
-      setScoutInfo(data as ScoutInfo);
-      return true;
+      if (error) {
+        console.error("[AuthContext] fetchScout error:", error.message);
+        return false;
+      }
+
+      if (data) {
+        setScoutInfo(data as ScoutInfo);
+        return true;
+      }
+      setScoutInfo(null);
+      return false;
+    } catch (err) {
+      console.error("[AuthContext] fetchScout unexpected error:", err);
+      setScoutInfo(null);
+      return false;
     }
-    setScoutInfo(null);
-    return false;
   };
 
   const fetchUserRole = async (userId: string) => {
@@ -409,14 +456,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let initialLoad = true;
+    let mounted = true;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        if (initialLoad) return;
+        if (initialLoad || !mounted) return;
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          await fetchUserRole(session.user.id);
+          try {
+            await fetchUserRole(session.user.id);
+          } catch (err) {
+            console.error("[AuthContext] auth state change fetchUserRole error:", err);
+          }
         } else {
           setCoach(null);
           setAllCoaches([]);
@@ -427,19 +479,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setScoutInfo(null);
           setUserRole(null);
         }
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     );
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) await fetchUserRole(session.user.id);
-      setLoading(false);
-      initialLoad = false;
+      if (session?.user) {
+        try {
+          await fetchUserRole(session.user.id);
+        } catch (err) {
+          console.error("[AuthContext] initial fetchUserRole error:", err);
+        }
+      }
+      if (mounted) {
+        setLoading(false);
+        initialLoad = false;
+      }
+    }).catch((err) => {
+      console.error("[AuthContext] getSession error:", err);
+      if (mounted) setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
