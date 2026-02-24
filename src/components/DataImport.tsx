@@ -17,6 +17,8 @@ import {
   isNumericColumn,
   splitFullName,
   groupAttemptColumns,
+  stripUnitsFromValue,
+  preprocessRawData,
   type ColumnGroup,
 } from "@/lib/importUtils";
 
@@ -167,9 +169,13 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
 
     if (ext === "csv" || ext === "txt") {
       Papa.parse(file, {
-        header: true,
+        header: false, // Parse as raw 2D array for preprocessing
         skipEmptyLines: true,
-        complete: (result) => processData(result.data as Record<string, string>[], result.meta.fields || []),
+        complete: (result) => {
+          const rawRows = result.data as string[][];
+          const { headers: cleanHeaders, rows: cleanRows } = preprocessRawData(rawRows);
+          processData(cleanRows, cleanHeaders);
+        },
         error: () => toast.error("Failed to parse CSV"),
       });
     } else if (ext === "xlsx" || ext === "xls") {
@@ -178,10 +184,11 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         try {
           const wb = XLSX.read(e.target?.result, { type: "array" });
           const ws = wb.Sheets[wb.SheetNames[0]];
-          const json = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: "" });
-          if (!json.length) { toast.error("No data found"); return; }
-          const hdrs = Object.keys(json[0]);
-          processData(json.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v)]))), hdrs);
+          // Get raw 2D array for preprocessing
+          const rawRows = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: "" })
+            .map((row: any) => (Array.isArray(row) ? row.map(String) : []));
+          const { headers: cleanHeaders, rows: cleanRows } = preprocessRawData(rawRows);
+          processData(cleanRows, cleanHeaders);
         } catch { toast.error("Failed to parse Excel"); }
       };
       reader.readAsArrayBuffer(file);
@@ -233,8 +240,8 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
 
         group.columns.forEach((col, colIdx) => {
           const raw = row[col];
-          const val = parseFloat(raw);
-          if (!isNaN(val)) {
+          const val = stripUnitsFromValue(raw || "");
+          if (val !== null) {
             metricValues.push({
               metricId,
               metricName: metric?.name || group.displayName,
