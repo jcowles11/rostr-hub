@@ -32,7 +32,6 @@ const PLAYER_INFO_TERMS = [
 
 export function isPlayerInfoColumn(header: string): boolean {
   const norm = normalizeHeader(header);
-  // Also try without spaces for compound terms
   const normNoSpace = norm.replace(/\s/g, "");
   return PLAYER_INFO_TERMS.some((t) => {
     const tNorm = t.replace(/[\s_]/g, " ");
@@ -77,4 +76,69 @@ export function splitBatsThrows(val: string): { bats: string; throws: string } {
     return { bats: parts[0].trim().substring(0, 1), throws: parts[1].trim().substring(0, 1) };
   }
   return { bats: "", throws: "" };
+}
+
+/**
+ * Represents a group of columns that belong to the same metric but are separate attempts.
+ * E.g., "FB_Velo_1", "FB_Velo_2", ... "FB_Velo_5" → group name "FB Velo", columns in order.
+ */
+export interface ColumnGroup {
+  /** Display name for the group, e.g. "FB Velo" */
+  displayName: string;
+  /** Original headers in attempt order */
+  columns: string[];
+}
+
+/**
+ * Detects attempt-numbered columns (e.g., "FB_Velo_1", "FB_Velo_2") and groups them.
+ * Columns without a trailing _N are treated as single-column groups.
+ * Only numeric columns are included. Player-info columns and name-mapped columns are excluded.
+ */
+export function groupAttemptColumns(
+  headers: string[],
+  rows: Record<string, string>[],
+  nameColumns: Set<string>
+): ColumnGroup[] {
+  const groupMap = new Map<string, string[]>();
+  const soloColumns: string[] = [];
+
+  for (const header of headers) {
+    if (nameColumns.has(header)) continue;
+    if (isPlayerInfoColumn(header)) continue;
+    if (!isNumericColumn(rows, header)) continue;
+
+    // Check for trailing _N or space N pattern
+    const attemptMatch = header.match(/^(.+?)[_\s](\d+)$/);
+    if (attemptMatch) {
+      const baseName = attemptMatch[1];
+      if (!groupMap.has(baseName)) {
+        groupMap.set(baseName, []);
+      }
+      groupMap.get(baseName)!.push(header);
+    } else {
+      soloColumns.push(header);
+    }
+  }
+
+  const groups: ColumnGroup[] = [];
+
+  // Add grouped columns sorted by attempt number
+  for (const [baseName, columns] of groupMap) {
+    columns.sort((a, b) => {
+      const aNum = parseInt(a.match(/(\d+)$/)?.[1] || "0");
+      const bNum = parseInt(b.match(/(\d+)$/)?.[1] || "0");
+      return aNum - bNum;
+    });
+    // Make display name more readable: "FB_Velo" → "FB Velo"
+    const displayName = baseName.replace(/[_]+/g, " ").trim();
+    groups.push({ displayName, columns });
+  }
+
+  // Add solo columns
+  for (const header of soloColumns) {
+    const displayName = header.replace(/[_]+/g, " ").trim();
+    groups.push({ displayName, columns: [header] });
+  }
+
+  return groups;
 }
