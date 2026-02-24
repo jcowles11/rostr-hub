@@ -1,18 +1,48 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { LogOut, Share2, User, Shield } from "lucide-react";
+import { LogOut, Share2, User, Shield, Calendar, SlidersHorizontal, Upload, Database, Download, Users, Layers, Eye, Image, ChevronRight, ChevronDown } from "lucide-react";
 import ProgramLogoUpload from "@/components/ProgramLogoUpload";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import MetricsManager from "@/components/MetricsManager";
 import LevelsManager from "@/components/LevelsManager";
 import VisibilityManager from "@/components/VisibilityManager";
 import CoachManager from "@/components/CoachManager";
+import MetricsManager from "@/components/MetricsManager";
+import RosterUpload from "@/components/RosterUpload";
+import DataImport from "@/components/DataImport";
 import { Input } from "@/components/ui/input";
 import { Pencil, Check, X } from "lucide-react";
+
+interface MenuTile {
+  icon: React.ReactNode;
+  label: string;
+  subtitle?: string;
+  action: "navigate" | "dialog" | "expand";
+  target?: string;
+  expandKey?: string;
+}
+
+function TileButton({ icon, label, subtitle, onClick, trailing }: {
+  icon: React.ReactNode; label: string; subtitle?: string; onClick: () => void; trailing?: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-3 rounded-xl bg-card border px-4 py-3.5 text-left transition-all hover:shadow-sm hover:border-primary/20 active:scale-[0.99]"
+    >
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold">{label}</p>
+        {subtitle && <p className="text-xs text-muted-foreground truncate">{subtitle}</p>}
+      </div>
+      {trailing}
+    </button>
+  );
+}
 
 export default function SettingsPage() {
   const { coach, signOut, refreshCoach } = useAuth();
@@ -21,6 +51,15 @@ export default function SettingsPage() {
   const [editingName, setEditingName] = useState(false);
   const [programName, setProgramName] = useState("");
   const [savingName, setSavingName] = useState(false);
+
+  // Dialogs
+  const [rosterOpen, setRosterOpen] = useState(false);
+  const [dataImportOpen, setDataImportOpen] = useState(false);
+
+  // Expandable sections
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const toggleExpand = (key: string) => setExpanded(expanded === key ? null : key);
 
   useEffect(() => {
     if (!coach) return;
@@ -107,32 +146,140 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <Card className="section-card">
-        <CardHeader>
-          <CardTitle className="text-base">Program Logo</CardTitle>
-          <CardDescription>Upload a logo for your program</CardDescription>
-        </CardHeader>
-        <CardContent className="flex justify-center">
-          <ProgramLogoUpload />
-        </CardContent>
-      </Card>
+      {/* TRYOUT PLANNING */}
+      <div className="space-y-2">
+        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">Tryout Planning</p>
+        <div className="space-y-1.5">
+          <TileButton
+            icon={<Calendar className="h-4 w-4" />}
+            label="Tryout Planner"
+            subtitle="Sessions, metrics & attempts overview"
+            onClick={() => navigate("/plan")}
+            trailing={<ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          />
+          <TileButton
+            icon={<SlidersHorizontal className="h-4 w-4" />}
+            label="Metrics & Drills"
+            subtitle={`${expanded === "metrics" ? "Collapse" : "Configure scoring metrics"}`}
+            onClick={() => toggleExpand("metrics")}
+            trailing={expanded === "metrics" ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          />
+        </div>
+        {expanded === "metrics" && (
+          <div className="rounded-2xl border bg-card p-4 animate-fade-in">
+            <MetricsManager />
+          </div>
+        )}
+      </div>
 
-      <Card className="section-card">
-        <CardContent className="pt-5">
-          <Button variant="outline" className="w-full tap-target h-12 rounded-xl font-semibold" onClick={copyRegLink}>
-            <Share2 className="mr-2 h-4 w-4" /> Copy Player Registration Link
-          </Button>
-        </CardContent>
-      </Card>
+      {/* DATA */}
+      <div className="space-y-2">
+        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">Data</p>
+        <div className="space-y-1.5">
+          <TileButton
+            icon={<Upload className="h-4 w-4" />}
+            label="Import Roster"
+            subtitle="Upload players from CSV or Excel"
+            onClick={() => setRosterOpen(true)}
+          />
+          <TileButton
+            icon={<Database className="h-4 w-4" />}
+            label="Import Scores"
+            subtitle="Upload tryout data from spreadsheet"
+            onClick={() => setDataImportOpen(true)}
+          />
+          <TileButton
+            icon={<Download className="h-4 w-4" />}
+            label="Export & Reports"
+            subtitle="Download data and generate reports"
+            onClick={() => navigate("/export")}
+            trailing={<ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          />
+        </div>
+      </div>
 
-      <CoachManager />
-      <LevelsManager />
-      <VisibilityManager />
-      <MetricsManager />
+      {/* PROGRAM */}
+      <div className="space-y-2">
+        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">Program</p>
+        <div className="space-y-1.5">
+          <TileButton
+            icon={<Users className="h-4 w-4" />}
+            label="Coaching Staff"
+            subtitle={`${expanded === "coaches" ? "Collapse" : "Manage assistant coaches"}`}
+            onClick={() => toggleExpand("coaches")}
+            trailing={expanded === "coaches" ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          />
+          {expanded === "coaches" && (
+            <div className="rounded-2xl border bg-card p-4 animate-fade-in">
+              <CoachManager />
+            </div>
+          )}
 
-      <Button variant="destructive" className="w-full tap-target h-12 rounded-xl font-bold" onClick={handleSignOut}>
-        <LogOut className="mr-2 h-4 w-4" /> Sign Out
-      </Button>
+          <TileButton
+            icon={<Layers className="h-4 w-4" />}
+            label="Team Levels"
+            subtitle={`${expanded === "levels" ? "Collapse" : "Varsity, JV, Freshman, etc."}`}
+            onClick={() => toggleExpand("levels")}
+            trailing={expanded === "levels" ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          />
+          {expanded === "levels" && (
+            <div className="animate-fade-in">
+              <LevelsManager />
+            </div>
+          )}
+
+          <TileButton
+            icon={<Eye className="h-4 w-4" />}
+            label="Player Visibility"
+            subtitle={`${expanded === "visibility" ? "Collapse" : "Control what players see"}`}
+            onClick={() => toggleExpand("visibility")}
+            trailing={expanded === "visibility" ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          />
+          {expanded === "visibility" && (
+            <div className="animate-fade-in">
+              <VisibilityManager />
+            </div>
+          )}
+
+          <TileButton
+            icon={<Image className="h-4 w-4" />}
+            label="Program Logo"
+            subtitle={`${expanded === "logo" ? "Collapse" : "Upload or change your logo"}`}
+            onClick={() => toggleExpand("logo")}
+            trailing={expanded === "logo" ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          />
+          {expanded === "logo" && (
+            <div className="rounded-2xl border bg-card p-4 flex justify-center animate-fade-in">
+              <ProgramLogoUpload />
+            </div>
+          )}
+
+          <TileButton
+            icon={<Share2 className="h-4 w-4" />}
+            label="Registration Link"
+            subtitle="Copy link for players to register"
+            onClick={copyRegLink}
+          />
+        </div>
+      </div>
+
+      {/* ACCOUNT */}
+      <div className="space-y-2">
+        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">Account</p>
+        <button
+          onClick={handleSignOut}
+          className="flex w-full items-center gap-3 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3.5 text-left transition-all hover:bg-destructive/10 active:scale-[0.99]"
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+            <LogOut className="h-4 w-4" />
+          </div>
+          <p className="text-sm font-semibold text-destructive">Sign Out</p>
+        </button>
+      </div>
+
+      {/* Dialogs */}
+      <RosterUpload open={rosterOpen} onOpenChange={setRosterOpen} onSuccess={() => toast.success("Roster imported!")} />
+      <DataImport open={dataImportOpen} onOpenChange={setDataImportOpen} onSuccess={() => toast.success("Data imported!")} />
     </div>
   );
 }
