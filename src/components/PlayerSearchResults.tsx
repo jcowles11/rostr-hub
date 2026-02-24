@@ -1,26 +1,26 @@
-import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Search, User, Trophy, Share2, MapPin, Bookmark, ListPlus, MessageSquare, Link2, RotateCcw, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, User, Trophy, ExternalLink, Share2, MapPin, Bookmark, ListPlus, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import PlayerProfileSheet from "@/components/PlayerProfileSheet";
 import type { PlayerResult } from "@/pages/ScoutDashboard";
 
 interface Props {
   results: PlayerResult[];
   loading: boolean;
   searched: boolean;
+  onClearSearch?: () => void;
 }
 
-export default function PlayerSearchResults({ results, loading, searched }: Props) {
-  const navigate = useNavigate();
+export default function PlayerSearchResults({ results, loading, searched, onClearSearch }: Props) {
   const { scoutInfo, userRole, devRoleOverride } = useAuth();
   const effectiveRole = devRoleOverride || userRole;
   const isScout = effectiveRole === "scout" && !!scoutInfo;
@@ -32,6 +32,9 @@ export default function PlayerSearchResults({ results, loading, searched }: Prop
   const [messageDialogPlayer, setMessageDialogPlayer] = useState<PlayerResult | null>(null);
   const [initialMessage, setInitialMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
+
+  // Sheet state
+  const [sheetPlayer, setSheetPlayer] = useState<PlayerResult | null>(null);
 
   const fetchLists = async () => {
     if (!scoutInfo) return;
@@ -87,6 +90,20 @@ export default function PlayerSearchResults({ results, loading, searched }: Prop
     setSendingMessage(false);
   };
 
+  const shareProfile = (e: React.MouseEvent, player: PlayerResult) => {
+    e.stopPropagation();
+    if (!player.profile_slug) return;
+    const url = `${window.location.origin}/p/${player.profile_slug}`;
+    navigator.clipboard.writeText(url);
+    toast.success("Profile link copied!");
+  };
+
+  const handleCardClick = (player: PlayerResult) => {
+    if (isScout && player.profile_slug) {
+      setSheetPlayer(player);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -119,29 +136,35 @@ export default function PlayerSearchResults({ results, loading, searched }: Prop
           <User className="mx-auto h-12 w-12 text-muted-foreground/30 mb-3" />
           <h3 className="text-lg font-bold mb-1">No Players Found</h3>
           <p className="text-sm text-muted-foreground">Try adjusting your filters to broaden the search.</p>
+          {onClearSearch && (
+            <Button variant="outline" size="sm" className="mt-3" onClick={onClearSearch}>
+              <RotateCcw className="h-3.5 w-3.5 mr-1" /> New Search
+            </Button>
+          )}
         </div>
       </div>
     );
   }
 
-  const shareProfile = (e: React.MouseEvent, player: PlayerResult) => {
-    e.stopPropagation();
-    if (!player.profile_slug) return;
-    const url = `${window.location.origin}/p/${player.profile_slug}`;
-    navigator.clipboard.writeText(url);
-    toast.success("Profile link copied!");
-  };
-
   return (
     <>
       <div className="space-y-2">
-        <p className="text-sm text-muted-foreground font-medium">{results.length} player{results.length !== 1 ? "s" : ""} found</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground font-medium">{results.length} player{results.length !== 1 ? "s" : ""} found</p>
+          {onClearSearch && (
+            <div className="flex gap-1.5">
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onClearSearch}>
+                <X className="h-3 w-3 mr-1" /> Clear
+              </Button>
+            </div>
+          )}
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {results.map((player) => (
             <Card
               key={player.id}
               className="section-card cursor-pointer transition-all hover:shadow-md hover:border-primary/20 hover:-translate-y-[1px]"
-              onClick={() => player.profile_slug && navigate(`/p/${player.profile_slug}`)}
+              onClick={() => handleCardClick(player)}
             >
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
@@ -163,6 +186,9 @@ export default function PlayerSearchResults({ results, loading, searched }: Prop
                     <p className="text-xs text-muted-foreground truncate">
                       {player.school_name} • {player.program_name}
                     </p>
+                    {(player as any).high_school && (
+                      <p className="text-[10px] text-muted-foreground truncate">HS: {(player as any).high_school}</p>
+                    )}
                     {player.recruiting_status === "committed" && player.committed_school_name && (
                       <p className="text-[10px] text-accent font-medium mt-0.5 truncate">
                         → {player.committed_school_name}
@@ -186,6 +212,21 @@ export default function PlayerSearchResults({ results, loading, searched }: Prop
                         {[player.city, player.state].filter(Boolean).join(", ")}
                       </p>
                     )}
+                    {/* External profile badges */}
+                    {((player as any).gamechanger_profile_url || (player as any).maxpreps_profile_url) && (
+                      <div className="flex gap-1.5 mt-1">
+                        {(player as any).gamechanger_profile_url && (
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 gap-0.5">
+                            <Link2 className="h-2 w-2" /> GC
+                          </Badge>
+                        )}
+                        {(player as any).maxpreps_profile_url && (
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 gap-0.5">
+                            <Link2 className="h-2 w-2" /> MP
+                          </Badge>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -206,19 +247,16 @@ export default function PlayerSearchResults({ results, loading, searched }: Prop
 
                 {/* Actions */}
                 <div className="flex items-center gap-1.5 mt-3 pt-2 border-t">
-                  <Button variant="outline" size="sm" className="h-7 text-xs rounded-lg flex-1" onClick={(e) => { e.stopPropagation(); player.profile_slug && navigate(`/p/${player.profile_slug}`); }}>
-                    <ExternalLink className="h-3 w-3 mr-1" /> Profile
-                  </Button>
                   {isScout && (
                     <>
-                      <Button variant="ghost" size="sm" className="h-7 text-xs rounded-lg px-2" disabled={savingId === player.id} onClick={(e) => saveProspect(e, player.id)}>
-                        <Bookmark className="h-3 w-3" />
+                      <Button variant="outline" size="sm" className="h-7 text-xs rounded-lg flex-1" disabled={savingId === player.id} onClick={(e) => saveProspect(e, player.id)}>
+                        <Bookmark className="h-3 w-3 mr-1" /> Save
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-7 text-xs rounded-lg px-2" onClick={(e) => openListDialog(e, player.id)}>
-                        <ListPlus className="h-3 w-3" />
+                      <Button variant="outline" size="sm" className="h-7 text-xs rounded-lg flex-1" onClick={(e) => openListDialog(e, player.id)}>
+                        <ListPlus className="h-3 w-3 mr-1" /> List
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-7 text-xs rounded-lg px-2" onClick={(e) => openMessageDialog(e, player)}>
-                        <MessageSquare className="h-3 w-3" />
+                      <Button variant="outline" size="sm" className="h-7 text-xs rounded-lg flex-1" onClick={(e) => openMessageDialog(e, player)}>
+                        <MessageSquare className="h-3 w-3 mr-1" /> Msg
                       </Button>
                     </>
                   )}
@@ -231,6 +269,13 @@ export default function PlayerSearchResults({ results, loading, searched }: Prop
           ))}
         </div>
       </div>
+
+      {/* Player Profile Sheet (scouts only) */}
+      <PlayerProfileSheet
+        player={sheetPlayer}
+        open={!!sheetPlayer}
+        onOpenChange={(open) => { if (!open) setSheetPlayer(null); }}
+      />
 
       {/* Add to List Dialog */}
       <Dialog open={!!listDialogPlayer} onOpenChange={open => { if (!open) setListDialogPlayer(null); }}>

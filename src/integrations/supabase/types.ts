@@ -1459,6 +1459,24 @@ export type Database = {
             }
             Returns: Json
           }
+        | {
+            Args: {
+              _bats?: string
+              _gpa_min?: number
+              _grad_year_max?: number
+              _grad_year_min?: number
+              _high_school?: string
+              _limit?: number
+              _name_search?: string
+              _offset?: number
+              _positions?: string[]
+              _recruiting_status?: string
+              _sport?: string
+              _state?: string
+              _throws?: string
+            }
+            Returns: Json
+          }
     }
     Enums: {
       aggregation_method: "best" | "average" | "latest"
