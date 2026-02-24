@@ -10,9 +10,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { LogOut, ChevronDown, ChevronUp, X } from "lucide-react";
+import { LogOut, ChevronDown, ChevronUp, X, Search, CheckCircle, Loader2 } from "lucide-react";
 import { getSportPositions, sportHasBatsThrows } from "@/lib/sports";
 import PlayerPhotoUpload from "@/components/PlayerPhotoUpload";
+
+interface ProgramResult {
+  id: string;
+  name: string;
+  school_name: string;
+  sport: string;
+  logo_url: string | null;
+}
 
 const GRADUATION_YEARS = Array.from({ length: 8 }, (_, i) => new Date().getFullYear() + i);
 
@@ -449,6 +457,18 @@ export default function PlayerLinkPage() {
                   {loading ? "Linking..." : "Link to Team"}
                 </Button>
               </form>
+
+              <div className="relative my-2">
+                <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">or find your school</span>
+                </div>
+              </div>
+
+              <ProgramSearch
+                userName={`${firstName} ${lastName}`.trim()}
+                userId={user?.id}
+              />
             </div>
             <div className="mt-4 text-center">
               <Button variant="ghost" size="sm" onClick={handleSignOut} className="text-muted-foreground">
@@ -458,6 +478,132 @@ export default function PlayerLinkPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function ProgramSearch({ userName, userId }: { userName: string; userId?: string }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<ProgramResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [requestedIds, setRequestedIds] = useState<Set<string>>(new Set());
+  const [submitting, setSubmitting] = useState<string | null>(null);
+
+  // Load existing pending requests
+  useEffect(() => {
+    if (!userId) return;
+    supabase
+      .from("program_join_requests")
+      .select("program_id")
+      .eq("user_id", userId)
+      .eq("status", "pending")
+      .then(({ data }) => {
+        if (data) setRequestedIds(new Set(data.map((r: any) => r.program_id)));
+      });
+  }, [userId]);
+
+  useEffect(() => {
+    if (query.trim().length < 2) { setResults([]); return; }
+    const timeout = setTimeout(async () => {
+      setSearching(true);
+      const { data } = await supabase
+        .from("programs")
+        .select("id, name, school_name, sport, logo_url")
+        .or(`school_name.ilike.%${query.trim()}%,name.ilike.%${query.trim()}%`)
+        .limit(10);
+      setResults(data || []);
+      setSearching(false);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [query]);
+
+  const handleRequest = async (program: ProgramResult) => {
+    if (!userId || !userName.trim()) {
+      toast.error("Please enter your name above first");
+      return;
+    }
+    setSubmitting(program.id);
+    const { error } = await supabase.from("program_join_requests").insert({
+      program_id: program.id,
+      user_id: userId,
+      player_name: userName,
+    } as any);
+
+    if (error) {
+      if (error.message.includes("duplicate") || error.code === "23505") {
+        toast.info("You've already requested to join this program");
+      } else {
+        toast.error("Failed to send request");
+      }
+    } else {
+      toast.success(`Request sent to ${program.name}!`);
+      setRequestedIds((prev) => new Set([...prev, program.id]));
+    }
+    setSubmitting(null);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by school or team name..."
+          className="tap-target h-12 text-base rounded-xl pl-10"
+        />
+      </div>
+
+      {searching && (
+        <div className="flex items-center justify-center py-3">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {results.length > 0 && (
+        <div className="space-y-1.5 max-h-60 overflow-y-auto">
+          {results.map((program) => {
+            const alreadyRequested = requestedIds.has(program.id);
+            return (
+              <div
+                key={program.id}
+                className="flex items-center gap-3 rounded-xl border px-3 py-2.5 bg-muted/30"
+              >
+                {program.logo_url ? (
+                  <img src={program.logo_url} alt="" className="h-8 w-8 rounded-lg object-cover" />
+                ) : (
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
+                    {program.school_name?.[0] || "?"}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate">{program.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{program.school_name} · {program.sport}</p>
+                </div>
+                {alreadyRequested ? (
+                  <Badge variant="secondary" className="text-[10px] gap-1 shrink-0">
+                    <CheckCircle className="h-3 w-3" /> Requested
+                  </Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs rounded-lg shrink-0 h-8"
+                    disabled={submitting === program.id}
+                    onClick={() => handleRequest(program)}
+                  >
+                    {submitting === program.id ? "..." : "Request Access"}
+                  </Button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {query.trim().length >= 2 && !searching && results.length === 0 && (
+        <p className="text-xs text-center text-muted-foreground py-2">No programs found matching "{query}"</p>
+      )}
     </div>
   );
 }
