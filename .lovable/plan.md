@@ -1,86 +1,87 @@
 
+# Redesign the "More" Tab as a Feature Hub
 
-# Smarter Session Management
+## The Idea
+Transform the current Settings page (the "More" tab) from a long scrolling settings page into a clean **menu hub** with categorized action tiles. Each tile either navigates to a dedicated sub-page or opens a dialog. This keeps the four primary tabs (Roster, Score, Stats, Board) focused on core workflows while the "More" tab becomes the organized home for everything else.
 
-## The Problem
-Right now, sessions live *only* on the Score Entry tab. They're needed there for data entry, but the rest of the app (Dashboard, Player Detail) ignores sessions entirely -- showing all scores flattened together with no way to compare across sessions. Switching sessions on the scoring page feels buried and disconnected from the bigger picture.
+## Current State
+The "More" tab is a single scrolling page containing: program logo upload, registration link, coach management, levels, visibility settings, metrics configuration, and sign out. Meanwhile, features like roster CSV import, data import, and export live scattered on other pages (Roster page has import buttons, Export is a separate route accessed from... nowhere obvious in the nav).
 
-## The Solution: Three Changes
+## New Layout
 
-### 1. Global Session Context in the App Header
-Move the "active session" concept out of Score Entry and into a shared context that lives in the app header bar (next to the program switcher). This way:
+The "More" page becomes a categorized grid of action tiles:
 
-- The active session is visible and switchable from any tab
-- Score Entry automatically uses it (no separate dropdown needed there)
-- Dashboard and Player Detail can optionally filter by it
-- Creating a new session can happen from the header too
+```text
++----------------------------------+
+| [Logo] Program Name              |
+| Head Coach - John Smith           |
++----------------------------------+
+|                                  |
+| TRYOUT PLANNING                  |
+| [Calendar] Tryout Planner        |
+| [Sliders] Metrics & Drills       |
+|                                  |
+| DATA                             |
+| [Upload] Import Roster (CSV)     |
+| [Database] Import Scores (CSV)   |
+| [Download] Export & Reports       |
+|                                  |
+| PROGRAM                          |
+| [Users] Manage Coaches            |
+| [Layers] Team Levels              |
+| [Eye] Player Visibility           |
+| [Image] Program Logo              |
+| [Share] Registration Link         |
+|                                  |
+| ACCOUNT                          |
+| [LogOut] Sign Out                 |
++----------------------------------+
+```
 
-The header will show a small session chip (e.g., "Day 2 Tryouts - Feb 24") with a dropdown to switch or create sessions. An "All Sessions" option lets coaches see the full picture.
+Each tile is a compact row with an icon, title, and optional subtitle -- like a native settings app. Tapping a tile either:
+- **Navigates** to a dedicated page (Tryout Planner, Export)
+- **Opens a dialog** (Import Roster, Import Scores)
+- **Expands inline** (Manage Coaches, Levels, Visibility, Logo -- these stay as collapsible cards on the same page to avoid too many sub-pages)
 
-### 2. Session-Aware Dashboard
-The Dashboard currently shows all scores across all sessions mashed together. With the global session context:
+## What Changes
 
-- When a specific session is selected: Dashboard shows only that session's scores and rankings
-- When "All Sessions" is selected: Dashboard shows the aggregated best/average across all sessions (current behavior)
-- This lets coaches answer "who performed best TODAY?" vs "who performs best OVERALL?"
+### 1. Restructure SettingsPage.tsx into a hub layout
+- Replace the stacked cards with a categorized list of action tiles
+- Keep inline-expandable sections for simple settings (coaches, levels, visibility, logo)
+- Add navigation tiles for Tryout Planner and Export pages
+- Add dialog-trigger tiles for Roster Import and Data Import
 
-### 3. Session-Grouped Player Detail
-The Player Detail page currently shows a flat list of all evaluations. Update it to:
+### 2. Create TryoutPlanner page (`/plan`)
+- New page with two sections: **Sessions** (CRUD for tryout_sessions) and **Metrics Overview** (grouped by category, showing name, unit, attempts, scoring direction -- all editable inline)
+- Two-column layout on desktop, stacked on mobile
+- This is where coaches go to plan their tryout before game day
 
-- Group scores by session, with session name and date as section headers
-- Show a summary row at the top with the aggregated (best/average) value across all sessions
-- This gives coaches the progression view they want (e.g., "60 yard dash: 7.5s in January, 7.2s in February")
+### 3. Wire up Export page in navigation
+- The ExportPage already exists at `/export` but isn't easily discoverable. Now it's one tap away from the More menu.
 
-## Technical Plan
+### 4. Add route for `/plan`
+- Add the new TryoutPlanner route to App.tsx wrapped in ProtectedRoute
 
-### New File: `src/contexts/SessionContext.tsx`
-A React context that:
-- Fetches all sessions for the current program
-- Stores `selectedSessionId` (or `"all"` for no filter)
-- Auto-selects today's session if one exists, otherwise "all"
-- Provides `createSession()` and `setSession()` functions
-- Is consumed by Score Entry, Dashboard, and Player Detail
-
-### Modified Files
+## Technical Changes
 
 | File | Change |
 |------|--------|
-| `src/contexts/SessionContext.tsx` | **New** -- session state, fetch, create, switch |
-| `src/components/AppLayout.tsx` | Add session chip/dropdown in the header bar, next to program switcher |
-| `src/pages/ScoreEntry.tsx` | Remove local session state/UI. Consume from `SessionContext`. Keep the scoring logic identical. |
-| `src/pages/Dashboard.tsx` | Add session filtering to the evaluations query. When a session is selected, only show that session's data. When "all", show aggregated data (current behavior). |
-| `src/pages/PlayerDetail.tsx` | Group evaluations by session with headers. Show an "all sessions" aggregate summary at top. |
-| `src/App.tsx` | Wrap the coach routes with `SessionProvider` |
+| `src/pages/SettingsPage.tsx` | Redesign as hub with categorized action tiles, import dialogs, collapsible inline sections |
+| `src/pages/TryoutPlanner.tsx` | **New** -- sessions CRUD + metrics overview grid, responsive two-column layout |
+| `src/App.tsx` | Add `/plan` route |
 
-### Session Context Shape
+### SettingsPage tile structure
+Each tile is a simple button/link row:
+- Icon + Title + optional chevron (for navigation) or expand arrow (for inline)
+- Grouped under section headers (Tryout Planning, Data, Program, Account)
+- Import Roster and Import Scores tiles open the existing `RosterUpload` and `DataImport` dialog components directly from this page
+- Metrics tile navigates to `/plan` (the new Tryout Planner)
 
-```text
-SessionContext
-  sessions: TryoutSession[]
-  selectedSessionId: string | "all"
-  setSession(id: string | "all")
-  createSession(name: string): Promise<TryoutSession>
-  currentSession: TryoutSession | null
-```
+### TryoutPlanner.tsx details
+- **Sessions panel**: List all `tryout_sessions` with name + date. Inline edit/delete. Add new session button.
+- **Metrics panel**: Fetch all `metrics` for the program. Group by `category`. Each metric shows: name, unit, max_attempts, aggregation, scoring direction. Inline edit any field. Add new metric per category.
+- Desktop: side-by-side columns. Mobile: stacked with sessions on top.
+- Hero with gradient background, summary stats (X sessions, Y metrics)
 
-### Header Layout Change
-
-```text
-Before:
-  [Logo]  [Program Name v]  [spacer]
-
-After:
-  [Logo]  [Program Name v]  [Session chip v]
-```
-
-The session chip is compact -- just shows the session name (truncated) with a dropdown arrow. Tapping it opens a dropdown with all sessions, an "All Sessions" option, and a "+ New Session" action.
-
-### Dashboard Query Change
-When `selectedSessionId !== "all"`, the evaluations query adds `.eq("session_id", selectedSessionId)`. The rest of the aggregation logic stays the same -- it just operates on a filtered set.
-
-### Player Detail Grouping
-Fetch evaluations with `session_id` included. Join with `tryout_sessions` to get names/dates. Render as collapsible sections per session, newest first, with the aggregate "best overall" shown prominently at the top of each metric card.
-
-### No Database Changes Required
-The `tryout_sessions` table and `evaluations.session_id` column already exist. This is purely a frontend restructuring.
-
+### No database changes required
+All tables (`tryout_sessions`, `metrics`) already exist with proper RLS policies.
