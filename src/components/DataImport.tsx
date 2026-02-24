@@ -72,27 +72,64 @@ function guessPlayerColumns(headers: string[]): PlayerIdMapping {
 
 function guessGroupMetricMap(groups: ColumnGroup[], metrics: MetricInfo[]): GroupMetricMap {
   const map: GroupMetricMap = {};
-  for (const group of groups) {
-    const gNorm = normalizeHeader(group.displayName);
-    // Strip trailing units like "(mph)"
-    const gStripped = gNorm.replace(/\s*\(.*?\)\s*$/, "").trim();
+  const usedMetricIds = new Set<string>();
 
+  // Pre-compute normalized metric names and stripped variants
+  const metricEntries = metrics.map((m) => {
+    const mNorm = normalizeHeader(m.name);
+    const mStripped = mNorm.replace(/\s*\(.*?\)\s*$/, "").trim();
+    // Build tokens for word-level matching (e.g. "fb velo" → ["fb", "velo"])
+    const mTokens = mStripped.split(/\s+/).filter(Boolean);
+    return { metric: m, mNorm, mStripped, mTokens };
+  });
+
+  // Score each group against each metric — higher score = better match
+  const scorePair = (gStripped: string, gTokens: string[], entry: typeof metricEntries[0]): number => {
+    const { mNorm, mStripped, mTokens } = entry;
     // Exact match
-    let match = metrics.find((m) => {
-      const mNorm = normalizeHeader(m.name);
-      return gNorm === mNorm || gStripped === mNorm;
-    });
+    if (gStripped === mNorm || gStripped === mStripped) return 100;
+    // One contains the other
+    if (mStripped.includes(gStripped) || gStripped.includes(mStripped)) return 80;
+    // All tokens from group found in metric (or vice versa)
+    const allGroupInMetric = gTokens.every((t) => mTokens.some((mt) => mt.includes(t) || t.includes(mt)));
+    const allMetricInGroup = mTokens.every((t) => gTokens.some((gt) => gt.includes(t) || t.includes(gt)));
+    if (allGroupInMetric && allMetricInGroup) return 70;
+    if (allGroupInMetric) return 60;
+    if (allMetricInGroup) return 50;
+    // Partial token overlap (at least half)
+    const overlapCount = gTokens.filter((t) => mTokens.some((mt) => mt.includes(t) || t.includes(mt))).length;
+    if (overlapCount > 0 && overlapCount >= Math.min(gTokens.length, mTokens.length) * 0.5) return 30;
+    return 0;
+  };
 
-    // Header fully contained in metric name
-    if (!match && gStripped.length >= 3) {
-      match = metrics.find((m) => {
-        const mNorm = normalizeHeader(m.name);
-        return mNorm.includes(gStripped);
-      });
+  // Sort groups by specificity (longer names first) so they get first pick
+  const sortedGroups = [...groups].sort((a, b) => b.displayName.length - a.displayName.length);
+
+  for (const group of sortedGroups) {
+    const gNorm = normalizeHeader(group.displayName);
+    const gStripped = gNorm.replace(/\s*\(.*?\)\s*$/, "").trim();
+    const gTokens = gStripped.split(/\s+/).filter(Boolean);
+    if (gStripped.length < 2) continue;
+
+    let bestScore = 0;
+    let bestMetric: MetricInfo | null = null;
+
+    for (const entry of metricEntries) {
+      if (usedMetricIds.has(entry.metric.id)) continue;
+      const score = scorePair(gStripped, gTokens, entry);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMetric = entry.metric;
+      }
     }
 
-    if (match) map[group.displayName] = match.id;
+    // Only auto-map if score is reasonably confident
+    if (bestMetric && bestScore >= 30) {
+      map[group.displayName] = bestMetric.id;
+      usedMetricIds.add(bestMetric.id);
+    }
   }
+
   return map;
 }
 
