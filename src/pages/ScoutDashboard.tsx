@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Search } from "lucide-react";
@@ -26,6 +26,9 @@ export interface PlayerResult {
   committed_school_logo_url?: string | null;
   city?: string | null;
   state?: string | null;
+  high_school?: string | null;
+  gamechanger_profile_url?: string | null;
+  maxpreps_profile_url?: string | null;
   metrics: { name: string; value: number; unit: string }[];
 }
 
@@ -50,6 +53,7 @@ export default function ScoutDashboard() {
       _recruiting_status: searchFilters.recruitingStatus || null,
       _state: searchFilters.state || null,
       _gpa_min: searchFilters.gpaMin || null,
+      _high_school: searchFilters.highSchool || null,
       _limit: 50,
       _offset: 0,
     });
@@ -79,6 +83,11 @@ export default function ScoutDashboard() {
     setLoading(false);
   };
 
+  const handleClearSearch = useCallback(() => {
+    setResults([]);
+    setSearched(false);
+  }, []);
+
   return (
     <div className="mx-auto max-w-6xl px-4 pt-6 pb-8">
       <div className="page-hero mb-6">
@@ -95,7 +104,7 @@ export default function ScoutDashboard() {
 
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         <PlayerSearchFilters onSearch={handleSearch} loading={loading} isScout={true} />
-        <PlayerSearchResults results={results} loading={loading} searched={searched} />
+        <PlayerSearchResults results={results} loading={loading} searched={searched} onClearSearch={handleClearSearch} />
       </div>
     </div>
   );

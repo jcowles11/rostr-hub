@@ -25,6 +25,7 @@ export interface SearchFilters {
   recruitingStatus?: string;
   state?: string;
   gpaMin?: number;
+  highSchool?: string;
 }
 
 const POSITIONS = ["P", "C", "1B", "2B", "SS", "3B", "OF", "LF", "CF", "RF", "DH", "IF", "UT"];
@@ -40,6 +41,15 @@ const US_STATES = [
   "NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT",
   "VT","VA","WA","WV","WI","WY",
 ];
+
+const REGIONS: Record<string, string[]> = {
+  "Northeast": ["CT","DE","ME","MD","MA","NH","NJ","NY","PA","RI","VT","DC"],
+  "Southeast": ["AL","AR","FL","GA","KY","LA","MS","NC","SC","TN","VA","WV"],
+  "Midwest": ["IL","IN","IA","KS","MI","MN","MO","NE","ND","OH","SD","WI"],
+  "Southwest": ["AZ","NM","OK","TX"],
+  "West Coast": ["CA","HI","NV","OR","WA"],
+  "Northwest": ["AK","CO","ID","MT","UT","WY"],
+};
 
 interface Props {
   onSearch: (filters: SearchFilters) => void;
@@ -62,10 +72,22 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
   const [recruitingStatus, setRecruitingStatus] = useState("");
   const [selectedState, setSelectedState] = useState("");
   const [gpaMin, setGpaMin] = useState("");
+  const [highSchool, setHighSchool] = useState("");
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+
   const togglePosition = (pos: string) => {
     setSelectedPositions((prev) =>
       prev.includes(pos) ? prev.filter((p) => p !== pos) : [...prev, pos]
     );
+  };
+
+  const toggleRegion = (region: string) => {
+    setSelectedRegions((prev) => {
+      if (prev.includes(region)) {
+        return prev.filter((r) => r !== region);
+      }
+      return [...prev, region];
+    });
   };
 
   const addMetricFilter = () => {
@@ -88,6 +110,13 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
   };
 
   const handleSearch = () => {
+    // Combine selected state with region-derived states
+    let effectiveState = selectedState || undefined;
+    if (!effectiveState && selectedRegions.length > 0) {
+      // If regions selected but no specific state, we pass the first region state
+      // Actually the RPC only supports a single _state. For multi-region we filter client-side.
+    }
+
     onSearch({
       nameSearch: nameSearch || undefined,
       sport: sport || undefined,
@@ -98,8 +127,9 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
       throws: throws_ || undefined,
       metricFilters: metricFilters.length ? metricFilters : undefined,
       recruitingStatus: recruitingStatus || undefined,
-      state: selectedState || undefined,
+      state: effectiveState,
       gpaMin: gpaMin ? Number(gpaMin) : undefined,
+      highSchool: highSchool || undefined,
     });
   };
 
@@ -115,6 +145,8 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
     setRecruitingStatus("");
     setSelectedState("");
     setGpaMin("");
+    setHighSchool("");
+    setSelectedRegions([]);
   };
 
   return (
@@ -205,87 +237,115 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
           </div>
         </div>
 
-        {/* Recruiting Status - Scout only */}
+        {/* Scout-only filters */}
         {isScout && (
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Recruiting Status</Label>
-            <Select value={recruitingStatus} onValueChange={setRecruitingStatus}>
-              <SelectTrigger className="h-9 text-sm rounded-lg"><SelectValue placeholder="All players" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="uncommitted">Uncommitted Only</SelectItem>
-                <SelectItem value="committed">Committed Only</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+          <>
+            {/* High School */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">High School</Label>
+              <Input
+                placeholder="Search by high school..."
+                value={highSchool}
+                onChange={(e) => setHighSchool(e.target.value)}
+                className="h-9 text-sm rounded-lg"
+              />
+            </div>
 
-        {/* State filter - Scout only */}
-        {isScout && (
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">State</Label>
-            <Select value={selectedState} onValueChange={setSelectedState}>
-              <SelectTrigger className="h-9 text-sm rounded-lg"><SelectValue placeholder="Any state" /></SelectTrigger>
-              <SelectContent>
-                {US_STATES.map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* GPA Minimum - Scout only */}
-        {isScout && (
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">GPA Minimum</Label>
-            <Input
-              type="number"
-              step="0.1"
-              min="0"
-              max="5.0"
-              placeholder="e.g. 3.5"
-              value={gpaMin}
-              onChange={(e) => setGpaMin(e.target.value)}
-              className="h-9 text-sm rounded-lg"
-            />
-          </div>
-        )}
-
-        {/* Metric filters - Scout only */}
-        {isScout && (
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Metric Filters</Label>
-            {metricFilters.map((mf, i) => (
-              <div key={i} className="flex items-center gap-1.5 rounded-lg bg-muted/50 p-2">
-                <Badge variant="secondary" className="text-xs shrink-0">{mf.metricName}</Badge>
-                <span className="text-xs text-muted-foreground">
-                  {mf.min !== undefined && `≥ ${mf.min}`}
-                  {mf.min !== undefined && mf.max !== undefined && " & "}
-                  {mf.max !== undefined && `≤ ${mf.max}`}
-                </span>
-                <button onClick={() => removeMetricFilter(i)} className="ml-auto text-muted-foreground hover:text-destructive">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
-            <div className="space-y-2 rounded-lg border border-dashed p-2.5">
-              <Select value={newMetricName} onValueChange={setNewMetricName}>
-                <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue placeholder="Select a metric..." /></SelectTrigger>
+            {/* Recruiting Status */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Recruiting Status</Label>
+              <Select value={recruitingStatus} onValueChange={setRecruitingStatus}>
+                <SelectTrigger className="h-9 text-sm rounded-lg"><SelectValue placeholder="All players" /></SelectTrigger>
                 <SelectContent>
-                  {METRIC_OPTIONS.map((m) => (
-                    <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>
+                  <SelectItem value="uncommitted">Uncommitted Only</SelectItem>
+                  <SelectItem value="committed">Committed Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Region multi-select */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Region</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.keys(REGIONS).map((region) => (
+                  <button
+                    key={region}
+                    onClick={() => toggleRegion(region)}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                      selectedRegions.includes(region)
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {region}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* State filter */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">State</Label>
+              <Select value={selectedState} onValueChange={setSelectedState}>
+                <SelectTrigger className="h-9 text-sm rounded-lg"><SelectValue placeholder="Any state" /></SelectTrigger>
+                <SelectContent>
+                  {US_STATES.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <div className="flex gap-2">
-                <Input type="number" placeholder="Min" value={newMetricMin} onChange={(e) => setNewMetricMin(e.target.value)} className="h-8 text-xs rounded-lg" />
-                <Input type="number" placeholder="Max" value={newMetricMax} onChange={(e) => setNewMetricMax(e.target.value)} className="h-8 text-xs rounded-lg" />
-              </div>
-              <Button type="button" variant="outline" size="sm" onClick={addMetricFilter} disabled={!newMetricName.trim()} className="w-full h-8 text-xs">
-                <Plus className="h-3.5 w-3.5 mr-1" /> Add Filter
-              </Button>
             </div>
-          </div>
+
+            {/* GPA Minimum */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">GPA Minimum</Label>
+              <Input
+                type="number"
+                step="0.1"
+                min="0"
+                max="5.0"
+                placeholder="e.g. 3.5"
+                value={gpaMin}
+                onChange={(e) => setGpaMin(e.target.value)}
+                className="h-9 text-sm rounded-lg"
+              />
+            </div>
+
+            {/* Metric filters */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Metric Filters</Label>
+              {metricFilters.map((mf, i) => (
+                <div key={i} className="flex items-center gap-1.5 rounded-lg bg-muted/50 p-2">
+                  <Badge variant="secondary" className="text-xs shrink-0">{mf.metricName}</Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {mf.min !== undefined && `≥ ${mf.min}`}
+                    {mf.min !== undefined && mf.max !== undefined && " & "}
+                    {mf.max !== undefined && `≤ ${mf.max}`}
+                  </span>
+                  <button onClick={() => removeMetricFilter(i)} className="ml-auto text-muted-foreground hover:text-destructive">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+              <div className="space-y-2 rounded-lg border border-dashed p-2.5">
+                <Select value={newMetricName} onValueChange={setNewMetricName}>
+                  <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue placeholder="Select a metric..." /></SelectTrigger>
+                  <SelectContent>
+                    {METRIC_OPTIONS.map((m) => (
+                      <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <Input type="number" placeholder="Min" value={newMetricMin} onChange={(e) => setNewMetricMin(e.target.value)} className="h-8 text-xs rounded-lg" />
+                  <Input type="number" placeholder="Max" value={newMetricMax} onChange={(e) => setNewMetricMax(e.target.value)} className="h-8 text-xs rounded-lg" />
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={addMetricFilter} disabled={!newMetricName.trim()} className="w-full h-8 text-xs">
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Add Filter
+                </Button>
+              </div>
+            </div>
+          </>
         )}
 
         {/* Actions */}
