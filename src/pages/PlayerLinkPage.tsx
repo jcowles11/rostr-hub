@@ -7,8 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { LogOut } from "lucide-react";
+import { LogOut, ChevronDown, ChevronUp, X } from "lucide-react";
+import { getSportPositions, sportHasBatsThrows } from "@/lib/sports";
+import PlayerPhotoUpload from "@/components/PlayerPhotoUpload";
+
+const GRADUATION_YEARS = Array.from({ length: 8 }, (_, i) => new Date().getFullYear() + i);
 
 export default function PlayerLinkPage() {
   const { user, signOut, refreshPlayer } = useAuth();
@@ -18,8 +24,29 @@ export default function PlayerLinkPage() {
   const [lastName, setLastName] = useState("");
   const [loading, setLoading] = useState(false);
   const [skipping, setSkipping] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
 
-  // Check if we have stored reg info from signup
+  // Additional profile fields
+  const [details, setDetails] = useState({
+    grade: "",
+    graduation_year: "",
+    height: "",
+    weight: "",
+    high_school: "",
+    city: "",
+    state: "",
+    bats: "",
+    throws: "",
+    gpa: "",
+    email: "",
+    phone: "",
+  });
+
+  // Sport (fetched when reg code entered)
+  const [sport, setSport] = useState("baseball");
+
   useEffect(() => {
     if (!user) return;
     const stored = localStorage.getItem(`rostr_player_reg_${user.id}`);
@@ -29,7 +56,6 @@ export default function PlayerLinkPage() {
       setFirstName(parts[0] || "");
       setLastName(parts.slice(1).join(" ") || "");
     } else {
-      // Use name from auth metadata
       const meta = user.user_metadata;
       if (meta?.full_name) {
         const parts = meta.full_name.split(" ");
@@ -39,6 +65,48 @@ export default function PlayerLinkPage() {
     }
   }, [user]);
 
+  // Fetch sport when reg code changes (debounced)
+  useEffect(() => {
+    if (regCode.trim().length < 3) return;
+    const timeout = setTimeout(async () => {
+      const { data } = await supabase
+        .from("programs")
+        .select("sport")
+        .eq("registration_code", regCode.trim().toLowerCase())
+        .maybeSingle();
+      if (data?.sport) setSport(data.sport);
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [regCode]);
+
+  const positions = getSportPositions(sport);
+  const showBatsThrows = sportHasBatsThrows(sport);
+
+  const togglePosition = (pos: string) => {
+    setSelectedPositions((prev) =>
+      prev.includes(pos) ? prev.filter((p) => p !== pos) : [...prev, pos]
+    );
+  };
+
+  const buildPlayerFields = () => ({
+    first_name: firstName.trim(),
+    last_name: lastName.trim(),
+    photo_url: photoUrl,
+    positions: selectedPositions.length > 0 ? selectedPositions : [],
+    grade: details.grade ? parseInt(details.grade) : null,
+    graduation_year: details.graduation_year ? parseInt(details.graduation_year) : null,
+    height: details.height || null,
+    weight: details.weight ? parseInt(details.weight) : null,
+    high_school: details.high_school || null,
+    city: details.city || null,
+    state: details.state || null,
+    bats: details.bats || null,
+    throws: details.throws || null,
+    gpa: details.gpa || null,
+    email: details.email || user?.email || null,
+    phone: details.phone || null,
+  });
+
   const handleSkip = async () => {
     if (!user || !firstName.trim() || !lastName.trim()) {
       toast.error("Please enter your first and last name");
@@ -46,8 +114,7 @@ export default function PlayerLinkPage() {
     }
     setSkipping(true);
     const { error } = await supabase.from("players").insert({
-      first_name: firstName.trim(),
-      last_name: lastName.trim(),
+      ...buildPlayerFields(),
       user_id: user.id,
       program_id: null,
     } as any);
@@ -95,7 +162,7 @@ export default function PlayerLinkPage() {
     if (existingPlayer) {
       const { error } = await supabase
         .from("players")
-        .update({ user_id: user.id })
+        .update({ user_id: user.id, ...buildPlayerFields() })
         .eq("id", existingPlayer.id);
       if (error) {
         toast.error("Failed to link account");
@@ -105,9 +172,8 @@ export default function PlayerLinkPage() {
     } else {
       const { error } = await supabase.from("players").insert({
         program_id: program.id,
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
         user_id: user.id,
+        ...buildPlayerFields(),
       });
       if (error) {
         toast.error("Failed to create player profile");
@@ -140,6 +206,12 @@ export default function PlayerLinkPage() {
         <Card className="shadow-elevated border-0">
           <CardContent className="pt-6">
             <div className="space-y-4">
+              {/* Photo */}
+              <div className="flex flex-col items-center gap-2">
+                <PlayerPhotoUpload currentUrl={photoUrl} onUploaded={setPhotoUrl} size="lg" />
+                <span className="text-xs text-muted-foreground font-medium">Tap to add photo</span>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold">First Name</Label>
@@ -160,6 +232,188 @@ export default function PlayerLinkPage() {
                   />
                 </div>
               </div>
+
+              {/* Expandable details */}
+              <button
+                type="button"
+                onClick={() => setShowDetails(!showDetails)}
+                className="flex w-full items-center justify-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors py-1"
+              >
+                {showDetails ? "Hide" : "Add"} profile details (optional)
+                {showDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              </button>
+
+              {showDetails && (
+                <div className="space-y-4 animate-fade-in border-t pt-4">
+                  {/* Position selector */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Position(s)</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {positions.map((pos) => (
+                        <button
+                          key={pos}
+                          type="button"
+                          onClick={() => togglePosition(pos)}
+                          className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors border ${
+                            selectedPositions.includes(pos)
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                          }`}
+                        >
+                          {pos}
+                        </button>
+                      ))}
+                    </div>
+                    {selectedPositions.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {selectedPositions.map((pos) => (
+                          <Badge key={pos} variant="secondary" className="text-xs gap-1">
+                            {pos}
+                            <X className="h-3 w-3 cursor-pointer" onClick={() => togglePosition(pos)} />
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Grade</Label>
+                      <Select value={details.grade} onValueChange={(v) => setDetails({ ...details, grade: v })}>
+                        <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          {[9, 10, 11, 12].map((g) => (
+                            <SelectItem key={g} value={String(g)}>{g}th</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Grad Year</Label>
+                      <Select value={details.graduation_year} onValueChange={(v) => setDetails({ ...details, graduation_year: v })}>
+                        <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          {GRADUATION_YEARS.map((y) => (
+                            <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">High School</Label>
+                    <Input
+                      value={details.high_school}
+                      onChange={(e) => setDetails({ ...details, high_school: e.target.value })}
+                      placeholder="e.g. Heritage High School"
+                      className="h-11 rounded-xl"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Height</Label>
+                      <Input
+                        value={details.height}
+                        onChange={(e) => setDetails({ ...details, height: e.target.value })}
+                        placeholder={`5'10"`}
+                        className="h-11 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Weight (lbs)</Label>
+                      <Input
+                        type="number"
+                        value={details.weight}
+                        onChange={(e) => setDetails({ ...details, weight: e.target.value })}
+                        placeholder="175"
+                        className="h-11 rounded-xl"
+                      />
+                    </div>
+                  </div>
+
+                  {showBatsThrows && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Bats</Label>
+                        <Select value={details.bats} onValueChange={(v) => setDetails({ ...details, bats: v })}>
+                          <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="R">Right (R)</SelectItem>
+                            <SelectItem value="L">Left (L)</SelectItem>
+                            <SelectItem value="S">Switch (S)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Throws</Label>
+                        <Select value={details.throws} onValueChange={(v) => setDetails({ ...details, throws: v })}>
+                          <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="R">Right (R)</SelectItem>
+                            <SelectItem value="L">Left (L)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">City</Label>
+                      <Input
+                        value={details.city}
+                        onChange={(e) => setDetails({ ...details, city: e.target.value })}
+                        className="h-11 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">State</Label>
+                      <Input
+                        value={details.state}
+                        onChange={(e) => setDetails({ ...details, state: e.target.value })}
+                        placeholder="CO"
+                        maxLength={2}
+                        className="h-11 rounded-xl"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">GPA</Label>
+                    <Input
+                      value={details.gpa}
+                      onChange={(e) => setDetails({ ...details, gpa: e.target.value })}
+                      placeholder="3.5"
+                      className="h-11 rounded-xl"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Email</Label>
+                      <Input
+                        type="email"
+                        value={details.email}
+                        onChange={(e) => setDetails({ ...details, email: e.target.value })}
+                        placeholder={user?.email || ""}
+                        className="h-11 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Phone</Label>
+                      <Input
+                        type="tel"
+                        value={details.phone}
+                        onChange={(e) => setDetails({ ...details, phone: e.target.value })}
+                        placeholder="(555) 123-4567"
+                        className="h-11 rounded-xl"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Skip / standalone path */}
               <Button
