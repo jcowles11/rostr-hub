@@ -59,10 +59,34 @@ export default function PlayerLinkPage() {
     if (!user) return;
     const stored = localStorage.getItem(`rostr_player_reg_${user.id}`);
     if (stored) {
-      const { full_name } = JSON.parse(stored);
-      const parts = full_name.split(" ");
-      setFirstName(parts[0] || "");
-      setLastName(parts.slice(1).join(" ") || "");
+      const parsed = JSON.parse(stored);
+      const nameParts = (parsed.full_name || "").split(" ");
+      setFirstName(nameParts[0] || "");
+      setLastName(nameParts.slice(1).join(" ") || "");
+
+      // If player signed up via "Find my school", auto-create join request
+      if (parsed.join_method === "request" && parsed.program_id) {
+        setRegCode(""); // Don't pre-fill code
+        const createJoinRequest = async () => {
+          const { error } = await supabase.from("program_join_requests").insert({
+            program_id: parsed.program_id,
+            user_id: user.id,
+            player_name: parsed.full_name || "Player",
+          } as any);
+          if (!error) {
+            toast.success(`Access request sent to ${parsed.requested_program_name || "the program"}! The coach will review it.`);
+          }
+          // Clear the flag so it doesn't re-run
+          const updated = { ...parsed, join_method: "request_sent" };
+          localStorage.setItem(`rostr_player_reg_${user.id}`, JSON.stringify(updated));
+        };
+        createJoinRequest();
+      }
+
+      // If reg code method, pre-fill it
+      if (parsed.join_method === "code" && parsed.program_id) {
+        // They had a valid code at signup — we can auto-link or let them confirm
+      }
     } else {
       const meta = user.user_metadata;
       if (meta?.full_name) {
