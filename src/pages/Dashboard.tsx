@@ -3,6 +3,7 @@ import rostrLogo from "@/assets/rostr-logo.png";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSession } from "@/contexts/SessionContext";
 import { Input } from "@/components/ui/input";
 import { Search, Star, AlertTriangle, Eye, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,7 @@ const ALL_METRICS = "__all__";
 
 export default function Dashboard() {
   const { coach } = useAuth();
+  const { selectedSessionId } = useSession();
   const navigate = useNavigate();
   const [players, setPlayers] = useState<PlayerRow[]>([]);
   const [metrics, setMetrics] = useState<MetricInfo[]>([]);
@@ -52,9 +54,13 @@ export default function Dashboard() {
   useEffect(() => {
     if (!coach) return;
     const fetchData = async () => {
+      let evalsQuery = supabase.from("evaluations").select("player_id, metric_id, value, created_at").eq("program_id", coach.program_id).order("created_at");
+      if (selectedSessionId !== "all") {
+        evalsQuery = evalsQuery.eq("session_id", selectedSessionId);
+      }
       const [pRes, eRes, nRes, mRes] = await Promise.all([
         supabase.from("players").select("id, first_name, last_name, grade, positions, player_number").eq("program_id", coach.program_id).order("last_name"),
-        supabase.from("evaluations").select("player_id, metric_id, value, created_at").eq("program_id", coach.program_id).order("created_at"),
+        evalsQuery,
         supabase.from("player_notes").select("player_id, flag").eq("program_id", coach.program_id).not("flag", "is", null),
         supabase.from("metrics").select("id, name, unit, metric_type, aggregation").eq("program_id", coach.program_id).order("sort_order"),
       ]);
@@ -117,7 +123,7 @@ export default function Dashboard() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [coach]);
+  }, [coach, selectedSessionId]);
 
   const getDisplayScore = (p: PlayerRow): number | null => {
     if (selectedMetric !== ALL_METRICS) {

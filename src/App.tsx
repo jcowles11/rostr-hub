@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { SessionProvider } from "@/contexts/SessionContext";
 import AppLayout from "@/components/AppLayout";
 import Auth from "@/pages/Auth";
 import ProgramSetup from "@/pages/ProgramSetup";
@@ -56,7 +57,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!coach) return <Navigate to="/setup" replace />;
 
-  return <AppLayout>{children}</AppLayout>;
+  return <SessionProvider><AppLayout>{children}</AppLayout></SessionProvider>;
 }
 
 function PlayerRoute({ children }: { children: React.ReactNode }) {

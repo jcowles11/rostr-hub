@@ -1,10 +1,13 @@
 import { ReactNode, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Users, ClipboardList, BarChart3, Layers, Settings, ChevronDown, Plus, Trash2, Building2 } from "lucide-react";
+import { Users, ClipboardList, BarChart3, Layers, Settings, ChevronDown, Plus, Trash2, Building2, Calendar, Check, X } from "lucide-react";
 import rostrLogo from "@/assets/rostr-logo.png";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSession } from "@/contexts/SessionContext";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,8 +39,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { coach, allCoaches, organizations, currentOrg, switchProgram, switchOrg, deleteProgram } = useAuth();
+  const { sessions, selectedSessionId, setSession, createSession, currentSession } = useSession();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showNewSession, setShowNewSession] = useState(false);
+  const [newSessionName, setNewSessionName] = useState("");
+  const [creatingSession, setCreatingSession] = useState(false);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -146,7 +153,83 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            <div className="w-7 shrink-0" />
+            {/* Session chip */}
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center gap-1 rounded-xl px-2 py-1.5 text-xs font-bold transition-colors hover:bg-muted focus:outline-none max-w-[130px]">
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="truncate">{selectedSessionId === "all" ? "All Sessions" : (currentSession?.name || "Session")}</span>
+                <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 bg-popover border shadow-lg z-50">
+                <DropdownMenuItem
+                  onClick={() => setSession("all")}
+                  className={cn("cursor-pointer font-medium", selectedSessionId === "all" && "bg-accent")}
+                >
+                  <span className="flex-1">All Sessions</span>
+                  {selectedSessionId === "all" && <span className="text-xs text-primary font-bold">✓</span>}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {sessions.map((s) => (
+                  <DropdownMenuItem
+                    key={s.id}
+                    onClick={() => setSession(s.id)}
+                    className={cn("cursor-pointer font-medium", selectedSessionId === s.id && "bg-accent")}
+                  >
+                    <span className="truncate flex-1">{s.name}</span>
+                    <span className="text-[10px] text-muted-foreground ml-1 shrink-0">{format(new Date(s.session_date + "T00:00:00"), "MMM d")}</span>
+                    {selectedSessionId === s.id && <span className="text-xs text-primary font-bold ml-1">✓</span>}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                {showNewSession ? (
+                  <div className="px-2 py-1.5 flex gap-1.5">
+                    <Input
+                      value={newSessionName}
+                      onChange={(e) => setNewSessionName(e.target.value)}
+                      placeholder="Session name..."
+                      className="h-8 text-xs rounded-lg flex-1"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && newSessionName.trim()) {
+                          setCreatingSession(true);
+                          createSession(newSessionName).then((s) => {
+                            if (s) toast.success(`Session "${s.name}" created`);
+                            else toast.error("Failed to create session");
+                            setShowNewSession(false);
+                            setNewSessionName("");
+                            setCreatingSession(false);
+                          });
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        if (!newSessionName.trim()) return;
+                        setCreatingSession(true);
+                        createSession(newSessionName).then((s) => {
+                          if (s) toast.success(`Session "${s.name}" created`);
+                          else toast.error("Failed to create session");
+                          setShowNewSession(false);
+                          setNewSessionName("");
+                          setCreatingSession(false);
+                        });
+                      }}
+                      disabled={!newSessionName.trim() || creatingSession}
+                      className="text-primary hover:text-primary/80 disabled:opacity-50 p-1"
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                    <button onClick={() => { setShowNewSession(false); setNewSessionName(""); }} className="text-muted-foreground hover:text-foreground p-1">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <DropdownMenuItem onClick={() => setShowNewSession(true)} className="cursor-pointer font-medium text-primary">
+                    <Plus className="mr-2 h-4 w-4" /> New Session
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
       )}
