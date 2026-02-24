@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Star, AlertTriangle, Eye, MessageSquare, Send, Phone, HeartPulse, Pencil, Trash2, Plus, Check, X, ExternalLink, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Star, AlertTriangle, Eye, MessageSquare, Send, Phone, HeartPulse, Pencil, Trash2, Plus, Check, X, ExternalLink, ChevronDown, ChevronRight, Award } from "lucide-react";
 import PlayerPhotoUpload from "@/components/PlayerPhotoUpload";
 import { aggregateValues, AGGREGATION_LABELS } from "@/lib/metrics";
 import { toast } from "sonner";
@@ -56,6 +56,18 @@ interface SessionInfo {
 interface Metric { id: string; name: string; unit: string; metric_type: string; category: string; aggregation: string; }
 interface Coach { id: string; full_name: string; color: string; }
 interface Note { id: string; content: string; flag: string | null; coach_id: string; created_at: string; }
+interface ExternalEntry {
+  id: string;
+  metric_name: string;
+  metric_unit: string;
+  metric_type: string;
+  metric_value: number;
+  event_name: string | null;
+  event_date: string | null;
+  notes: string | null;
+  created_at: string;
+  evaluator: { full_name: string; organization_name: string } | null;
+}
 
 export default function PlayerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -68,6 +80,7 @@ export default function PlayerDetail() {
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [sessionInfos, setSessionInfos] = useState<SessionInfo[]>([]);
+  const [externalEntries, setExternalEntries] = useState<ExternalEntry[]>([]);
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set(["aggregate"]));
   const [newNote, setNewNote] = useState("");
   const [newFlag, setNewFlag] = useState<string>("");
@@ -101,6 +114,30 @@ export default function PlayerDetail() {
     setCoaches(cRes.data || []);
     setNotes(nRes.data || []);
     setSessionInfos(sRes.data || []);
+
+    // Fetch external evaluator entries for this player
+    const { data: extData } = await supabase
+      .from("evaluator_entries")
+      .select("id, metric_name, metric_unit, metric_type, metric_value, event_name, event_date, notes, created_at, evaluator_id")
+      .eq("player_id", id)
+      .order("created_at", { ascending: false });
+
+    if (extData && extData.length > 0) {
+      const evalIds = [...new Set(extData.map((e) => e.evaluator_id))];
+      const { data: evaluators } = await supabase
+        .from("evaluators")
+        .select("id, full_name, organization_name")
+        .in("id", evalIds);
+      const evalMap = new Map(evaluators?.map((ev) => [ev.id, ev]) || []);
+      setExternalEntries(
+        extData.map((e) => ({
+          ...e,
+          evaluator: evalMap.get(e.evaluator_id) || null,
+        }))
+      );
+    } else {
+      setExternalEntries([]);
+    }
   };
 
   useEffect(() => {
@@ -485,7 +522,7 @@ export default function PlayerDetail() {
           {sessionKeys.map((sessionKey) => {
             const sessEvals = evalsBySession.get(sessionKey) || [];
             const sessInfo = sessionKey !== "unsorted" ? sessionMap.get(sessionKey) : null;
-            const sessionLabel = sessInfo ? sessInfo.name : "Unassigned";
+            const sessionLabel = sessInfo ? sessInfo.name : "General Scores";
             const sessionDate = sessInfo ? format(new Date(sessInfo.session_date + "T00:00:00"), "MMM d, yyyy") : "";
             const isExpanded = expandedSessions.has(sessionKey);
 
@@ -506,6 +543,7 @@ export default function PlayerDetail() {
                   {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
                   <span className="text-sm font-bold">{sessionLabel}</span>
                   {sessionDate && <span className="text-[10px] text-muted-foreground font-medium">{sessionDate}</span>}
+                  {!sessInfo && <span className="text-[10px] text-muted-foreground italic">Scores not tied to a session</span>}
                   <span className="text-[10px] text-muted-foreground">({sessEvals.length} scores)</span>
                 </button>
                 {isExpanded && (
@@ -536,6 +574,45 @@ export default function PlayerDetail() {
           {metrics.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">No metrics configured</p>}
         </CardContent>
       </Card>
+
+      {/* External Evaluations */}
+      {externalEntries.length > 0 && (
+        <Card className="section-card mb-4">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <Award className="h-5 w-5 text-accent" /> External Evaluations
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">Scores from verified evaluators & showcases</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {externalEntries.map((entry) => (
+              <div key={entry.id} className="rounded-xl bg-muted/40 p-3 transition-colors hover:bg-muted/60">
+                <div className="flex items-center justify-between mb-1">
+                  <div>
+                    <span className="font-semibold text-sm">{entry.metric_name}</span>
+                    {entry.metric_unit && <span className="text-xs text-muted-foreground ml-1">({entry.metric_unit})</span>}
+                  </div>
+                  <span className="text-lg font-extrabold">{Number(entry.metric_value).toFixed(1)}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {entry.evaluator && (
+                    <Badge variant="outline" className="text-[10px] gap-1 border-accent/30 text-accent font-medium px-1.5 py-0">
+                      <Award className="h-2.5 w-2.5" />
+                      {entry.evaluator.full_name}{entry.evaluator.organization_name ? `, ${entry.evaluator.organization_name}` : ""}
+                    </Badge>
+                  )}
+                  {(entry.event_name || entry.event_date) && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {entry.event_name}{entry.event_date ? ` • ${format(new Date(entry.event_date + "T00:00:00"), "MMM d, yyyy")}` : ""}
+                    </span>
+                  )}
+                </div>
+                {entry.notes && <p className="text-xs text-muted-foreground mt-1 italic">{entry.notes}</p>}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Notes */}
       <Card className="section-card mb-4">
