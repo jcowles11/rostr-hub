@@ -84,12 +84,16 @@ export default function Roster() {
 
   const fetchPlayers = async () => {
     if (!coach) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("players")
       .select("id, first_name, last_name, grade, positions, jersey_number_preference, player_number, photo_url, profile_slug, profile_public, team_id")
       .eq("program_id", coach.program_id)
       .order("last_name")
       .order("first_name");
+    if (error) {
+      console.error("Failed to fetch players:", error);
+      toast.error("Failed to load roster");
+    }
     setPlayers(data || []);
     setLoading(false);
   };

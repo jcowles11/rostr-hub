@@ -38,15 +38,45 @@ export default function CoachManager() {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!coach) return;
+    if (!coach || !inviteName.trim() || !inviteEmail.trim()) return;
     setLoading(true);
 
-    // For now, create a placeholder coach entry. When the invited coach signs up
-    // and creates their account, they'll be linked. We use a temp user_id.
-    // In a full implementation, this would send an email invitation.
-    // For MVP: we'll create the coach record with a placeholder and they sign up separately.
-    
-    toast.info("Coach invitation noted! Have them sign up and you can link their account.");
+    // Look up if a user with this email already has an account
+    // If so, create the coach record directly linking them
+    // Otherwise, create a placeholder that will be linked when they sign up
+    const { data: existingUser } = await supabase
+      .from("coaches")
+      .select("id")
+      .eq("program_id", coach.program_id)
+      .eq("email", inviteEmail.trim().toLowerCase())
+      .maybeSingle();
+
+    if (existingUser) {
+      toast.error("A coach with this email already exists in this program.");
+      setLoading(false);
+      return;
+    }
+
+    // Create coach record — user_id will need to be linked when they sign up.
+    // For now, use a placeholder UUID. The auth system will match by email on login.
+    const color = COACH_COLORS[coaches.length % COACH_COLORS.length];
+    const { error } = await supabase.from("coaches").insert({
+      user_id: crypto.randomUUID(), // Placeholder — will be updated when coach signs up
+      program_id: coach.program_id,
+      full_name: inviteName.trim(),
+      email: inviteEmail.trim().toLowerCase(),
+      role: "assistant_coach",
+      color,
+    });
+
+    if (error) {
+      console.error("Failed to add coach:", error);
+      toast.error(`Failed to add coach: ${error.message}`);
+    } else {
+      toast.success(`${inviteName.trim()} added as assistant coach! Have them sign up with ${inviteEmail.trim()} to access the program.`);
+      fetchCoaches();
+    }
+
     setInviteEmail("");
     setInviteName("");
     setAddOpen(false);

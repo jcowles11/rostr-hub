@@ -1,6 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { LogOut, Share2, User, Shield, Calendar, SlidersHorizontal, Upload, Database, Download, Users, Layers, Eye, Image, ChevronRight, ChevronDown, Clock } from "lucide-react";
+import { LogOut, Share2, User, Shield, Calendar, SlidersHorizontal, Upload, Database, Download, Users, Layers, Eye, Image, ChevronRight, ChevronDown, Clock, ClipboardCheck } from "lucide-react";
 import ProgramLogoUpload from "@/components/ProgramLogoUpload";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -450,6 +450,22 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* READINESS */}
+      {coach?.role === "head_coach" && (
+        <div className="space-y-2">
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">Readiness</p>
+          <div className="space-y-1.5">
+            <TileButton
+              icon={<ClipboardCheck className="h-4 w-4" />}
+              label="Deployment Checklist"
+              subtitle="Verify your program is ready for tryouts"
+              onClick={() => navigate("/readiness")}
+              trailing={<ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            />
+          </div>
+        </div>
+      )}
 
       {/* ACCOUNT */}
       <div className="space-y-2">
