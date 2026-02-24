@@ -3,9 +3,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Calendar, SlidersHorizontal, Plus, Trash2, Pencil, Check, X, ArrowLeft, Clock, Ruler, Star } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -50,6 +52,12 @@ export default function TryoutPlanner() {
   // Metric inline edit
   const [editingMetricId, setEditingMetricId] = useState<string | null>(null);
   const [editMetric, setEditMetric] = useState<Partial<Metric>>({});
+
+  // Add metric dialog
+  const [addMetricOpen, setAddMetricOpen] = useState(false);
+  const [newMetric, setNewMetric] = useState({
+    name: "", unit: "", category: "other", metric_type: "measured", aggregation: "best", max_attempts: "1", min_value: "", max_value: "",
+  });
 
   const isHead = coach?.role === "head_coach";
   const sportCategories = getSportCategories(coach?.sport || "baseball");
@@ -108,6 +116,36 @@ export default function TryoutPlanner() {
     }).eq("id", id);
     if (error) toast.error("Failed to update metric");
     else { toast.success("Metric updated!"); setEditingMetricId(null); fetchData(); }
+  };
+
+  const addMetric = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!coach) return;
+    const { error } = await supabase.from("metrics").insert({
+      program_id: coach.program_id,
+      name: newMetric.name,
+      unit: newMetric.unit,
+      category: newMetric.category,
+      metric_type: newMetric.metric_type,
+      min_value: newMetric.min_value ? parseFloat(newMetric.min_value) : null,
+      max_value: newMetric.max_value ? parseFloat(newMetric.max_value) : null,
+      sort_order: metrics.length,
+      aggregation: newMetric.aggregation,
+      max_attempts: parseInt(newMetric.max_attempts) || 1,
+    } as any);
+    if (error) toast.error("Failed to add metric");
+    else {
+      toast.success("Metric added!");
+      setAddMetricOpen(false);
+      setNewMetric({ name: "", unit: "", category: "other", metric_type: "measured", aggregation: "best", max_attempts: "1", min_value: "", max_value: "" });
+      fetchData();
+    }
+  };
+
+  const deleteMetric = async (id: string) => {
+    const { error } = await supabase.from("metrics").delete().eq("id", id);
+    if (error) toast.error("Failed to delete metric");
+    else { toast.success("Metric removed"); fetchData(); }
   };
 
   // Group metrics by category
@@ -232,16 +270,104 @@ export default function TryoutPlanner() {
         </Card>
 
         {/* Metrics by category */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4 text-primary" />
-            <h2 className="text-base font-bold">Metrics Overview</h2>
+         <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4 text-primary" />
+              <h2 className="text-base font-bold">Metrics Overview</h2>
+            </div>
+            {isHead && (
+              <Dialog open={addMetricOpen} onOpenChange={setAddMetricOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="rounded-xl text-xs h-8">
+                    <Plus className="h-3 w-3 mr-1" /> Add Metric
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>Add Tryout Metric</DialogTitle></DialogHeader>
+                  <form onSubmit={addMetric} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Name</Label>
+                      <Input value={newMetric.name} onChange={(e) => setNewMetric({ ...newMetric, name: e.target.value })} placeholder="e.g. 60-Yard Dash" required />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>Unit</Label>
+                        <Input value={newMetric.unit} onChange={(e) => setNewMetric({ ...newMetric, unit: e.target.value })} placeholder="sec, mph, 1-10" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Category</Label>
+                        <Select value={newMetric.category} onValueChange={(v) => setNewMetric({ ...newMetric, category: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {sportCategories.map((cat) => (
+                              <SelectItem key={cat} value={cat}>{formatCategory(cat)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>Scoring Direction</Label>
+                        <Select value={newMetric.metric_type} onValueChange={(v) => setNewMetric({ ...newMetric, metric_type: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="timed">Timed (lower ↓)</SelectItem>
+                            <SelectItem value="measured">Measured (higher ↑)</SelectItem>
+                            <SelectItem value="rated">Rated (scale)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Aggregation</Label>
+                        <Select value={newMetric.aggregation} onValueChange={(v) => setNewMetric({ ...newMetric, aggregation: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="best">Best attempt</SelectItem>
+                            <SelectItem value="average">Average all</SelectItem>
+                            <SelectItem value="latest">Latest only</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Max Attempts</Label>
+                      <Select value={newMetric.max_attempts} onValueChange={(v) => setNewMetric({ ...newMetric, max_attempts: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {[1, 2, 3, 4, 5].map((n) => <SelectItem key={n} value={String(n)}>{n} attempt{n > 1 ? "s" : ""}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {newMetric.metric_type === "rated" && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label>Min Value</Label>
+                          <Input type="number" value={newMetric.min_value} onChange={(e) => setNewMetric({ ...newMetric, min_value: e.target.value })} placeholder="20" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Max Value</Label>
+                          <Input type="number" value={newMetric.max_value} onChange={(e) => setNewMetric({ ...newMetric, max_value: e.target.value })} placeholder="80" />
+                        </div>
+                      </div>
+                    )}
+                    <Button type="submit" className="w-full">Add Metric</Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
 
           {grouped.length === 0 && (
             <Card className="section-card">
               <CardContent className="py-8 text-center">
-                <p className="text-muted-foreground text-sm">No metrics configured. Add metrics from Settings.</p>
+                <p className="text-muted-foreground text-sm">No metrics configured yet.</p>
+                {isHead && (
+                  <Button size="sm" variant="outline" className="mt-3 rounded-xl text-xs" onClick={() => setAddMetricOpen(true)}>
+                    <Plus className="h-3 w-3 mr-1" /> Add your first metric
+                  </Button>
+                )}
               </CardContent>
             </Card>
           )}
@@ -322,9 +448,14 @@ export default function TryoutPlanner() {
                           </div>
                         </div>
                         {isHead && (
-                          <button className="p-1.5 rounded-md hover:bg-muted text-muted-foreground" onClick={() => startEditMetric(m)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
+                          <div className="flex items-center gap-0.5">
+                            <button className="p-1.5 rounded-md hover:bg-muted text-muted-foreground" onClick={() => startEditMetric(m)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive" onClick={() => deleteMetric(m.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         )}
                       </div>
                     )}
