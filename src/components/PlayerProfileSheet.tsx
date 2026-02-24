@@ -36,7 +36,7 @@ export default function PlayerProfileSheet({ player, open, onOpenChange }: Props
   const navigate = useNavigate();
   const { scoutInfo, userRole, devRoleOverride } = useAuth();
   const effectiveRole = devRoleOverride || userRole;
-  const isScout = effectiveRole === "scout" && !!scoutInfo;
+  const isScout = effectiveRole === "scout";
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(false);
