@@ -6,7 +6,7 @@ import { Bug, ChevronUp, Shield, User, Eye, Search } from "lucide-react";
 
 const ROLES = [
   { key: "coach", label: "Coach", icon: Shield, path: "/", color: "text-blue-400" },
-  { key: "player", label: "Player", icon: User, path: "/player-dashboard", color: "text-green-400" },
+  { key: "player", label: "Player", icon: User, path: "/social", color: "text-green-400" },
   { key: "evaluator", label: "Evaluator", icon: Eye, path: "/evaluator", color: "text-amber-400" },
   { key: "scout", label: "Scout", icon: Search, path: "/scout", color: "text-purple-400" },
 ] as const;
