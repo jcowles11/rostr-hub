@@ -77,7 +77,8 @@ function guessMetricColumns(headers: string[], metrics: MetricInfo[]): MetricCol
     const hLower = header.toLowerCase().trim();
     // Skip obvious player info columns
     if (["first name", "last name", "first_name", "last_name", "firstname", "lastname", "name",
-         "grade", "position", "pos", "jersey", "number", "#", "bats", "throws", "first", "last", "surname"].some(t => hLower.includes(t))) continue;
+         "grade", "position", "pos", "jersey", "number", "#", "bats", "throws", "first", "last", "surname",
+         "player name", "player_name", "full name", "full_name", "fullname", "athlete", "b/t", "bats/throws", "bat/throw"].some(t => hLower.includes(t))) continue;
 
     const match = metrics.find((m) => {
       const mLower = m.name.toLowerCase();

@@ -24,9 +24,21 @@ type ColumnMapping = {
   grade: string;
   positions: string;
   jersey_number_preference: string;
+  bats_throws: string; // combined B/T column
   bats: string;
   throws: string;
 };
+
+function splitBatsThrows(val: string): { bats: string; throws: string } {
+  const trimmed = val.trim().toUpperCase();
+  if (!trimmed) return { bats: "", throws: "" };
+  // Handle "R/R", "L/R", "S/R", "R/L" etc.
+  const parts = trimmed.split(/[\/\-\\|,]/);
+  if (parts.length >= 2) {
+    return { bats: parts[0].trim().substring(0, 1), throws: parts[1].trim().substring(0, 1) };
+  }
+  return { bats: "", throws: "" };
+}
 
 const PLAYER_FIELDS: { key: keyof ColumnMapping; label: string; required: boolean; hint?: string }[] = [
   { key: "player_name", label: "Full Name", required: false, hint: "Single column with first & last name" },
@@ -35,6 +47,7 @@ const PLAYER_FIELDS: { key: keyof ColumnMapping; label: string; required: boolea
   { key: "grade", label: "Grade", required: false },
   { key: "positions", label: "Position(s)", required: false },
   { key: "jersey_number_preference", label: "Jersey #", required: false },
+  { key: "bats_throws", label: "B/T", required: false, hint: "Combined bats/throws (e.g. R/R)" },
   { key: "bats", label: "Bats", required: false },
   { key: "throws", label: "Throws", required: false },
 ];
@@ -66,6 +79,11 @@ function guessMapping(headers: string[]): ColumnMapping {
   const firstName = find(["first name", "first_name", "firstname", "first"]);
   const lastName = find(["last name", "last_name", "lastname", "last", "surname"]);
 
+  // Check for combined B/T column
+  const batsThrows = find(["b/t", "b\\t", "bats/throws", "bats-throws", "bat/throw"]);
+  const bats = find(["bats", "bat"]);
+  const throws_ = find(["throws", "throw", "arm"]);
+
   return {
     player_name: (!firstName && !lastName) ? playerName : "",
     first_name: firstName,
@@ -73,8 +91,9 @@ function guessMapping(headers: string[]): ColumnMapping {
     grade: find(["grade", "year", "class"]),
     positions: find(["position", "pos"]),
     jersey_number_preference: find(["jersey", "number", "#", "num"]),
-    bats: find(["bats", "bat"]),
-    throws: find(["throws", "throw", "arm"]),
+    bats_throws: (!bats && !throws_) ? batsThrows : "",
+    bats: bats,
+    throws: throws_,
   };
 }
 
@@ -85,7 +104,7 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [mapping, setMapping] = useState<ColumnMapping>({
-    player_name: "", first_name: "", last_name: "", grade: "", positions: "", jersey_number_preference: "", bats: "", throws: "",
+    player_name: "", first_name: "", last_name: "", grade: "", positions: "", jersey_number_preference: "", bats_throws: "", bats: "", throws: "",
   });
   const [importing, setImporting] = useState(false);
   const [importCount, setImportCount] = useState(0);
@@ -94,7 +113,7 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
     setStep("upload");
     setHeaders([]);
     setRows([]);
-    setMapping({ player_name: "", first_name: "", last_name: "", grade: "", positions: "", jersey_number_preference: "", bats: "", throws: "" });
+    setMapping({ player_name: "", first_name: "", last_name: "", grade: "", positions: "", jersey_number_preference: "", bats_throws: "", bats: "", throws: "" });
     setImporting(false);
     setImportCount(0);
     if (fileRef.current) fileRef.current.value = "";
@@ -168,8 +187,18 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
         ? (row[mapping.positions] || "").split(/[,\/;]/).map((s) => s.trim().toUpperCase()).filter(Boolean)
         : [],
       jersey_number_preference: mapping.jersey_number_preference ? parseInt(row[mapping.jersey_number_preference]) || null : null,
-      bats: mapping.bats ? (row[mapping.bats] || "").trim().substring(0, 1).toUpperCase() || null : null,
-      throws: mapping.throws ? (row[mapping.throws] || "").trim().substring(0, 1).toUpperCase() || null : null,
+      bats: (() => {
+        if (mapping.bats_throws && !mapping.bats && !mapping.throws) {
+          return splitBatsThrows(row[mapping.bats_throws] || "").bats || null;
+        }
+        return mapping.bats ? (row[mapping.bats] || "").trim().substring(0, 1).toUpperCase() || null : null;
+      })(),
+      throws: (() => {
+        if (mapping.bats_throws && !mapping.bats && !mapping.throws) {
+          return splitBatsThrows(row[mapping.bats_throws] || "").throws || null;
+        }
+        return mapping.throws ? (row[mapping.throws] || "").trim().substring(0, 1).toUpperCase() || null : null;
+      })(),
     };
   }).filter((p) => p.first_name && p.last_name);
 
