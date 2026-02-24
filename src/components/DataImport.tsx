@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+import { normalizeHeader, isPlayerInfoColumn, isNumericColumn, splitFullName } from "@/lib/importUtils";
 
 interface DataImportProps {
   open: boolean;
@@ -33,57 +34,69 @@ interface MetricInfo {
 
 type Step = "upload" | "identify" | "map_metrics" | "preview" | "done";
 
-// Mapping spreadsheet columns to identify players
 interface PlayerIdMapping {
-  player_name: string; // single combined name column
+  player_name: string;
   first_name: string;
   last_name: string;
 }
 
-// Mapping spreadsheet columns to metrics
 type MetricColumnMap = Record<string, string>; // header -> metric_id
 
-function splitFullName(fullName: string): { first: string; last: string } {
-  const trimmed = fullName.trim();
-  if (!trimmed) return { first: "", last: "" };
-  if (trimmed.includes(",")) {
-    const [last, ...rest] = trimmed.split(",");
-    return { first: rest.join(",").trim(), last: last.trim() };
-  }
-  const parts = trimmed.split(/\s+/);
-  if (parts.length === 1) return { first: parts[0], last: "" };
-  return { first: parts.slice(0, -1).join(" "), last: parts[parts.length - 1] };
-}
-
 function guessPlayerColumns(headers: string[]): PlayerIdMapping {
-  const lower = headers.map((h) => h.toLowerCase().trim());
   const find = (terms: string[]) => {
-    const idx = lower.findIndex((h) => terms.some((t) => h === t || h.includes(t)));
+    const idx = headers.findIndex((h) => {
+      const norm = normalizeHeader(h);
+      return terms.some((t) => norm === t);
+    });
     return idx >= 0 ? headers[idx] : "";
   };
-  const firstName = find(["first name", "first_name", "firstname", "first"]);
-  const lastName = find(["last name", "last_name", "lastname", "last", "surname"]);
-  const playerName = find(["player name", "player_name", "playername", "full name", "full_name", "fullname", "athlete name", "athlete", "name"]);
+  const firstName = find(["first name", "firstname", "first"]);
+  const lastName = find(["last name", "lastname", "last", "surname"]);
+  const playerName = find(["player name", "playername", "full name", "fullname", "athlete name", "athlete", "name"]);
   return {
-    player_name: (!firstName && !lastName) ? playerName : "",
+    player_name: !firstName && !lastName ? playerName : "",
     first_name: firstName,
     last_name: lastName,
   };
 }
 
-function guessMetricColumns(headers: string[], metrics: MetricInfo[]): MetricColumnMap {
+function guessMetricColumns(
+  headers: string[],
+  metrics: MetricInfo[],
+  rows: Record<string, string>[],
+  nameColumns: string[]
+): MetricColumnMap {
   const map: MetricColumnMap = {};
-  for (const header of headers) {
-    const hLower = header.toLowerCase().trim();
-    // Skip obvious player info columns
-    if (["first name", "last name", "first_name", "last_name", "firstname", "lastname", "name",
-         "grade", "position", "pos", "jersey", "number", "#", "bats", "throws", "first", "last", "surname",
-         "player name", "player_name", "full name", "full_name", "fullname", "athlete", "b/t", "bats/throws", "bat/throw"].some(t => hLower.includes(t))) continue;
+  const nameSet = new Set(nameColumns.filter(Boolean));
 
-    const match = metrics.find((m) => {
-      const mLower = m.name.toLowerCase();
-      return hLower === mLower || hLower.includes(mLower) || mLower.includes(hLower);
+  for (const header of headers) {
+    // Skip columns mapped as player name
+    if (nameSet.has(header)) continue;
+
+    // Skip known player-info columns
+    if (isPlayerInfoColumn(header)) continue;
+
+    // Skip columns that aren't mostly numeric
+    if (!isNumericColumn(rows, header)) continue;
+
+    const hNorm = normalizeHeader(header);
+    // Strip trailing units like "(mph)", "(sec)", etc.
+    const hStripped = hNorm.replace(/\s*\(.*?\)\s*$/, "").trim();
+
+    // Try exact match first
+    let match = metrics.find((m) => {
+      const mNorm = normalizeHeader(m.name);
+      return hNorm === mNorm || hStripped === mNorm;
     });
+
+    // Try header fully contained in metric name (short header matching longer metric)
+    if (!match && hStripped.length >= 3) {
+      match = metrics.find((m) => {
+        const mNorm = normalizeHeader(m.name);
+        return mNorm.includes(hStripped);
+      });
+    }
+
     if (match) map[header] = match.id;
   }
   return map;
@@ -113,7 +126,6 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState({ players: 0, evals: 0 });
 
-  // Fetch existing players and metrics
   useEffect(() => {
     if (!coach || !open) return;
     Promise.all([
@@ -149,8 +161,14 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
       if (!data.length || !fields.length) { toast.error("No data found"); return; }
       setHeaders(fields);
       setRows(data);
-      setPlayerMapping(guessPlayerColumns(fields));
-      setMetricMapping(guessMetricColumns(fields, metrics));
+      const guessedNames = guessPlayerColumns(fields);
+      setPlayerMapping(guessedNames);
+      setMetricMapping(guessMetricColumns(
+        fields,
+        metrics,
+        data,
+        [guessedNames.player_name, guessedNames.first_name, guessedNames.last_name]
+      ));
       setStep("identify");
     };
 
@@ -179,7 +197,6 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
     }
   };
 
-  // Match rows to existing players
   const useFullName = !!playerMapping.player_name && !playerMapping.first_name && !playerMapping.last_name;
   const hasValidNameMapping = useFullName || (!!playerMapping.first_name && !!playerMapping.last_name);
 
@@ -195,12 +212,10 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         lastName = (row[playerMapping.last_name] || "").trim();
       }
 
-      // Try exact match
       const match = existingPlayers.find(
         (p) => p.first_name.toLowerCase() === firstName.toLowerCase() && p.last_name.toLowerCase() === lastName.toLowerCase()
       );
 
-      // Extract metric values
       const metricValues: MatchedRow["metricValues"] = [];
       for (const [header, metricId] of Object.entries(metricMapping)) {
         const raw = row[header];
@@ -229,13 +244,10 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
     setStep("preview");
   };
 
-  // Get columns that have metric mappings
-  const mappedMetricHeaders = headers.filter((h) => {
-    const lower = h.toLowerCase().trim();
-    return !["first name", "last name", "first_name", "last_name", "firstname", "lastname", "name",
-             "grade", "position", "pos", "jersey", "number", "#", "bats", "throws", "first", "last", "surname"]
-      .some((t) => lower.includes(t));
-  });
+  // Show ALL columns except those mapped as player name columns
+  // Coaches can override any mapping — nothing is hidden
+  const nameColumnsSet = new Set([playerMapping.player_name, playerMapping.first_name, playerMapping.last_name].filter(Boolean));
+  const metricCandidateHeaders = headers.filter((h) => !nameColumnsSet.has(h));
 
   const totalEvals = matchedRows.reduce((acc, r) => acc + (r.matchedPlayer || r.createNew ? r.metricValues.length : 0), 0);
   const newPlayerCount = matchedRows.filter((r) => !r.matchedPlayer && r.createNew).length;
@@ -249,9 +261,8 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
     try {
       let createdPlayers = 0;
       let insertedEvals = 0;
-      const playerIdMap = new Map<number, string>(); // rowIndex -> playerId
+      const playerIdMap = new Map<number, string>();
 
-      // Phase 1: Create new players
       const newPlayers = matchedRows.filter((r) => !r.matchedPlayer && r.createNew);
       if (newPlayers.length > 0) {
         const { data: inserted, error } = await supabase.from("players").insert(
@@ -265,19 +276,16 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
 
         if (error) { toast.error(`Failed to create players: ${error.message}`); setImporting(false); return; }
 
-        // Map created players back to rows
         (inserted || []).forEach((p, i) => {
           playerIdMap.set(newPlayers[i].rowIndex, p.id);
         });
         createdPlayers = inserted?.length || 0;
       }
 
-      // Map existing matched players
       matchedRows.forEach((r) => {
         if (r.matchedPlayer) playerIdMap.set(r.rowIndex, r.matchedPlayer.id);
       });
 
-      // Phase 2: Insert evaluations
       const evals: { program_id: string; player_id: string; metric_id: string; coach_id: string; value: number; attempt_number: number }[] = [];
       for (const row of matchedRows) {
         const playerId = playerIdMap.get(row.rowIndex);
@@ -296,7 +304,6 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
       }
 
       if (evals.length > 0) {
-        // Batch in chunks of 500
         for (let i = 0; i < evals.length; i += 500) {
           const chunk = evals.slice(i, i + 500);
           const { error } = await supabase.from("evaluations").insert(chunk);
@@ -403,22 +410,34 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
               Map spreadsheet columns to your metrics. Unmapped columns will be skipped.
             </p>
             <div className="space-y-2.5 max-h-64 overflow-y-auto">
-              {mappedMetricHeaders.map((header) => (
-                <div key={header} className="flex items-center gap-3">
-                  <Label className="w-32 text-sm shrink-0 truncate" title={header}>{header}</Label>
-                  <Select value={metricMapping[header] || "__none__"}
-                    onValueChange={(v) => setMetricMapping({ ...metricMapping, [header]: v === "__none__" ? "" : v })}
-                  >
-                    <SelectTrigger className="h-10 rounded-lg flex-1"><SelectValue placeholder="Skip" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— Skip —</SelectItem>
-                      {metrics.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>{m.name} ({m.unit})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
+              {metricCandidateHeaders.map((header) => {
+                const isInfo = isPlayerInfoColumn(header);
+                const isNum = isNumericColumn(rows, header);
+                return (
+                  <div key={header} className="flex items-center gap-3">
+                    <div className="w-32 shrink-0">
+                      <Label className="text-sm truncate block" title={header}>{header}</Label>
+                      {isInfo && !metricMapping[header] && (
+                        <span className="text-[10px] text-muted-foreground">Player info</span>
+                      )}
+                      {!isInfo && !isNum && !metricMapping[header] && (
+                        <span className="text-[10px] text-muted-foreground">Non-numeric</span>
+                      )}
+                    </div>
+                    <Select value={metricMapping[header] || "__none__"}
+                      onValueChange={(v) => setMetricMapping({ ...metricMapping, [header]: v === "__none__" ? "" : v })}
+                    >
+                      <SelectTrigger className="h-10 rounded-lg flex-1"><SelectValue placeholder="Skip" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Skip —</SelectItem>
+                        {metrics.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>{m.name} ({m.unit})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })}
             </div>
 
             {Object.values(metricMapping).filter(Boolean).length === 0 && (
@@ -450,7 +469,6 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
 
         {step === "preview" && (
           <div className="space-y-4">
-            {/* Summary stats */}
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-xl border p-3 text-center">
                 <p className="text-lg font-extrabold text-foreground">{matchedCount}</p>
