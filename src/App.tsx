@@ -29,6 +29,7 @@ import ScoutDashboard from "@/pages/ScoutDashboard";
 import SocialPage from "@/pages/SocialPage";
 import SearchPage from "@/pages/SearchPage";
 import NotificationsPage from "@/pages/NotificationsPage";
+import DemoTour from "@/pages/DemoTour";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -45,10 +46,17 @@ function LoadingScreen() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, coach, userRole, playerInfo, loading } = useAuth();
+  const { user, coach, userRole, playerInfo, loading, devRoleOverride } = useAuth();
 
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/auth" replace />;
+
+  // In demo mode with coach override, skip role redirects
+  if (devRoleOverride === "coach") {
+    if (coach) return <SessionProvider><AppLayout>{children}</AppLayout></SessionProvider>;
+    // No coach record but demo override — still show layout
+    return <SessionProvider><AppLayout>{children}</AppLayout></SessionProvider>;
+  }
 
   if (userRole === "player") {
     return playerInfo ? <Navigate to="/social" replace /> : <Navigate to="/player-link" replace />;
@@ -68,10 +76,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PlayerRoute({ children }: { children: React.ReactNode }) {
-  const { user, userRole, playerInfo, loading } = useAuth();
+  const { user, userRole, playerInfo, loading, devRoleOverride } = useAuth();
 
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/auth" replace />;
+
+  // Demo override bypasses guards
+  if (devRoleOverride === "player") return <>{children}</>;
 
   if (userRole === "player" && playerInfo) return <>{children}</>;
   if (userRole === null && !loading) return <Navigate to="/player-link" replace />;
@@ -83,10 +94,11 @@ function PlayerRoute({ children }: { children: React.ReactNode }) {
 }
 
 function EvaluatorRoute({ children }: { children: React.ReactNode }) {
-  const { user, userRole, loading } = useAuth();
+  const { user, userRole, loading, devRoleOverride } = useAuth();
 
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/auth" replace />;
+  if (devRoleOverride === "evaluator") return <>{children}</>;
   if (userRole === "evaluator") return <>{children}</>;
   if (userRole === "coach") return <Navigate to="/" replace />;
   if (userRole === "player") return <Navigate to="/player-dashboard" replace />;
@@ -96,10 +108,11 @@ function EvaluatorRoute({ children }: { children: React.ReactNode }) {
 }
 
 function ScoutRoute({ children }: { children: React.ReactNode }) {
-  const { user, userRole, loading } = useAuth();
+  const { user, userRole, loading, devRoleOverride } = useAuth();
 
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/auth" replace />;
+  if (devRoleOverride === "scout") return <>{children}</>;
   if (userRole === "scout") return <>{children}</>;
   if (userRole === "coach") return <Navigate to="/" replace />;
   if (userRole === "player") return <Navigate to="/player-dashboard" replace />;
@@ -163,6 +176,7 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
             <Route path="/setup" element={<SetupRoute />} />
+            <Route path="/demo" element={<DemoTour />} />
             <Route path="/register/:code" element={<PlayerRegister />} />
             <Route path="/player-dashboard" element={<PlayerRoute><UnifiedNavShell><PlayerDashboard /></UnifiedNavShell></PlayerRoute>} />
             <Route path="/search" element={<PlayerRoute><UnifiedNavShell><SearchPage /></UnifiedNavShell></PlayerRoute>} />
