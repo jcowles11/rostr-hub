@@ -1,67 +1,149 @@
 
 
-# Fix Session Handling for Imported Data
+# Product Strategy & Architecture Plan for Rostr
 
-## Problem
+## Your Decisions (Summarized)
 
-Imported data currently gets inserted with `session_id = null`. This causes two issues:
+1. **Coach + Evaluator: Keep separate, but add a lighter "Evaluator" tier** for private lesson coaches who just need to track individual player metrics without tryout/roster management. Full evaluator accounts handle showcases and bulk events.
 
-1. **Dashboard hides imported scores** -- When a specific session is selected (which happens automatically if today's session exists), evaluations without a `session_id` are filtered out entirely.
-2. **Player Detail shows "unsorted"** -- Evaluations without a session appear under an "unsorted" group, which is confusing for coaches.
+2. **Scout search must be ultra-customizable** — compound metric filters, GPA, location/state, batting average, stolen bases, school size. This is the paid value proposition.
 
-The fix has two parts: let coaches assign a session during import, and make the "All Sessions" view properly include session-less data.
+3. **No Stripe yet** — sell enterprise first to HS and club teams, add billing later when scout demand is proven.
 
-## Changes
+4. **Seasons: manual creation by coaches**, with all historical data accessible but not overwhelming. Players and coaches can view progression over time.
 
-### 1. Add session picker to the Import wizard (`src/components/DataImport.tsx`)
+---
 
-- Add a session selector dropdown on the **preview step** (right before the Import button), letting the coach pick which session this data belongs to -- or leave it as "No session".
-- When importing, include the selected `session_id` in every evaluation insert (currently the `session_id` field is omitted entirely).
-- Also offer a "Create New Session" option inline (using the existing `createSession` from `SessionContext`) so coaches can create one on the fly if needed.
+## What Needs to Be Built (Prioritized)
 
-### 2. Fix Dashboard filtering to include session-less evals (`src/pages/Dashboard.tsx`)
+### Phase 1: Fix Current Broken Navigation (Immediate)
 
-- When the session filter is set to "All", the query already works (no filter applied).
-- No code change needed here -- the real fix is ensuring imported data gets a session in step 1.
+**Problem**: Scout accounts can't access Social or Search from the current UI. The `UnifiedNavShell` is wrapping scout/player/evaluator routes but the routing and navigation aren't connecting properly.
 
-### 3. Improve PlayerDetail "unsorted" label (`src/pages/PlayerDetail.tsx`)
+**Changes**:
+- Verify that `/scout` route correctly renders inside `UnifiedNavShell` with Search as landing + Social and Profile tabs
+- Verify that `/social` route works for all roles when wrapped in `UnifiedNavShell`
+- Test the coach bottom nav (Roster, Score, Stats, Social, More) — the Social tab needs to navigate coaches into the `UnifiedNavShell` context seamlessly, then allow them to return to coach mode
 
-- Rename the "unsorted" group to "Imported / Unassigned" so it is clear where these scores came from.
-- Show it in a visually distinct way so coaches understand why it is separate.
+**Key architectural issue**: When a coach taps "Social", they currently navigate to `/social` which is wrapped in `UnifiedNavShell`, but they lose the coach header (program switcher, event selector). When they tap back, they need to return to `AppLayout`. This transition needs to feel seamless — not like switching apps.
 
-### 4. Bulk-assign session to existing orphaned evaluations
+**Solution**: For coaches, the `/social` route should either:
+- Keep the coach bottom nav visible (with Social highlighted) and render `SocialHome` directly inside `AppLayout`, OR
+- Navigate to `UnifiedNavShell` but include a clear "Back to Coach" affordance
 
-- Add a small utility on the PlayerDetail page (or a one-time option) that lets coaches assign orphaned evaluations (those with `session_id = null`) to an existing session. This cleans up data that was already imported before this fix.
+**Recommendation**: Render Social inside `AppLayout` for coaches (simpler, no context switching). The Social tab in the coach bottom nav just renders the social feed in the same shell. Only scouts and players use `UnifiedNavShell`.
+
+### Phase 2: Scout Search Enhancements (High Priority)
+
+**Database changes needed**:
+- Add `_state` and `_gpa_min` parameters to the `search_public_players` RPC function
+- Ensure `city`, `state`, `gpa` columns on `players` table are searchable (they already exist)
+
+**New scout-only filters to add to `PlayerSearchFilters.tsx`**:
+- State/region dropdown (US states list)
+- GPA minimum (number input)
+- Multiple simultaneous metric filters with compound logic (already partially built — needs polish)
+- Future: batting average, stolen bases, school size (these require stats integration data that doesn't exist yet — placeholder UI only)
+
+**RPC function update**: Add `_state` and `_gpa_min` parameters to `search_public_players`.
+
+### Phase 3: Season/Year System for Coaches (Medium Priority)
+
+**Database changes**:
+- New `seasons` table: `id`, `program_id`, `name` (e.g., "2024-2025"), `start_date`, `end_date`, `created_at`
+- Add `season_id` (nullable) to `evaluations` table and `tryout_sessions` table
+- Default: if `season_id` is null, data is "unassigned" and visible in all views
+
+**Coach UX**:
+- Settings page: create/manage seasons manually
+- Header or filter: toggle between seasons (dropdown next to event selector)
+- "All Time" view shows everything; specific season filters to that window
+- Player detail page: show progression chart across seasons
+
+**No auto-detection** — coaches create seasons manually. This keeps it simple and works for both HS (academic year) and club (calendar year) programs.
+
+### Phase 4: Social Feed Enhancements for Players (Medium Priority)
+
+**Goal**: Make Social sticky for players so they open the app daily.
+
+**Features** (in priority order):
+1. **Commitment celebrations** — when a player updates status to "committed", it appears as a prominent card in the feed with school logo, confetti styling
+2. **Highlight video previews** — if a player has a `highlight_video_url`, show a thumbnail/link in their card
+3. **"Players in your class"** — filter social feed by graduation year matching the current player
+4. **Browse by position** — quick filter chips on social home (P, C, IF, OF, etc.)
+
+**Not building yet** (future):
+- Follow system (requires new `follows` table, notification infrastructure)
+- Achievement badges (requires event system)
+- Messaging
+
+### Phase 5: Evaluator Account Refinement (Lower Priority)
+
+**Current state**: Evaluators can enter metrics for any player via `evaluator_entries`. This already works.
+
+**Lighter evaluator use case** (private lessons):
+- Same account type, but the onboarding flow asks: "Are you a private instructor or showcase organizer?"
+- Private instructors get a simplified UI: search for a player → enter metrics. No bulk import, no event management.
+- Showcase organizers get the full evaluator dashboard with bulk entry and event tagging.
+
+**This is a UI-only change** — the data model already supports both use cases via `evaluator_entries`.
+
+---
+
+## Implementation Plan (What Changes Now)
+
+### Files to modify:
+1. **`src/components/AppLayout.tsx`** — Render `SocialHome` directly when coach navigates to `/social`, keeping the coach bottom nav active
+2. **`src/pages/SocialPage.tsx`** — Update to handle coach role rendering within AppLayout context
+3. **`src/components/UnifiedNavShell.tsx`** — Ensure scout nav works (Search, Social, Profile)
+4. **`src/components/PlayerSearchFilters.tsx`** — Add State and GPA filters for scouts
+5. **`src/pages/ScoutDashboard.tsx`** — Pass new filter params to RPC
+
+### Database migration:
+- Update `search_public_players` RPC to add `_state` and `_gpa_min` parameters
+
+### No new tables yet (seasons deferred to next sprint)
+
+---
 
 ## Technical Details
 
-### `src/components/DataImport.tsx`
+### Coach Social Navigation Fix
 
-- Import `useSession` from `SessionContext`.
-- Add state: `const [importSessionId, setImportSessionId] = useState<string>("")`.
-- In the preview step, render a session picker `Select` component with options from `sessions` plus "No Session" and "+ Create Session".
-- In `handleImport`, add `session_id: importSessionId || null` to each evaluation object in the `evals` array (line ~495-503).
+The coach bottom nav currently has Social pointing to `/social`. Since `/social` uses `UnifiedNavShell` (a completely different layout), coaches lose their program switcher and event selector. 
 
-### `src/pages/PlayerDetail.tsx`
+**Fix**: Change the coach routing so `/social` for coaches renders `SocialHome` inside `AppLayout` instead of navigating to the `UnifiedNavShell` wrapper. This means:
+- In `App.tsx`, the `/social` route for coaches should be a `ProtectedRoute` wrapping `SocialHome` (not `SocialRoute` + `UnifiedNavShell`)
+- The `SocialRoute` + `UnifiedNavShell` wrapper remains for players, evaluators, and scouts
 
-- Change the label for the "unsorted" key from raw display to "Imported / Unassigned".
-- Add a small "Assign to Session" dropdown next to the "Imported / Unassigned" header that bulk-updates all null-session evaluations for that player to a chosen session via:
-  ```sql
-  UPDATE evaluations SET session_id = '<chosen>' 
-  WHERE player_id = '<id>' AND session_id IS NULL
-  ```
+This requires splitting the `/social` route by role, or having the `SocialRoute` component detect role and render the appropriate shell.
 
-### `src/contexts/SessionContext.tsx`
+### Scout Search RPC Enhancement
 
-- No changes needed -- the existing `sessions` list and `createSession` function are sufficient.
+```sql
+-- Add _state and _gpa_min to search_public_players
+AND (_state IS NULL OR p.state = _state)
+AND (_gpa_min IS NULL OR p.gpa::numeric >= _gpa_min)
+```
 
-## Summary of File Changes
+Note: `gpa` is stored as `text`, so casting to `numeric` requires a safe cast or COALESCE.
 
-| File | Change |
-|---|---|
-| `src/components/DataImport.tsx` | Add session picker on preview step; include `session_id` in evaluation inserts |
-| `src/pages/PlayerDetail.tsx` | Rename "unsorted" to "Imported / Unassigned"; add bulk-assign-to-session action |
+### State Filter UI
 
-## No Database Changes Required
+A dropdown with all 50 US states + DC, rendered only when `isScout={true}` in `PlayerSearchFilters.tsx`.
 
-The `evaluations.session_id` column already exists and is nullable. No schema changes needed.
+---
+
+## Summary
+
+| Priority | Feature | Effort | Impact |
+|----------|---------|--------|--------|
+| 1 | Fix coach Social nav (no shell switch) | Small | High — coaches can access Social without losing context |
+| 2 | Fix scout nav (Search + Social working) | Small | High — scout accounts become functional |
+| 3 | Add State + GPA filters for scouts | Small | High — differentiates scout value |
+| 4 | Season system for coaches | Medium | High — multi-year tracking |
+| 5 | Social feed enhancements for players | Medium | Medium — retention driver |
+| 6 | Evaluator onboarding split | Small | Low — UX polish |
+
+I recommend implementing priorities 1-3 now (immediate fixes + scout value), then tackling seasons and social feed in the next iteration.
+
