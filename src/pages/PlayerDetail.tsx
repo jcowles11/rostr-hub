@@ -528,9 +528,6 @@ export default function PlayerDetail() {
                           {sessInfo && (
                             <Badge variant="outline" className="text-[10px] h-4 px-1.5 py-0 font-medium">{sessInfo.name}</Badge>
                           )}
-                          {!sessInfo && e.session_id === null && (
-                            <span className="text-[10px] text-muted-foreground/60 italic">unassigned</span>
-                          )}
                         </div>
                       );
                     })}
@@ -540,31 +537,6 @@ export default function PlayerDetail() {
             );
           })}
 
-          {/* Unassigned scores bulk-assign */}
-          {filteredEvals.some((e) => e.session_id === null) && sessionInfos.length > 0 && (
-            <div className="flex items-center gap-2 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-2.5 mt-2">
-              <span className="text-xs font-medium text-amber-700 dark:text-amber-300 flex-1">Some scores aren't assigned to an event</span>
-              <Select onValueChange={async (sessionId) => {
-                if (!id) return;
-                const { error } = await supabase
-                  .from("evaluations")
-                  .update({ session_id: sessionId })
-                  .eq("player_id", id)
-                  .is("session_id", null);
-                if (error) toast.error("Failed to assign");
-                else { toast.success("Scores assigned to event"); fetchAll(); }
-              }}>
-                <SelectTrigger className="h-7 w-auto text-[11px] rounded-lg px-2 shrink-0">
-                  <SelectValue placeholder="Assign to event…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sessionInfos.map((s) => (
-                    <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
 
           {metrics.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">No metrics configured</p>}
         </CardContent>
