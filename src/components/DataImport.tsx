@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Upload, AlertCircle, CheckCircle2, Database, UserPlus } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle2, Database, UserPlus, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -120,6 +120,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
   const [createMissing, setCreateMissing] = useState(true);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState({ players: 0, evals: 0 });
+  const [creatingMetric, setCreatingMetric] = useState(false);
 
   useEffect(() => {
     if (!coach || !open) return;
@@ -449,15 +450,42 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
                   </div>
                   <Select
                     value={groupMapping[group.displayName] || "__none__"}
-                    onValueChange={(v) =>
-                      setGroupMapping({ ...groupMapping, [group.displayName]: v === "__none__" ? "" : v })
-                    }
+                    onValueChange={async (v) => {
+                      if (v === "__create__") {
+                        if (!coach || creatingMetric) return;
+                        setCreatingMetric(true);
+                        try {
+                          const { data: newMetric, error } = await supabase.from("metrics").insert({
+                            program_id: coach.program_id,
+                            name: group.displayName,
+                            unit: "",
+                            metric_type: "measured" as const,
+                            max_attempts: group.columns.length,
+                            sort_order: metrics.length,
+                          }).select("id, name, unit, metric_type").single();
+
+                          if (error) { toast.error(`Failed to create metric: ${error.message}`); return; }
+                          if (newMetric) {
+                            setMetrics((prev) => [...prev, newMetric]);
+                            setGroupMapping((prev) => ({ ...prev, [group.displayName]: newMetric.id }));
+                            toast.success(`Created metric "${group.displayName}"`);
+                          }
+                        } finally {
+                          setCreatingMetric(false);
+                        }
+                        return;
+                      }
+                      setGroupMapping({ ...groupMapping, [group.displayName]: v === "__none__" ? "" : v });
+                    }}
                   >
                     <SelectTrigger className="h-9 rounded-lg flex-1 text-sm">
                       <SelectValue placeholder="Skip" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">— Skip —</SelectItem>
+                      <SelectItem value="__create__" className="text-primary font-medium">
+                        <span className="flex items-center gap-1"><Plus className="h-3 w-3" /> Create "{group.displayName}"</span>
+                      </SelectItem>
                       {metrics.map((m) => (
                         <SelectItem key={m.id} value={m.id}>
                           {m.name} ({m.unit})
