@@ -52,24 +52,19 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/auth" replace />;
 
-  // In demo mode with coach override, skip role redirects
-  if (devRoleOverride === "coach") {
-    if (coach) return <SessionProvider><AppLayout>{children}</AppLayout></SessionProvider>;
-    // No coach record but demo override — still show layout
+  const effectiveRole = devRoleOverride || userRole;
+
+  // Coach role (real or demo): render in AppLayout
+  if (effectiveRole === "coach") {
     return <SessionProvider><AppLayout>{children}</AppLayout></SessionProvider>;
   }
 
-  if (userRole === "player") {
+  // Non-coach roles redirect to their homes
+  if (effectiveRole === "player") {
     return playerInfo ? <Navigate to="/social" replace /> : <Navigate to="/player-link" replace />;
   }
-
-  if (userRole === "evaluator") {
-    return <Navigate to="/evaluator" replace />;
-  }
-
-  if (userRole === "scout") {
-    return <Navigate to="/scout" replace />;
-  }
+  if (effectiveRole === "evaluator") return <Navigate to="/evaluator" replace />;
+  if (effectiveRole === "scout") return <Navigate to="/scout" replace />;
 
   if (!coach) return <Navigate to="/setup" replace />;
 
@@ -122,6 +117,30 @@ function ScoutRoute({ children }: { children: React.ReactNode }) {
   return <Navigate to="/auth" replace />;
 }
 
+/** Search accessible to players and scouts */
+function SearchRoute() {
+  const { user, userRole, loading, devRoleOverride } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/auth" replace />;
+  const effectiveRole = devRoleOverride || userRole;
+  if (effectiveRole === "player" || effectiveRole === "scout") {
+    return <UnifiedNavShell><SearchPage /></UnifiedNavShell>;
+  }
+  return <Navigate to="/" replace />;
+}
+
+/** Notifications accessible to all authenticated non-coach roles via UnifiedNavShell, coaches via AppLayout */
+function NotificationsRoute() {
+  const { user, coach, userRole, loading, devRoleOverride } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/auth" replace />;
+  const effectiveRole = devRoleOverride || userRole;
+  if (effectiveRole === "coach" && coach) {
+    return <SessionProvider><AppLayout><NotificationsPage /></AppLayout></SessionProvider>;
+  }
+  return <UnifiedNavShell><NotificationsPage /></UnifiedNavShell>;
+}
+
 /** Social is accessible to all authenticated users — coaches stay in AppLayout, others use UnifiedNavShell */
 function SocialRoute() {
   const { user, coach, userRole, loading, devRoleOverride } = useAuth();
@@ -156,7 +175,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
   const redirectTo = new URLSearchParams(window.location.search).get("redirect");
   if (loading) return null;
   if (user && redirectTo) return <Navigate to={redirectTo} replace />;
-  if (user && userRole === "player") return <Navigate to="/player-dashboard" replace />;
+  if (user && userRole === "player") return <Navigate to="/social" replace />;
   if (user && userRole === "evaluator") return <Navigate to="/evaluator" replace />;
   if (user && userRole === "scout") return <Navigate to="/scout" replace />;
   if (user && coach) return <Navigate to="/" replace />;
@@ -186,11 +205,11 @@ const App = () => (
             <Route path="/join/:code" element={<JoinProgram />} />
             <Route path="/register/:code" element={<PlayerRegister />} />
             <Route path="/player-dashboard" element={<PlayerRoute><UnifiedNavShell><PlayerDashboard /></UnifiedNavShell></PlayerRoute>} />
-            <Route path="/search" element={<PlayerRoute><UnifiedNavShell><SearchPage /></UnifiedNavShell></PlayerRoute>} />
+            <Route path="/search" element={<SearchRoute />} />
             <Route path="/player-link" element={<PlayerLinkPage />} />
             <Route path="/evaluator" element={<EvaluatorRoute><UnifiedNavShell><EvaluatorDashboard /></UnifiedNavShell></EvaluatorRoute>} />
             <Route path="/scout" element={<ScoutRoute><UnifiedNavShell><ScoutDashboard /></UnifiedNavShell></ScoutRoute>} />
-            <Route path="/notifications" element={<UnifiedNavShell><NotificationsPage /></UnifiedNavShell>} />
+            <Route path="/notifications" element={<NotificationsRoute />} />
             <Route path="/social" element={<SocialRoute />} />
             <Route path="/p/:slug" element={<PublicProfile />} />
             <Route path="/evaluator/:id" element={<EvaluatorProfile />} />
