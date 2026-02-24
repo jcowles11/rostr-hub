@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import rostrLogo from "@/assets/rostr-logo.png";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,8 +8,17 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Search, Loader2, X } from "lucide-react";
 
 type AuthMode = "login" | "signup-coach" | "signup-player" | "signup-evaluator" | "signup-scout";
+
+interface ProgramResult {
+  id: string;
+  name: string;
+  school_name: string;
+  sport: string;
+  logo_url: string | null;
+}
 
 export default function Auth() {
   const [mode, setMode] = useState<AuthMode>("login");
@@ -21,6 +30,32 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const redirectTo = new URLSearchParams(window.location.search).get("redirect");
+
+  // Program search state for player signup
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<ProgramResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedProgram, setSelectedProgram] = useState<ProgramResult | null>(null);
+  const [joinMethod, setJoinMethod] = useState<"code" | "search">("search");
+
+  // Search programs
+  useEffect(() => {
+    if (joinMethod !== "search" || searchQuery.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      setSearching(true);
+      const { data } = await supabase
+        .from("programs")
+        .select("id, name, school_name, sport, logo_url")
+        .or(`school_name.ilike.%${searchQuery.trim()}%,name.ilike.%${searchQuery.trim()}%`)
+        .limit(10);
+      setSearchResults(data || []);
+      setSearching(false);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [searchQuery, joinMethod]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,21 +80,21 @@ export default function Auth() {
       if (error) toast.error(error.message);
       else toast.success("Check your email to confirm your account!");
     } else if (mode === "signup-player") {
-      // If reg code provided, verify it
       let programId: string | null = null;
-      if (regCode.trim()) {
+      if (joinMethod === "code" && regCode.trim()) {
         const { data: program } = await supabase
           .from("programs")
           .select("id")
           .eq("registration_code", regCode.trim())
           .single();
-
         if (!program) {
           toast.error("Invalid registration code");
           setLoading(false);
           return;
         }
         programId = program.id;
+      } else if (joinMethod === "search" && selectedProgram) {
+        programId = selectedProgram.id;
       }
 
       const { data: authData, error } = await supabase.auth.signUp({
@@ -77,6 +112,8 @@ export default function Auth() {
         localStorage.setItem(`rostr_player_reg_${authData.user.id}`, JSON.stringify({
           program_id: programId,
           full_name: fullName,
+          join_method: joinMethod === "search" && selectedProgram ? "request" : "code",
+          requested_program_name: selectedProgram?.name || null,
         }));
         toast.success("Check your email to confirm your account!");
       }
@@ -89,7 +126,6 @@ export default function Auth() {
           emailRedirectTo: window.location.origin,
         },
       });
-
       if (error) {
         toast.error(error.message);
       } else if (authData.user) {
@@ -108,7 +144,6 @@ export default function Auth() {
           emailRedirectTo: window.location.origin,
         },
       });
-
       if (error) {
         toast.error(error.message);
       } else if (authData.user) {
@@ -149,50 +184,20 @@ export default function Auth() {
         {/* Role selector for signup */}
         {isSignup && (
           <div className="flex gap-2 mb-4">
-            <button
-              onClick={() => setMode("signup-coach")}
-              className={cn(
-                "flex-1 rounded-xl py-3 text-sm font-bold transition-all",
-                mode === "signup-coach"
-                  ? "gradient-primary text-white shadow-glow"
-                  : "bg-card border text-muted-foreground hover:text-foreground"
-              )}
-            >
-              🏟️ Coach
-            </button>
-            <button
-              onClick={() => setMode("signup-player")}
-              className={cn(
-                "flex-1 rounded-xl py-3 text-sm font-bold transition-all",
-                mode === "signup-player"
-                  ? "gradient-primary text-white shadow-glow"
-                  : "bg-card border text-muted-foreground hover:text-foreground"
-              )}
-            >
-              ⚾ Player
-            </button>
-            <button
-              onClick={() => setMode("signup-evaluator")}
-              className={cn(
-                "flex-1 rounded-xl py-3 text-sm font-bold transition-all",
-                mode === "signup-evaluator"
-                  ? "gradient-primary text-white shadow-glow"
-                  : "bg-card border text-muted-foreground hover:text-foreground"
-              )}
-            >
-              📋 Evaluator
-            </button>
-            <button
-              onClick={() => setMode("signup-scout")}
-              className={cn(
-                "flex-1 rounded-xl py-3 text-sm font-bold transition-all",
-                mode === "signup-scout"
-                  ? "gradient-primary text-white shadow-glow"
-                  : "bg-card border text-muted-foreground hover:text-foreground"
-              )}
-            >
-              🔍 Scout
-            </button>
+            {(["signup-coach", "signup-player", "signup-evaluator", "signup-scout"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={cn(
+                  "flex-1 rounded-xl py-3 text-sm font-bold transition-all",
+                  mode === m
+                    ? "gradient-primary text-white shadow-glow"
+                    : "bg-card border text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {m === "signup-coach" ? "🏟️ Coach" : m === "signup-player" ? "⚾ Player" : m === "signup-evaluator" ? "📋 Evaluator" : "🔍 Scout"}
+              </button>
+            ))}
           </div>
         )}
 
@@ -228,19 +233,126 @@ export default function Auth() {
                   </p>
                 </div>
               )}
+
+              {/* Player: program join method */}
               {mode === "signup-player" && (
-                <div className="space-y-2 animate-fade-in">
-                  <Label htmlFor="regCode" className="text-sm font-semibold">Registration Code (optional)</Label>
-                  <Input
-                    id="regCode"
-                    value={regCode}
-                    onChange={(e) => setRegCode(e.target.value)}
-                    placeholder="Enter code from your coach (if you have one)"
-                    className="tap-target h-12 text-base rounded-xl"
-                  />
-                  <p className="text-xs text-muted-foreground">Have a code from your coach? Enter it here. Otherwise, you can create a standalone profile.</p>
+                <div className="space-y-3 animate-fade-in">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setJoinMethod("search"); setRegCode(""); }}
+                      className={cn(
+                        "flex-1 rounded-lg py-2 text-xs font-semibold transition-all border",
+                        joinMethod === "search"
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                      )}
+                    >
+                      Find my school
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setJoinMethod("code"); setSelectedProgram(null); }}
+                      className={cn(
+                        "flex-1 rounded-lg py-2 text-xs font-semibold transition-all border",
+                        joinMethod === "code"
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                      )}
+                    >
+                      I have a code
+                    </button>
+                  </div>
+
+                  {joinMethod === "code" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="regCode" className="text-sm font-semibold">Registration Code (optional)</Label>
+                      <Input
+                        id="regCode"
+                        value={regCode}
+                        onChange={(e) => setRegCode(e.target.value)}
+                        placeholder="Enter code from your coach"
+                        className="tap-target h-12 text-base rounded-xl"
+                      />
+                      <p className="text-xs text-muted-foreground">No code? Switch to "Find my school" or skip to create a standalone profile.</p>
+                    </div>
+                  )}
+
+                  {joinMethod === "search" && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Search for your school or team</Label>
+                      {selectedProgram ? (
+                        <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2.5">
+                          {selectedProgram.logo_url ? (
+                            <img src={selectedProgram.logo_url} alt="" className="h-8 w-8 rounded-lg object-cover" />
+                          ) : (
+                            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
+                              {selectedProgram.school_name?.[0] || "?"}
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate">{selectedProgram.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{selectedProgram.school_name}</p>
+                          </div>
+                          <button type="button" onClick={() => setSelectedProgram(null)} className="p-1 rounded-md hover:bg-muted">
+                            <X className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              placeholder="Type school or team name..."
+                              className="tap-target h-12 text-base rounded-xl pl-10"
+                            />
+                          </div>
+                          {searching && (
+                            <div className="flex items-center justify-center py-2">
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            </div>
+                          )}
+                          {searchResults.length > 0 && (
+                            <div className="space-y-1 max-h-48 overflow-y-auto rounded-xl border p-1.5">
+                              {searchResults.map((program) => (
+                                <button
+                                  key={program.id}
+                                  type="button"
+                                  onClick={() => { setSelectedProgram(program); setSearchResults([]); setSearchQuery(""); }}
+                                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-muted/50 transition-colors"
+                                >
+                                  {program.logo_url ? (
+                                    <img src={program.logo_url} alt="" className="h-7 w-7 rounded-md object-cover" />
+                                  ) : (
+                                    <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">
+                                      {program.school_name?.[0] || "?"}
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold truncate">{program.name}</p>
+                                    <p className="text-[11px] text-muted-foreground truncate">{program.school_name} · {program.sport}</p>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {searchQuery.trim().length >= 2 && !searching && searchResults.length === 0 && (
+                            <p className="text-xs text-center text-muted-foreground py-1">No programs found</p>
+                          )}
+                        </>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        {selectedProgram
+                          ? "A request will be sent to the coach for approval"
+                          : "Search and select your program, or skip to create a standalone profile."}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
+
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-semibold">Email</Label>
                 <Input
