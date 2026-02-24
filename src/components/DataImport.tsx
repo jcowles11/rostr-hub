@@ -314,6 +314,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
   };
 
   const mappedGroupCount = Object.values(groupMapping).filter(Boolean).length;
+  const unmappedGroups = columnGroups.filter((g) => !groupMapping[g.displayName]);
   const totalEvals = matchedRows.reduce((acc, r) => acc + (r.matchedPlayer || r.createNew ? r.metricValues.length : 0), 0);
   const newPlayerCount = matchedRows.filter((r) => !r.matchedPlayer && r.createNew).length;
   const matchedCount = matchedRows.filter((r) => r.matchedPlayer).length;
@@ -534,7 +535,49 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
               ))}
             </div>
 
-            {mappedGroupCount === 0 && (
+            {unmappedGroups.length > 0 && (
+              <Button
+                variant="outline"
+                className="w-full h-10 rounded-xl text-sm font-medium gap-2"
+                disabled={creatingMetric}
+                onClick={async () => {
+                  if (!coach || creatingMetric) return;
+                  setCreatingMetric(true);
+                  try {
+                    const toCreate = unmappedGroups.map((g, i) => ({
+                      program_id: coach.program_id,
+                      name: g.displayName,
+                      unit: "",
+                      metric_type: "measured" as const,
+                      max_attempts: g.columns.length,
+                      sort_order: metrics.length + i,
+                    }));
+                    const { data: created, error } = await supabase
+                      .from("metrics")
+                      .insert(toCreate)
+                      .select("id, name, unit, metric_type");
+                    if (error) { toast.error(`Failed to create metrics: ${error.message}`); return; }
+                    if (created && created.length > 0) {
+                      setMetrics((prev) => [...prev, ...created]);
+                      const newMappings: GroupMetricMap = {};
+                      for (const m of created) {
+                        const group = unmappedGroups.find((g) => g.displayName === m.name);
+                        if (group) newMappings[group.displayName] = m.id;
+                      }
+                      setGroupMapping((prev) => ({ ...prev, ...newMappings }));
+                      toast.success(`Created ${created.length} new metric${created.length > 1 ? "s" : ""}`);
+                    }
+                  } finally {
+                    setCreatingMetric(false);
+                  }
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                {creatingMetric ? "Creating..." : `Create All Unmapped (${unmappedGroups.length})`}
+              </Button>
+            )}
+
+            {mappedGroupCount === 0 && unmappedGroups.length === 0 && (
               <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 Map at least one group to a metric to import data.
@@ -544,7 +587,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
             {mappedGroupCount > 0 && (
               <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
                 <span className="font-semibold text-foreground">{mappedGroupCount}</span> metric{mappedGroupCount > 1 ? "s" : ""} mapped.
-                {" "}Unmapped groups will be skipped.
+                {unmappedGroups.length > 0 && <> {unmappedGroups.length} unmapped.</>}
               </div>
             )}
 
