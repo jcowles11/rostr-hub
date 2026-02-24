@@ -57,13 +57,29 @@ export default function Dashboard() {
   useEffect(() => {
     if (!coach) return;
     const fetchData = async () => {
-      let evalsQuery = supabase.from("evaluations").select("player_id, metric_id, value, created_at").eq("program_id", coach.program_id).order("created_at");
-      if (selectedSessionId !== "all") {
-        evalsQuery = evalsQuery.eq("session_id", selectedSessionId);
-      }
-      const [pRes, eRes, nRes, mRes] = await Promise.all([
+      // Fetch evaluations with pagination to avoid 1000-row limit
+      const fetchAllEvals = async () => {
+        const allEvals: any[] = [];
+        const batchSize = 1000;
+        let offset = 0;
+        let hasMore = true;
+        while (hasMore) {
+          let q = supabase.from("evaluations").select("player_id, metric_id, value, created_at").eq("program_id", coach.program_id).order("created_at").range(offset, offset + batchSize - 1);
+          if (selectedSessionId !== "all") {
+            q = q.eq("session_id", selectedSessionId);
+          }
+          const { data } = await q;
+          const batch = data || [];
+          allEvals.push(...batch);
+          hasMore = batch.length === batchSize;
+          offset += batchSize;
+        }
+        return allEvals;
+      };
+
+      const [pRes, evalsData, nRes, mRes] = await Promise.all([
         supabase.from("players").select("id, first_name, last_name, grade, positions, player_number").eq("program_id", coach.program_id).order("last_name"),
-        evalsQuery,
+        fetchAllEvals(),
         supabase.from("player_notes").select("player_id, flag").eq("program_id", coach.program_id).not("flag", "is", null),
         supabase.from("metrics").select("id, name, unit, metric_type, aggregation").eq("program_id", coach.program_id).order("sort_order"),
       ]);
@@ -74,7 +90,7 @@ export default function Dashboard() {
 
       // Group evals by player -> metric -> values[]
       const evalsByPlayerMetric = new Map<string, Map<string, number[]>>();
-      (eRes.data || []).forEach((e) => {
+      evalsData.forEach((e: any) => {
         if (!evalsByPlayerMetric.has(e.player_id)) evalsByPlayerMetric.set(e.player_id, new Map());
         const pMap = evalsByPlayerMetric.get(e.player_id)!;
         if (!pMap.has(e.metric_id)) pMap.set(e.metric_id, []);
