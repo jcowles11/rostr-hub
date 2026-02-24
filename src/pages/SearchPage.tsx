@@ -16,6 +16,7 @@ interface SearchPlayer {
   profile_slug: string | null;
   graduation_year: number | null;
   school_name: string;
+  high_school: string | null;
   recruiting_status: string;
   committed_school_name: string | null;
 }
@@ -35,11 +36,21 @@ export default function SearchPage() {
     }
     setLoading(true);
     setSearched(true);
-    const { data } = await supabase.rpc("search_public_players", {
+    // Use authenticated search that finds all active players (not just public profiles)
+    const { data, error } = await supabase.rpc("search_players_authenticated" as any, {
       _name_search: q.trim(),
       _limit: 30,
     });
-    setResults((data as unknown as SearchPlayer[]) || []);
+    if (error) {
+      // Fallback to public search if the new function isn't available
+      const { data: fallback } = await supabase.rpc("search_public_players", {
+        _name_search: q.trim(),
+        _limit: 30,
+      });
+      setResults((fallback as unknown as SearchPlayer[]) || []);
+    } else {
+      setResults((data as unknown as SearchPlayer[]) || []);
+    }
     setLoading(false);
   }, []);
 
@@ -81,9 +92,11 @@ export default function SearchPage() {
       {!loading && results.length > 0 && (
         <div className="space-y-1">
           {results.map((p) => (
-            <button
+              <button
               key={p.id}
-              onClick={() => p.profile_slug && navigate(`/p/${p.profile_slug}`)}
+              onClick={() => {
+                if (p.profile_slug) navigate(`/p/${p.profile_slug}`);
+              }}
               className="flex items-center gap-3 w-full rounded-xl p-3 text-left transition-all hover:bg-muted/60 active:scale-[0.99]"
             >
               <Avatar className="h-12 w-12 rounded-xl border shrink-0">
@@ -95,7 +108,7 @@ export default function SearchPage() {
               <div className="flex-1 min-w-0">
                 <span className="font-bold text-sm block truncate">{p.first_name} {p.last_name}</span>
                 <p className="text-xs text-muted-foreground truncate">
-                  {p.school_name}
+                  {p.school_name || p.high_school || ""}
                   {p.graduation_year && ` • Class of ${p.graduation_year}`}
                 </p>
                 <div className="flex flex-wrap gap-1 mt-1">
