@@ -16,6 +16,7 @@ import {
   isPlayerInfoColumn,
   isNumericColumn,
   splitFullName,
+  splitBatsThrows,
   groupAttemptColumns,
   stripUnitsFromValue,
   preprocessRawData,
@@ -52,19 +53,124 @@ interface PlayerIdMapping {
 // Maps group displayName → metric_id
 type GroupMetricMap = Record<string, string>;
 
-function guessPlayerColumns(headers: string[]): PlayerIdMapping {
-  const find = (terms: string[]) => {
-    const idx = headers.findIndex((h) => {
-      const norm = normalizeHeader(h);
-      return terms.some((t) => norm === t);
-    });
-    return idx >= 0 ? headers[idx] : "";
-  };
-  const firstName = find(["first name", "firstname", "first"]);
-  const lastName = find(["last name", "lastname", "last", "surname"]);
-  const playerName = find(["player name", "playername", "full name", "fullname", "athlete name", "athlete", "name"]);
+/** Flexible column finder: exact → starts-with → contains matching */
+function findCol(headers: string[], terms: string[]): string {
+  const normed = headers.map(normalizeHeader);
+  const normTerms = terms.map(normalizeHeader);
+  // Exact
+  for (const t of normTerms) {
+    const idx = normed.indexOf(t);
+    if (idx !== -1) return headers[idx];
+  }
+  // Starts with
+  for (const t of normTerms) {
+    const idx = normed.findIndex((h) => h.startsWith(t));
+    if (idx !== -1) return headers[idx];
+  }
+  // Contains
+  for (const t of normTerms) {
+    if (t.length < 3) continue; // avoid false positives for short terms
+    const idx = normed.findIndex((h) => h.includes(t));
+    if (idx !== -1) return headers[idx];
+  }
+  return "";
+}
+
+interface DetectedProfileColumns {
+  batsThrows: string;
+  bats: string;
+  throws: string;
+  grade: string;
+  gradYear: string;
+  position: string;
+  height: string;
+  weight: string;
+}
+
+function detectProfileColumns(headers: string[]): DetectedProfileColumns {
   return {
-    player_name: !firstName && !lastName ? playerName : "",
+    batsThrows: findCol(headers, ["b/t", "bats/throws", "bat/throw", "bats throws", "bats-throws", "bats / throws", "bat throw"]),
+    bats: findCol(headers, ["bats", "bat"]),
+    throws: findCol(headers, ["throws", "throw"]),
+    grade: findCol(headers, ["grade", "class", "year"]),
+    gradYear: findCol(headers, ["grad year", "graduation year", "grad_year", "graduation_year", "grad yr"]),
+    position: findCol(headers, ["position", "pos", "positions"]),
+    height: findCol(headers, ["height", "ht"]),
+    weight: findCol(headers, ["weight", "wt"]),
+  };
+}
+
+interface PlayerProfileData {
+  bats?: string;
+  throws?: string;
+  grade?: number;
+  graduation_year?: number;
+  positions?: string[];
+  height?: string;
+  weight?: number;
+}
+
+function extractProfileData(row: Record<string, string>, cols: DetectedProfileColumns): PlayerProfileData {
+  const data: PlayerProfileData = {};
+
+  // B/T - handle combined column or separate columns
+  if (cols.batsThrows) {
+    const bt = splitBatsThrows(row[cols.batsThrows] || "");
+    if (bt.bats) data.bats = bt.bats;
+    if (bt.throws) data.throws = bt.throws;
+  }
+  if (!data.bats && cols.bats) {
+    const v = (row[cols.bats] || "").trim().toUpperCase();
+    if (v && /^[RLSB]/.test(v)) data.bats = v.substring(0, 1);
+  }
+  if (!data.throws && cols.throws) {
+    const v = (row[cols.throws] || "").trim().toUpperCase();
+    if (v && /^[RLB]/.test(v)) data.throws = v.substring(0, 1);
+  }
+
+  // Grade
+  if (cols.grade) {
+    const v = parseInt((row[cols.grade] || "").trim());
+    if (v >= 1 && v <= 12) data.grade = v;
+  }
+
+  // Graduation year
+  if (cols.gradYear) {
+    const v = parseInt((row[cols.gradYear] || "").trim());
+    if (v >= 2000 && v <= 2040) data.graduation_year = v;
+  }
+
+  // Position(s)
+  if (cols.position) {
+    const raw = (row[cols.position] || "").trim();
+    if (raw) {
+      data.positions = raw.split(/[,\/;]+/).map((p) => p.trim()).filter(Boolean);
+    }
+  }
+
+  // Height (keep as string like "5'10" or "5-10")
+  if (cols.height) {
+    const v = (row[cols.height] || "").trim();
+    if (v) data.height = v;
+  }
+
+  // Weight
+  if (cols.weight) {
+    const v = stripUnitsFromValue(row[cols.weight] || "");
+    if (v && v > 50 && v < 400) data.weight = v;
+  }
+
+  return data;
+}
+
+function guessPlayerColumns(headers: string[]): PlayerIdMapping {
+  const firstName = findCol(headers, ["first name", "firstname", "first"]);
+  const lastName = findCol(headers, ["last name", "lastname", "last", "surname"]);
+  const playerName = !firstName && !lastName
+    ? findCol(headers, ["player name", "playername", "full name", "fullname", "athlete name", "athlete", "name"])
+    : "";
+  return {
+    player_name: playerName,
     first_name: firstName,
     last_name: lastName,
   };
@@ -140,6 +246,7 @@ interface MatchedRow {
   matchedPlayer: ExistingPlayer | null;
   createNew: boolean;
   metricValues: { metricId: string; metricName: string; value: number; attemptNumber: number }[];
+  profileData: PlayerProfileData;
 }
 
 export default function DataImport({ open, onOpenChange, onSuccess }: DataImportProps) {
@@ -254,6 +361,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
   const hasValidNameMapping = useFullName || (!!playerMapping.first_name && !!playerMapping.last_name);
 
   const buildMatchedRows = () => {
+    const profileCols = detectProfileColumns(headers);
     const matched: MatchedRow[] = rows.map((row, i) => {
       let firstName: string, lastName: string;
       if (useFullName) {
@@ -268,6 +376,9 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
       const match = existingPlayers.find(
         (p) => p.first_name.toLowerCase() === firstName.toLowerCase() && p.last_name.toLowerCase() === lastName.toLowerCase()
       );
+
+      // Extract profile data (B/T, grade, position, height, weight)
+      const profileData = extractProfileData(row, profileCols);
 
       // Build metric values from grouped columns
       const metricValues: MatchedRow["metricValues"] = [];
@@ -297,6 +408,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         matchedPlayer: match || null,
         createNew: !match && createMissing,
         metricValues,
+        profileData,
       };
     }).filter((r) => r.firstName || r.lastName);
 
@@ -336,7 +448,13 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
             program_id: coach.program_id,
             first_name: r.firstName || "Unknown",
             last_name: r.lastName || "Player",
-            positions: [],
+            positions: r.profileData.positions || [],
+            bats: r.profileData.bats || null,
+            throws: r.profileData.throws || null,
+            grade: r.profileData.grade || null,
+            graduation_year: r.profileData.graduation_year || null,
+            height: r.profileData.height || null,
+            weight: r.profileData.weight || null,
           }))
         ).select("id, first_name, last_name");
 
@@ -351,6 +469,22 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
       matchedRows.forEach((r) => {
         if (r.matchedPlayer) playerIdMap.set(r.rowIndex, r.matchedPlayer.id);
       });
+
+      // Update existing players with profile data from spreadsheet
+      const existingWithProfile = matchedRows.filter((r) => r.matchedPlayer && Object.keys(r.profileData).length > 0);
+      for (const r of existingWithProfile) {
+        const updates: Record<string, any> = {};
+        if (r.profileData.bats) updates.bats = r.profileData.bats;
+        if (r.profileData.throws) updates.throws = r.profileData.throws;
+        if (r.profileData.grade) updates.grade = r.profileData.grade;
+        if (r.profileData.graduation_year) updates.graduation_year = r.profileData.graduation_year;
+        if (r.profileData.positions?.length) updates.positions = r.profileData.positions;
+        if (r.profileData.height) updates.height = r.profileData.height;
+        if (r.profileData.weight) updates.weight = r.profileData.weight;
+        if (Object.keys(updates).length > 0) {
+          await supabase.from("players").update(updates).eq("id", r.matchedPlayer!.id);
+        }
+      }
 
       const evals: { program_id: string; player_id: string; metric_id: string; coach_id: string; value: number; attempt_number: number }[] = [];
       for (const row of matchedRows) {
