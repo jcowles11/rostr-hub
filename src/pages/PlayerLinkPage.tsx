@@ -346,12 +346,27 @@ export default function PlayerLinkPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Height</Label>
-                      <Input
+                      <Select
                         value={details.height}
-                        onChange={(e) => setDetails({ ...details, height: e.target.value })}
-                        placeholder={`5'10"`}
-                        className="h-11 rounded-xl"
-                      />
+                        onValueChange={(v) => setDetails({ ...details, height: v })}
+                      >
+                        <SelectTrigger className="h-11 rounded-xl">
+                          <SelectValue placeholder="Select height" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover z-50">
+                          {Array.from({ length: 25 }, (_, i) => {
+                            const totalInches = 48 + i;
+                            const feet = Math.floor(totalInches / 12);
+                            const inches = totalInches % 12;
+                            const label = `${feet}'${inches}"`;
+                            return (
+                              <SelectItem key={label} value={label}>
+                                {label}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Weight (lbs)</Label>
