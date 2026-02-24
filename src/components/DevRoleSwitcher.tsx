@@ -73,12 +73,20 @@ export default function DevRoleSwitcher() {
               </button>
             );
           })}
-          <button
-            onClick={() => { setDevRoleOverride(null); setOpen(false); }}
-            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-all"
-          >
-            Clear override
-          </button>
+          <div className="border-t mt-1 pt-1 space-y-1">
+            <button
+              onClick={() => { setOpen(false); navigate("/demo"); }}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10 transition-all"
+            >
+              ← Back to Demo Home
+            </button>
+            <button
+              onClick={() => { setDevRoleOverride(null); setOpen(false); }}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-all"
+            >
+              Clear override
+            </button>
+          </div>
         </div>
       )}
       <button
