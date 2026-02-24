@@ -1,6 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { LogOut, Share2, User, Shield, Calendar, SlidersHorizontal, Upload, Database, Download, Users, Layers, Eye, Image, ChevronRight, ChevronDown } from "lucide-react";
+import { LogOut, Share2, User, Shield, Calendar, SlidersHorizontal, Upload, Database, Download, Users, Layers, Eye, Image, ChevronRight, ChevronDown, Clock } from "lucide-react";
 import ProgramLogoUpload from "@/components/ProgramLogoUpload";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +10,7 @@ import LevelsManager from "@/components/LevelsManager";
 import VisibilityManager from "@/components/VisibilityManager";
 import CoachManager from "@/components/CoachManager";
 import MetricsManager from "@/components/MetricsManager";
+import SeasonsManager from "@/components/SeasonsManager";
 import RosterUpload from "@/components/RosterUpload";
 import DataImport from "@/components/DataImport";
 import { Input } from "@/components/ui/input";
@@ -232,6 +233,19 @@ export default function SettingsPage() {
           {expanded === "levels" && (
             <div className="animate-fade-in">
               <LevelsManager />
+            </div>
+          )}
+
+          <TileButton
+            icon={<Clock className="h-4 w-4" />}
+            label="Seasons"
+            subtitle={`${expanded === "seasons" ? "Collapse" : "Manage seasons & years"}`}
+            onClick={() => toggleExpand("seasons")}
+            trailing={expanded === "seasons" ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          />
+          {expanded === "seasons" && (
+            <div className="rounded-2xl border bg-card p-4 animate-fade-in">
+              <SeasonsManager />
             </div>
           )}
 
