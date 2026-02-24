@@ -105,14 +105,30 @@ function ScoutRoute({ children }: { children: React.ReactNode }) {
   return <Navigate to="/auth" replace />;
 }
 
-/** Social is accessible to all authenticated users */
-function SocialRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+/** Social is accessible to all authenticated users — coaches stay in AppLayout, others use UnifiedNavShell */
+function SocialRoute() {
+  const { user, coach, userRole, loading } = useAuth();
 
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/auth" replace />;
 
-  return <>{children}</>;
+  // Coaches: render Social inside AppLayout (keeps coach header + bottom nav)
+  if (userRole === "coach" || coach) {
+    return (
+      <SessionProvider>
+        <AppLayout>
+          <SocialPage />
+        </AppLayout>
+      </SessionProvider>
+    );
+  }
+
+  // Everyone else: use UnifiedNavShell
+  return (
+    <UnifiedNavShell>
+      <SocialPage />
+    </UnifiedNavShell>
+  );
 }
 
 function AuthRoute({ children }: { children: React.ReactNode }) {
@@ -148,7 +164,7 @@ const App = () => (
             <Route path="/player-link" element={<PlayerLinkPage />} />
             <Route path="/evaluator" element={<EvaluatorRoute><UnifiedNavShell><EvaluatorDashboard /></UnifiedNavShell></EvaluatorRoute>} />
             <Route path="/scout" element={<ScoutRoute><UnifiedNavShell><ScoutDashboard /></UnifiedNavShell></ScoutRoute>} />
-            <Route path="/social" element={<SocialRoute><UnifiedNavShell><SocialPage /></UnifiedNavShell></SocialRoute>} />
+            <Route path="/social" element={<SocialRoute />} />
             <Route path="/p/:slug" element={<PublicProfile />} />
             <Route path="/evaluator/:id" element={<EvaluatorProfile />} />
             <Route path="/" element={<ProtectedRoute><Roster /></ProtectedRoute>} />

@@ -48,6 +48,8 @@ export default function ScoutDashboard() {
       _throws: searchFilters.throws || null,
       _name_search: searchFilters.nameSearch || null,
       _recruiting_status: searchFilters.recruitingStatus || null,
+      _state: searchFilters.state || null,
+      _gpa_min: searchFilters.gpaMin || null,
       _limit: 50,
       _offset: 0,
     });

@@ -23,6 +23,8 @@ export interface SearchFilters {
   nameSearch?: string;
   metricFilters?: MetricFilter[];
   recruitingStatus?: string;
+  state?: string;
+  gpaMin?: number;
 }
 
 const POSITIONS = ["P", "C", "1B", "2B", "SS", "3B", "OF", "LF", "CF", "RF", "DH", "IF", "UT"];
@@ -31,6 +33,12 @@ const METRIC_OPTIONS = [
   "30 Yard Dash", "60-Yard Dash", "Arm Velocity (C)", "Arm Velocity (IF)",
   "Arm Velocity (OF)", "CH Velo", "Curveball Velocity", "Exit Velocity",
   "Fastball Velo", "Fielding", "Hitting", "Home to First", "Hustle/Attitude",
+];
+const US_STATES = [
+  "AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN",
+  "IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH",
+  "NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT",
+  "VT","VA","WA","WV","WI","WY",
 ];
 
 interface Props {
@@ -52,7 +60,8 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
   const [newMetricMin, setNewMetricMin] = useState("");
   const [newMetricMax, setNewMetricMax] = useState("");
   const [recruitingStatus, setRecruitingStatus] = useState("");
-
+  const [selectedState, setSelectedState] = useState("");
+  const [gpaMin, setGpaMin] = useState("");
   const togglePosition = (pos: string) => {
     setSelectedPositions((prev) =>
       prev.includes(pos) ? prev.filter((p) => p !== pos) : [...prev, pos]
@@ -89,6 +98,8 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
       throws: throws_ || undefined,
       metricFilters: metricFilters.length ? metricFilters : undefined,
       recruitingStatus: recruitingStatus || undefined,
+      state: selectedState || undefined,
+      gpaMin: gpaMin ? Number(gpaMin) : undefined,
     });
   };
 
@@ -102,6 +113,8 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
     setThrows("");
     setMetricFilters([]);
     setRecruitingStatus("");
+    setSelectedState("");
+    setGpaMin("");
   };
 
   return (
@@ -203,6 +216,38 @@ export default function PlayerSearchFilters({ onSearch, loading, isScout = false
                 <SelectItem value="committed">Committed Only</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+        )}
+
+        {/* State filter - Scout only */}
+        {isScout && (
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">State</Label>
+            <Select value={selectedState} onValueChange={setSelectedState}>
+              <SelectTrigger className="h-9 text-sm rounded-lg"><SelectValue placeholder="Any state" /></SelectTrigger>
+              <SelectContent>
+                {US_STATES.map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* GPA Minimum - Scout only */}
+        {isScout && (
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">GPA Minimum</Label>
+            <Input
+              type="number"
+              step="0.1"
+              min="0"
+              max="5.0"
+              placeholder="e.g. 3.5"
+              value={gpaMin}
+              onChange={(e) => setGpaMin(e.target.value)}
+              className="h-9 text-sm rounded-lg"
+            />
           </div>
         )}
 
