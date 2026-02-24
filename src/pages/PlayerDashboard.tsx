@@ -33,10 +33,16 @@ interface PlayerData {
   first_name: string;
   last_name: string;
   grade: number | null;
+  graduation_year: number | null;
   positions: string[] | null;
   player_number: number | null;
   photo_url: string | null;
   results_visible: boolean | null;
+  high_school: string | null;
+  city: string | null;
+  state: string | null;
+  bats: string | null;
+  throws: string | null;
 }
 
 interface ProgramData {
@@ -59,7 +65,7 @@ export default function PlayerDashboard() {
   useEffect(() => {
     if (!playerInfo) return;
     const fetchData = async () => {
-      const pRes = await supabase.from("players").select("id, first_name, last_name, grade, positions, player_number, photo_url, results_visible").eq("id", playerInfo.id).single();
+      const pRes = await supabase.from("players").select("id, first_name, last_name, grade, graduation_year, positions, player_number, photo_url, results_visible, high_school, city, state, bats, throws").eq("id", playerInfo.id).single();
       setPlayer(pRes.data);
 
       if (playerInfo.program_id) {
@@ -123,13 +129,30 @@ export default function PlayerDashboard() {
             <h1 className="text-2xl font-extrabold text-white">
               {player.first_name} {player.last_name}
             </h1>
-            <p className="text-sm text-white/70">{program?.name || "Independent Player"}</p>
-            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+            {program?.name ? (
+              <p className="text-sm text-white/70">{program.name}</p>
+            ) : player.high_school ? (
+              <p className="text-sm text-white/70">{player.high_school}</p>
+            ) : null}
+            {(player.city || player.state) && (
+              <p className="text-xs text-white/50">
+                {[player.city, player.state].filter(Boolean).join(", ")}
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+              {player.graduation_year && (
+                <span className="rounded-lg bg-white/20 px-2 py-0.5 text-xs font-semibold text-white">{player.graduation_year}</span>
+              )}
               {player.player_number && (
                 <span className="rounded-lg bg-white/20 px-2 py-0.5 text-xs font-semibold text-white">#{player.player_number}</span>
               )}
               {player.grade && (
                 <span className="rounded-lg bg-white/20 px-2 py-0.5 text-xs font-semibold text-white">Grade {player.grade}</span>
+              )}
+              {(player.bats || player.throws) && (
+                <span className="rounded-lg bg-white/20 px-2 py-0.5 text-xs font-semibold text-white">
+                  B/T: {player.bats || "—"}/{player.throws || "—"}
+                </span>
               )}
               {player.positions?.map((p) => (
                 <span key={p} className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">{p}</span>
