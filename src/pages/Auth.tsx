@@ -44,17 +44,21 @@ export default function Auth() {
       if (error) toast.error(error.message);
       else toast.success("Check your email to confirm your account!");
     } else if (mode === "signup-player") {
-      // Verify registration code first
-      const { data: program } = await supabase
-        .from("programs")
-        .select("id")
-        .eq("registration_code", regCode.trim())
-        .single();
+      // If reg code provided, verify it
+      let programId: string | null = null;
+      if (regCode.trim()) {
+        const { data: program } = await supabase
+          .from("programs")
+          .select("id")
+          .eq("registration_code", regCode.trim())
+          .single();
 
-      if (!program) {
-        toast.error("Invalid registration code");
-        setLoading(false);
-        return;
+        if (!program) {
+          toast.error("Invalid registration code");
+          setLoading(false);
+          return;
+        }
+        programId = program.id;
       }
 
       const { data: authData, error } = await supabase.auth.signUp({
@@ -70,7 +74,7 @@ export default function Auth() {
         toast.error(error.message);
       } else if (authData.user) {
         localStorage.setItem(`rostr_player_reg_${authData.user.id}`, JSON.stringify({
-          program_id: program.id,
+          program_id: programId,
           full_name: fullName,
         }));
         toast.success("Check your email to confirm your account!");
@@ -225,16 +229,15 @@ export default function Auth() {
               )}
               {mode === "signup-player" && (
                 <div className="space-y-2 animate-fade-in">
-                  <Label htmlFor="regCode" className="text-sm font-semibold">Registration Code</Label>
+                  <Label htmlFor="regCode" className="text-sm font-semibold">Registration Code (optional)</Label>
                   <Input
                     id="regCode"
                     value={regCode}
                     onChange={(e) => setRegCode(e.target.value)}
-                    placeholder="Enter code from your coach"
-                    required
+                    placeholder="Enter code from your coach (if you have one)"
                     className="tap-target h-12 text-base rounded-xl"
                   />
-                  <p className="text-xs text-muted-foreground">Your coach will provide this code</p>
+                  <p className="text-xs text-muted-foreground">Have a code from your coach? Enter it here. Otherwise, you can create a standalone profile.</p>
                 </div>
               )}
               <div className="space-y-2">

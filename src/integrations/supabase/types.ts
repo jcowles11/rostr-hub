@@ -367,6 +367,38 @@ export type Database = {
         }
         Relationships: []
       }
+      player_club_teams: {
+        Row: {
+          created_at: string
+          id: string
+          is_current: boolean
+          name: string
+          player_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_current?: boolean
+          name: string
+          player_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_current?: boolean
+          name?: string
+          player_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_club_teams_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       player_notes: {
         Row: {
           coach_id: string
@@ -435,6 +467,7 @@ export type Database = {
       players: {
         Row: {
           bats: string | null
+          birthday: string | null
           city: string | null
           commitment_date: string | null
           committed_school_logo_url: string | null
@@ -449,6 +482,7 @@ export type Database = {
           grade: number | null
           graduation_year: number | null
           height: string | null
+          high_school: string | null
           highlight_video_url: string | null
           id: string
           jersey_number_preference: number | null
@@ -461,7 +495,7 @@ export type Database = {
           positions: string[] | null
           profile_public: boolean
           profile_slug: string | null
-          program_id: string
+          program_id: string | null
           recruiting_status: string
           results_visible: boolean | null
           show_contact_info: boolean
@@ -477,6 +511,7 @@ export type Database = {
         }
         Insert: {
           bats?: string | null
+          birthday?: string | null
           city?: string | null
           commitment_date?: string | null
           committed_school_logo_url?: string | null
@@ -491,6 +526,7 @@ export type Database = {
           grade?: number | null
           graduation_year?: number | null
           height?: string | null
+          high_school?: string | null
           highlight_video_url?: string | null
           id?: string
           jersey_number_preference?: number | null
@@ -503,7 +539,7 @@ export type Database = {
           positions?: string[] | null
           profile_public?: boolean
           profile_slug?: string | null
-          program_id: string
+          program_id?: string | null
           recruiting_status?: string
           results_visible?: boolean | null
           show_contact_info?: boolean
@@ -519,6 +555,7 @@ export type Database = {
         }
         Update: {
           bats?: string | null
+          birthday?: string | null
           city?: string | null
           commitment_date?: string | null
           committed_school_logo_url?: string | null
@@ -533,6 +570,7 @@ export type Database = {
           grade?: number | null
           graduation_year?: number | null
           height?: string | null
+          high_school?: string | null
           highlight_video_url?: string | null
           id?: string
           jersey_number_preference?: number | null
@@ -545,7 +583,7 @@ export type Database = {
           positions?: string[] | null
           profile_public?: boolean
           profile_slug?: string | null
-          program_id?: string
+          program_id?: string | null
           recruiting_status?: string
           results_visible?: boolean | null
           show_contact_info?: boolean

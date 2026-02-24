@@ -24,7 +24,7 @@ interface CoachInfo {
 
 interface PlayerInfo {
   id: string;
-  program_id: string;
+  program_id: string | null;
   first_name: string;
   last_name: string;
   player_number: number | null;
@@ -261,25 +261,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const firstName = parts[0] || "";
         const lastName = parts.slice(1).join(" ") || "";
 
-        const { data: existingPlayer } = await supabase
-          .from("players")
-          .select("id")
-          .eq("program_id", program_id)
-          .ilike("first_name", firstName)
-          .ilike("last_name", lastName)
-          .is("user_id", null)
-          .limit(1)
-          .maybeSingle();
+        if (program_id) {
+          // Program-linked registration: try to match existing player or create one
+          const { data: existingPlayer } = await supabase
+            .from("players")
+            .select("id")
+            .eq("program_id", program_id)
+            .ilike("first_name", firstName)
+            .ilike("last_name", lastName)
+            .is("user_id", null)
+            .limit(1)
+            .maybeSingle();
 
-        if (existingPlayer) {
-          await supabase.from("players").update({ user_id: userId }).eq("id", existingPlayer.id);
+          if (existingPlayer) {
+            await supabase.from("players").update({ user_id: userId }).eq("id", existingPlayer.id);
+          } else {
+            await supabase.from("players").insert({
+              program_id,
+              first_name: firstName,
+              last_name: lastName,
+              user_id: userId,
+            });
+          }
         } else {
+          // Standalone registration: create player with no program
           await supabase.from("players").insert({
-            program_id,
             first_name: firstName,
             last_name: lastName,
             user_id: userId,
-          });
+            program_id: null,
+          } as any);
         }
 
         localStorage.removeItem(`rostr_player_reg_${userId}`);
