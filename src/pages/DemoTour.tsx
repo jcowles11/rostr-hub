@@ -11,7 +11,7 @@ const DEMO_ROLES = [
   {
     key: "coach",
     label: "Coach Demo",
-    description: "Tryouts, roster management, scoring, stats & sorting",
+    description: "Run baseball tryouts, manage rosters, score & rank players",
     icon: Shield,
     path: "/",
     color: "from-blue-500 to-blue-600",
@@ -19,7 +19,7 @@ const DEMO_ROLES = [
   {
     key: "player",
     label: "Player Demo",
-    description: "Social feed, profile, metrics & recruiting visibility",
+    description: "Social feed, player profile, metrics & recruiting visibility",
     icon: User,
     path: "/social",
     color: "from-green-500 to-green-600",
@@ -27,7 +27,7 @@ const DEMO_ROLES = [
   {
     key: "scout",
     label: "Scout Demo",
-    description: "Search, filter, sort & discover players",
+    description: "Search, filter & discover baseball players by stats",
     icon: Search,
     path: "/scout",
     color: "from-purple-500 to-purple-600",
@@ -35,7 +35,7 @@ const DEMO_ROLES = [
   {
     key: "evaluator",
     label: "Evaluator Demo",
-    description: "Evaluate players, submit verified metrics",
+    description: "Evaluate players & submit verified baseball metrics",
     icon: Eye,
     path: "/evaluator",
     color: "from-amber-500 to-amber-600",
