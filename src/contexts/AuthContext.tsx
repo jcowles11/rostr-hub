@@ -546,6 +546,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, [devRoleOverride, user]);
 
+  // Demo mode: when entering player demo, provision a player record
+  useEffect(() => {
+    if (devRoleOverride !== "player" || !user) return;
+
+    (async () => {
+      // Check if user already has a player record
+      const { data: existingPlayer } = await supabase
+        .from("players")
+        .select("id, program_id, first_name, last_name, player_number, photo_url, programs(name)")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingPlayer) {
+        const pd = existingPlayer.programs as unknown as { name: string } | null;
+        setPlayerInfo({
+          id: existingPlayer.id,
+          program_id: existingPlayer.program_id,
+          first_name: existingPlayer.first_name,
+          last_name: existingPlayer.last_name,
+          player_number: existingPlayer.player_number,
+          photo_url: existingPlayer.photo_url,
+          program_name: pd?.name,
+        });
+        return;
+      }
+
+      // No player record — pick a random existing player to "impersonate" for demo,
+      // or create a standalone player profile
+      const displayName = user.user_metadata?.full_name || user.email?.split("@")[0] || "Demo Player";
+      const parts = displayName.split(" ");
+      const firstName = parts[0] || "Demo";
+      const lastName = parts.slice(1).join(" ") || "Player";
+
+      // Try to find a program with players for a richer demo
+      const { data: anyProgram } = await supabase
+        .from("programs")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+
+      const { data: newPlayer, error } = await supabase
+        .from("players")
+        .insert({
+          user_id: user.id,
+          first_name: firstName,
+          last_name: lastName,
+          program_id: anyProgram?.id || null,
+        } as any)
+        .select("id, program_id, first_name, last_name, player_number, photo_url, programs(name)")
+        .single();
+
+      if (!error && newPlayer) {
+        const pd = newPlayer.programs as unknown as { name: string } | null;
+        setPlayerInfo({
+          id: newPlayer.id,
+          program_id: newPlayer.program_id,
+          first_name: newPlayer.first_name,
+          last_name: newPlayer.last_name,
+          player_number: newPlayer.player_number,
+          photo_url: newPlayer.photo_url,
+          program_name: pd?.name,
+        });
+      }
+    })();
+  }, [devRoleOverride, user]);
+
   return (
     <AuthContext.Provider value={{ session, user, coach, playerInfo, evaluatorInfo, scoutInfo, allCoaches, organizations, currentOrg, userRole: devRoleOverride || userRole, loading, signOut, refreshCoach, refreshPlayer, refreshEvaluator, refreshScout, switchProgram, switchOrg, deleteProgram, devRoleOverride, setDevRoleOverride }}>
       {children}
