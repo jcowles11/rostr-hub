@@ -73,7 +73,13 @@ export default function SettingsPage() {
   const copyRegLink = () => {
     const link = `${window.location.origin}/register/${regCode}`;
     navigator.clipboard.writeText(link);
-    toast.success("Registration link copied!");
+    toast.success("Registration link copied! (for new players)");
+  };
+
+  const copyInviteLink = () => {
+    const link = `${window.location.origin}/join/${regCode}`;
+    navigator.clipboard.writeText(link);
+    toast.success("Invite link copied! (for existing players)");
   };
 
   const handleSignOut = async () => {
@@ -278,8 +284,14 @@ export default function SettingsPage() {
           <TileButton
             icon={<Share2 className="h-4 w-4" />}
             label="Registration Link"
-            subtitle="Copy link for players to register"
+            subtitle="For new players to register"
             onClick={copyRegLink}
+          />
+          <TileButton
+            icon={<Users className="h-4 w-4" />}
+            label="Invite Existing Player"
+            subtitle="Link for players who already have an account"
+            onClick={copyInviteLink}
           />
         </div>
       </div>
