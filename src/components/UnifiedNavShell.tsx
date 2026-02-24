@@ -89,9 +89,19 @@ export default function UnifiedNavShell({ children, showBottomNav = true }: Prop
 
           <div className="flex items-center gap-2">
             {displayName && (
-              <span className="text-xs text-muted-foreground font-medium truncate max-w-[120px]">
+              <button
+                onClick={() => {
+                  const profilePath =
+                    effectiveRole === "player" ? "/player-dashboard" :
+                    effectiveRole === "scout" ? "/scout-profile" :
+                    effectiveRole === "evaluator" ? "/evaluator" :
+                    "/settings";
+                  navigate(profilePath);
+                }}
+                className="text-xs text-muted-foreground font-medium truncate max-w-[120px] hover:text-foreground transition-colors"
+              >
                 {displayName}
-              </span>
+              </button>
             )}
             <Button variant="ghost" size="sm" onClick={handleSignOut} className="text-muted-foreground h-8 w-8 p-0">
               <LogOut className="h-4 w-4" />
