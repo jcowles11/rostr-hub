@@ -63,14 +63,14 @@ export default function PlayerSearchResults({ results, loading, searched, onClea
   const clearSelection = () => setSelectedIds(new Set());
 
   const fetchLists = async () => {
-    if (!scoutInfo) return;
+    if (!scoutInfo) { toast.error("No scout profile found."); return; }
     const { data } = await supabase.from("scout_lists").select("id, name").eq("scout_id", scoutInfo.id);
     if (data) setLists(data);
   };
 
   const saveProspect = async (e: React.MouseEvent, playerId: string) => {
     e.stopPropagation();
-    if (!scoutInfo) return;
+    if (!scoutInfo) { toast.error("No scout profile found. Please complete your scout registration first."); return; }
     setSavingId(playerId);
     const { error } = await supabase.from("scout_saved_prospects").insert({ scout_id: scoutInfo.id, player_id: playerId });
     if (error?.code === "23505") toast.info("Already saved");
@@ -102,7 +102,7 @@ export default function PlayerSearchResults({ results, loading, searched, onClea
   };
 
   const sendMessageRequest = async () => {
-    if (!scoutInfo || !messageDialogPlayer || !initialMessage.trim()) return;
+    if (!scoutInfo || !messageDialogPlayer || !initialMessage.trim()) { if (!scoutInfo) toast.error("No scout profile found."); return; }
     setSendingMessage(true);
     const { error } = await supabase.from("conversation_requests").insert({
       scout_id: scoutInfo.id,
