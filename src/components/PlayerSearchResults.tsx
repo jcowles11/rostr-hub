@@ -81,6 +81,12 @@ export default function PlayerSearchResults({ results, loading, searched }: Prop
                     {player.positions?.slice(0, 3).map((pos) => (
                       <Badge key={pos} variant="secondary" className="text-[10px] px-1.5 py-0">{pos}</Badge>
                     ))}
+                    {player.height && (
+                      <span className="text-[10px] text-muted-foreground">{player.height}</span>
+                    )}
+                    {player.weight && (
+                      <span className="text-[10px] text-muted-foreground">{player.weight} lbs</span>
+                    )}
                     {player.bats && (
                       <span className="text-[10px] text-muted-foreground">B: {player.bats}</span>
                     )}
