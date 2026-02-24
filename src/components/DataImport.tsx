@@ -260,7 +260,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         createNew: !match && createMissing,
         metricValues,
       };
-    }).filter((r) => r.firstName && r.lastName);
+    }).filter((r) => r.firstName || r.lastName);
 
     setMatchedRows(matched);
   };
@@ -295,8 +295,8 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         const { data: inserted, error } = await supabase.from("players").insert(
           newPlayers.map((r) => ({
             program_id: coach.program_id,
-            first_name: r.firstName,
-            last_name: r.lastName,
+            first_name: r.firstName || "Unknown",
+            last_name: r.lastName || "Player",
             positions: [],
           }))
         ).select("id, first_name, last_name");
