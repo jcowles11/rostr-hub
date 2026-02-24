@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import rostrLogo from "@/assets/rostr-logo.png";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
@@ -66,7 +66,7 @@ interface ExternalEntry {
   event_date: string | null;
   notes: string | null;
   created_at: string;
-  evaluator: { full_name: string; organization_name: string } | null;
+  evaluator: { id: string; full_name: string; organization_name: string } | null;
 }
 
 export default function PlayerDetail() {
@@ -596,10 +596,12 @@ export default function PlayerDetail() {
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {entry.evaluator && (
-                    <Badge variant="outline" className="text-[10px] gap-1 border-accent/30 text-accent font-medium px-1.5 py-0">
-                      <Award className="h-2.5 w-2.5" />
-                      {entry.evaluator.full_name}{entry.evaluator.organization_name ? `, ${entry.evaluator.organization_name}` : ""}
-                    </Badge>
+                    <Link to={`/evaluator/${entry.evaluator.id}`}>
+                      <Badge variant="outline" className="text-[10px] gap-1 border-accent/30 text-accent font-medium px-1.5 py-0 hover:bg-accent/10 transition-colors cursor-pointer">
+                        <Award className="h-2.5 w-2.5" />
+                        {entry.evaluator.full_name}{entry.evaluator.organization_name ? `, ${entry.evaluator.organization_name}` : ""}
+                      </Badge>
+                    </Link>
                   )}
                   {(entry.event_name || entry.event_date) && (
                     <span className="text-[10px] text-muted-foreground">

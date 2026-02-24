@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,7 @@ interface MetricEntry {
   source_type?: string;
   source_name?: string;
   source_org?: string;
+  evaluator_id?: string;
   event_name?: string;
   event_date?: string;
   created_at?: string;
@@ -80,6 +81,7 @@ function ProgramMetricsSection({ metrics, programName }: { metrics: MetricEntry[
 interface GroupedEval {
   evaluatorName: string;
   organization: string;
+  evaluatorId: string | null;
   entries: MetricEntry[];
 }
 
@@ -95,6 +97,7 @@ function ShowcaseMetricsSection({ metrics }: { metrics: MetricEntry[] }) {
       const group: GroupedEval = {
         evaluatorName: m.source_name || "Evaluator",
         organization: m.source_org || "",
+        evaluatorId: m.evaluator_id || null,
         entries: [],
       };
       groupMap.set(key, group);
@@ -115,10 +118,19 @@ function ShowcaseMetricsSection({ metrics }: { metrics: MetricEntry[] }) {
           {groups.map((group, gi) => (
             <div key={gi}>
               <div className="flex items-center gap-2 mb-2.5">
-                <Badge variant="outline" className="text-[10px] gap-1 border-accent/30 text-accent font-medium px-1.5 py-0.5">
-                  <Award className="h-2.5 w-2.5" />
-                  {group.evaluatorName}{group.organization ? `, ${group.organization}` : ""}
-                </Badge>
+                {group.evaluatorId ? (
+                  <Link to={`/evaluator/${group.evaluatorId}`}>
+                    <Badge variant="outline" className="text-[10px] gap-1 border-accent/30 text-accent font-medium px-1.5 py-0.5 hover:bg-accent/10 transition-colors cursor-pointer">
+                      <Award className="h-2.5 w-2.5" />
+                      {group.evaluatorName}{group.organization ? `, ${group.organization}` : ""}
+                    </Badge>
+                  </Link>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] gap-1 border-accent/30 text-accent font-medium px-1.5 py-0.5">
+                    <Award className="h-2.5 w-2.5" />
+                    {group.evaluatorName}{group.organization ? `, ${group.organization}` : ""}
+                  </Badge>
+                )}
               </div>
               <div className="space-y-2">
                 {group.entries.map((m, i) => (
