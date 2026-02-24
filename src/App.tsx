@@ -28,6 +28,7 @@ import EvaluatorProfile from "@/pages/EvaluatorProfile";
 import ScoutDashboard from "@/pages/ScoutDashboard";
 import SocialPage from "@/pages/SocialPage";
 import SearchPage from "@/pages/SearchPage";
+import NotificationsPage from "@/pages/NotificationsPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -168,6 +169,7 @@ const App = () => (
             <Route path="/player-link" element={<PlayerLinkPage />} />
             <Route path="/evaluator" element={<EvaluatorRoute><UnifiedNavShell><EvaluatorDashboard /></UnifiedNavShell></EvaluatorRoute>} />
             <Route path="/scout" element={<ScoutRoute><UnifiedNavShell><ScoutDashboard /></UnifiedNavShell></ScoutRoute>} />
+            <Route path="/notifications" element={<UnifiedNavShell><NotificationsPage /></UnifiedNavShell>} />
             <Route path="/social" element={<SocialRoute />} />
             <Route path="/p/:slug" element={<PublicProfile />} />
             <Route path="/evaluator/:id" element={<EvaluatorProfile />} />
