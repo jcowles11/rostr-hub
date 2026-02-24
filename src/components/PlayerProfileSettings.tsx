@@ -65,8 +65,9 @@ const GRADES = [
 
 const BATS_THROWS = ["R", "L", "S"];
 
-// Combine all sport positions for standalone players
-const ALL_POSITIONS = [...new Set(SPORTS.flatMap((s) => s.positions))];
+// Only show baseball/softball positions for now (multi-sport profiles coming later)
+const BASEBALL_SPORT = SPORTS.find((s) => s.id === "baseball");
+const ALL_POSITIONS = BASEBALL_SPORT?.positions ?? [];
 
 function isValidUrl(val: string | null): boolean {
   if (!val) return true;
