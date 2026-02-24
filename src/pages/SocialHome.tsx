@@ -78,7 +78,6 @@ export default function SocialHome() {
   const canPost = userRole === "player" || userRole === "coach";
 
   const fetchPosts = useCallback(async () => {
-    // Fetch posts
     const { data: postRows } = await supabase
       .from("posts")
       .select("*")
@@ -86,25 +85,41 @@ export default function SocialHome() {
       .limit(50);
 
     if (postRows && postRows.length > 0) {
-      // Get author info (player profiles) for all posts
+      // Get author info by user_id
       const authorIds = [...new Set(postRows.map((p) => p.author_id))];
-      const { data: players } = await supabase
+      const { data: playersByUser } = await supabase
         .from("players")
         .select("user_id, first_name, last_name, photo_url, profile_slug, id")
         .in("user_id", authorIds);
 
-      const playerMap = new Map(
-        (players || []).map((p) => [p.user_id, p])
+      const userMap = new Map(
+        (playersByUser || []).map((p) => [p.user_id, p])
       );
 
+      // Also fetch players by player_id for posts where author lookup may fail (demo data)
+      const playerIds = postRows
+        .filter((p) => p.player_id && !userMap.has(p.author_id))
+        .map((p) => p.player_id!);
+
+      let playerIdMap = new Map<string, { id: string; first_name: string; last_name: string; photo_url: string | null; profile_slug: string | null }>();
+      if (playerIds.length > 0) {
+        const { data: playersByPid } = await supabase
+          .from("players")
+          .select("id, first_name, last_name, photo_url, profile_slug")
+          .in("id", [...new Set(playerIds)]);
+        playersByPid?.forEach((p) => playerIdMap.set(p.id, p));
+      }
+
       const enriched: PostData[] = postRows.map((p) => {
-        const player = playerMap.get(p.author_id);
+        const byUser = userMap.get(p.author_id);
+        const byPid = p.player_id ? playerIdMap.get(p.player_id) : undefined;
+        const player = byUser || byPid;
         return {
           ...p,
           media_urls: p.media_urls || [],
           author: player
             ? {
-                id: player.id,
+                id: byUser?.id || byPid?.id || p.player_id || "",
                 first_name: player.first_name,
                 last_name: player.last_name,
                 photo_url: player.photo_url,
