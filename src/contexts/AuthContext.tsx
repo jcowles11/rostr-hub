@@ -484,11 +484,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       if (existingCoaches && existingCoaches.length > 0) {
-        // Pick the program with the most players for the best demo experience
+        // Prefer a baseball program for demo, then fall back to most players
         let bestCoach = existingCoaches[0];
-        if (existingCoaches.length > 1) {
+        const baseballCoaches = existingCoaches.filter((c) => (c.programs as any)?.sport === "baseball");
+        const candidates = baseballCoaches.length > 0 ? baseballCoaches : existingCoaches;
+        if (candidates.length > 1) {
           const counts = await Promise.all(
-            existingCoaches.map(async (c) => {
+            candidates.map(async (c) => {
               const { count } = await supabase
                 .from("players")
                 .select("id", { count: "exact", head: true })
@@ -498,6 +500,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           );
           counts.sort((a, b) => b.count - a.count);
           bestCoach = counts[0].coach;
+        } else {
+          bestCoach = candidates[0];
         }
         setCoach(toCoachInfo(bestCoach));
         setAllCoaches(existingCoaches.map(toCoachInfo));
