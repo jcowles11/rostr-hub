@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import rostrLogo from "@/assets/rostr-logo.png";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Search, Plus, CheckCircle, ClipboardList, User } from "lucide-react";
+import { Search, CheckCircle, ClipboardList, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import EvaluatorSubmitForm from "@/components/EvaluatorSubmitForm";
@@ -35,7 +35,7 @@ interface EvalEntry {
 }
 
 export default function EvaluatorDashboard() {
-  const { user, evaluatorInfo, signOut, refreshEvaluator } = useAuth();
+  const { user, evaluatorInfo, refreshEvaluator } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState<PlayerResult[]>([]);
@@ -141,10 +141,6 @@ export default function EvaluatorDashboard() {
     setSearching(false);
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate("/auth");
-  };
 
   if (needsSetup) {
     return (
@@ -174,23 +170,7 @@ export default function EvaluatorDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur-2xl">
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <img src={rostrLogo} alt="Rostr" className="h-8 w-8 rounded-lg object-cover" />
-            <div>
-              <span className="text-sm font-bold">{evaluatorInfo?.full_name}</span>
-              <p className="text-xs text-muted-foreground">{evaluatorInfo?.organization_name}</p>
-            </div>
-          </div>
-          <Button variant="ghost" size="sm" onClick={handleSignOut}>
-            <LogOut className="h-4 w-4" />
-          </Button>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-2xl px-4 pt-4 pb-8 space-y-5 animate-fade-in">
+    <div className="mx-auto max-w-2xl px-4 pt-4 pb-8 space-y-5 animate-fade-in">
         {/* Search players */}
         <Card className="section-card">
           <CardHeader className="pb-2">
@@ -313,6 +293,5 @@ export default function EvaluatorDashboard() {
           </CardContent>
         </Card>
       </div>
-    </div>
   );
 }
