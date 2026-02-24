@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle, MapPin, Ruler, Weight, GraduationCap, Trophy, Youtube, Instagram, Twitter, User } from "lucide-react";
+import { CheckCircle, MapPin, Ruler, Weight, GraduationCap, Trophy, Youtube, Instagram, Twitter, User, Award } from "lucide-react";
 
 interface MetricEntry {
   name: string;
@@ -49,21 +49,100 @@ function getYouTubeEmbedUrl(url: string): string | null {
   return match ? `https://www.youtube.com/embed/${match[1]}` : null;
 }
 
-function SourceBadge({ entry }: { entry: MetricEntry }) {
-  if (entry.source_type === "evaluator") {
-    const label = entry.source_org
-      ? `${entry.source_name}, ${entry.source_org}`
-      : entry.source_name || "Evaluator";
-    return (
-      <Badge variant="outline" className="text-[10px] gap-1 border-accent/30 text-accent font-medium px-1.5 py-0">
-        <CheckCircle className="h-2.5 w-2.5" /> {label}
-      </Badge>
-    );
-  }
+function ProgramMetricsSection({ metrics, programName }: { metrics: MetricEntry[]; programName: string }) {
+  if (metrics.length === 0) return null;
   return (
-    <Badge variant="outline" className="text-[10px] gap-1 border-accent/30 text-accent font-medium px-1.5 py-0">
-      <CheckCircle className="h-2.5 w-2.5" /> {entry.source_name || "Verified"}
-    </Badge>
+    <Card className="section-card">
+      <CardContent className="pt-5 pb-4">
+        <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
+          <CheckCircle className="h-5 w-5 text-accent" />
+          Program Metrics
+        </h2>
+        <p className="text-xs text-muted-foreground mb-4">Verified by {programName}</p>
+        <div className="space-y-2.5">
+          {metrics.map((m, i) => (
+            <div key={i} className="rounded-xl bg-muted/40 p-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-sm">{m.name}</span>
+                  {m.unit && <span className="text-xs text-muted-foreground">({m.unit})</span>}
+                </div>
+                <span className="text-xl font-extrabold">{Number(m.value).toFixed(1)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface GroupedEval {
+  evaluatorName: string;
+  organization: string;
+  entries: MetricEntry[];
+}
+
+function ShowcaseMetricsSection({ metrics }: { metrics: MetricEntry[] }) {
+  if (metrics.length === 0) return null;
+
+  // Group by evaluator (source_name + source_org)
+  const groups: GroupedEval[] = [];
+  const groupMap = new Map<string, GroupedEval>();
+  metrics.forEach((m) => {
+    const key = `${m.source_name || "Unknown"}|${m.source_org || ""}`;
+    if (!groupMap.has(key)) {
+      const group: GroupedEval = {
+        evaluatorName: m.source_name || "Evaluator",
+        organization: m.source_org || "",
+        entries: [],
+      };
+      groupMap.set(key, group);
+      groups.push(group);
+    }
+    groupMap.get(key)!.entries.push(m);
+  });
+
+  return (
+    <Card className="section-card">
+      <CardContent className="pt-5 pb-4">
+        <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
+          <Award className="h-5 w-5 text-accent" />
+          Showcase & Evaluator Data
+        </h2>
+        <p className="text-xs text-muted-foreground mb-4">Independent verified evaluations</p>
+        <div className="space-y-5">
+          {groups.map((group, gi) => (
+            <div key={gi}>
+              <div className="flex items-center gap-2 mb-2.5">
+                <Badge variant="outline" className="text-[10px] gap-1 border-accent/30 text-accent font-medium px-1.5 py-0.5">
+                  <Award className="h-2.5 w-2.5" />
+                  {group.evaluatorName}{group.organization ? `, ${group.organization}` : ""}
+                </Badge>
+              </div>
+              <div className="space-y-2">
+                {group.entries.map((m, i) => (
+                  <div key={i} className="rounded-xl bg-muted/40 p-3.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm">{m.name}</span>
+                        {m.unit && <span className="text-xs text-muted-foreground">({m.unit})</span>}
+                      </div>
+                      <span className="text-xl font-extrabold">{Number(m.value).toFixed(1)}</span>
+                    </div>
+                    {(m.event_name || m.event_date) && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {m.event_name}{m.event_date ? ` • ${new Date(m.event_date).toLocaleDateString()}` : ""}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -110,7 +189,6 @@ export default function PublicProfile() {
   }
 
   const { player, program, metrics, evaluator_metrics } = data;
-  const allMetrics = [...(metrics || []), ...(evaluator_metrics || [])];
   const embedUrl = player.highlight_video_url ? getYouTubeEmbedUrl(player.highlight_video_url) : null;
 
   return (
@@ -185,36 +263,11 @@ export default function PublicProfile() {
           </Card>
         )}
 
-        {/* Verified Metrics */}
-        {allMetrics.length > 0 && (
-          <Card className="section-card">
-            <CardContent className="pt-5 pb-4">
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-accent" />
-                Verified Metrics
-              </h2>
-              <div className="space-y-2.5">
-                {allMetrics.map((m, i) => (
-                  <div key={i} className="rounded-xl bg-muted/40 p-3.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-sm">{m.name}</span>
-                        {m.unit && <span className="text-xs text-muted-foreground">({m.unit})</span>}
-                        <SourceBadge entry={m} />
-                      </div>
-                      <span className="text-xl font-extrabold">{Number(m.value).toFixed(1)}</span>
-                    </div>
-                    {(m.event_name || m.event_date) && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {m.event_name}{m.event_date ? ` • ${new Date(m.event_date).toLocaleDateString()}` : ""}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Program Metrics */}
+        <ProgramMetricsSection metrics={metrics || []} programName={program.name} />
+
+        {/* Showcase & Evaluator Data */}
+        <ShowcaseMetricsSection metrics={evaluator_metrics || []} />
 
         {/* Highlight Video */}
         {embedUrl && (
