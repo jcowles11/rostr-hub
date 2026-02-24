@@ -3,10 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Check, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Search, Check, ChevronLeft, ChevronRight, X, Plus, Calendar } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 interface Player {
   id: string;
@@ -34,6 +35,20 @@ interface Evaluation {
   value: number;
 }
 
+interface TryoutSession {
+  id: string;
+  name: string;
+  session_date: string;
+  notes: string | null;
+}
+
+interface PreviousScore {
+  session_name: string;
+  session_date: string;
+  attempt_number: number;
+  value: number;
+}
+
 export default function ScoreEntry() {
   const { coach } = useAuth();
   const [players, setPlayers] = useState<Player[]>([]);
@@ -51,29 +66,54 @@ export default function ScoreEntry() {
   const [existingEvals, setExistingEvals] = useState<Evaluation[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Session state
+  const [sessions, setSessions] = useState<TryoutSession[]>([]);
+  const [selectedSession, setSelectedSession] = useState<string>("");
+  const [showNewSession, setShowNewSession] = useState(false);
+  const [newSessionName, setNewSessionName] = useState("");
+  const [creatingSession, setCreatingSession] = useState(false);
+  const [previousScores, setPreviousScores] = useState<PreviousScore[]>([]);
+
+  // Fetch players, metrics, and sessions on mount
   useEffect(() => {
     if (!coach) return;
     Promise.all([
       supabase.from("players").select("id, first_name, last_name, player_number").eq("program_id", coach.program_id).order("last_name").order("first_name"),
       supabase.from("metrics").select("id, name, unit, category, metric_type, min_value, max_value, max_attempts").eq("program_id", coach.program_id).order("sort_order"),
-    ]).then(([pRes, mRes]) => {
+      supabase.from("tryout_sessions").select("id, name, session_date, notes").eq("program_id", coach.program_id).order("session_date", { ascending: false }),
+    ]).then(([pRes, mRes, sRes]) => {
       setPlayers(pRes.data || []);
       setMetrics(mRes.data || []);
       if (mRes.data && mRes.data.length > 0) setSelectedMetric(mRes.data[0].id);
+
+      const sessionsList = sRes.data || [];
+      setSessions(sessionsList);
+      // Auto-select today's session if one exists
+      const today = format(new Date(), "yyyy-MM-dd");
+      const todaySession = sessionsList.find((s) => s.session_date === today);
+      if (todaySession) {
+        setSelectedSession(todaySession.id);
+      } else if (sessionsList.length > 0) {
+        setSelectedSession(sessionsList[0].id);
+      }
     });
   }, [coach]);
 
-  // Fetch existing evaluations for current metric to show which attempts are done
+  // Fetch existing evaluations scoped by session
   useEffect(() => {
-    if (!coach || !selectedMetric) return;
+    if (!coach || !selectedMetric || !selectedSession) {
+      setExistingEvals([]);
+      return;
+    }
     supabase
       .from("evaluations")
       .select("id, player_id, metric_id, attempt_number, value")
       .eq("program_id", coach.program_id)
       .eq("metric_id", selectedMetric)
       .eq("coach_id", coach.id)
+      .eq("session_id", selectedSession)
       .then(({ data }) => setExistingEvals(data || []));
-  }, [coach, selectedMetric, recentScores]);
+  }, [coach, selectedMetric, selectedSession, recentScores]);
 
   const filtered = players
     .filter((p) => {
@@ -102,28 +142,64 @@ export default function ScoreEntry() {
     );
   };
 
-  const activePlayer = stationMode ? filtered[stationIndex] : selectedPlayer;
+  // Re-derive activePlayer after filtered is defined
+  const resolvedActivePlayer = stationMode ? filtered[stationIndex] : selectedPlayer;
+
+  // Fetch previous session scores for the active player + metric
+  useEffect(() => {
+    if (!coach || !resolvedActivePlayer || !selectedMetric || !selectedSession) {
+      setPreviousScores([]);
+      return;
+    }
+    supabase
+      .from("evaluations")
+      .select("attempt_number, value, session_id")
+      .eq("program_id", coach.program_id)
+      .eq("metric_id", selectedMetric)
+      .eq("player_id", resolvedActivePlayer.id)
+      .neq("session_id", selectedSession)
+      .then(async ({ data }) => {
+        if (!data || data.length === 0) {
+          setPreviousScores([]);
+          return;
+        }
+        const sessionIds = [...new Set(data.map((d) => d.session_id).filter(Boolean))] as string[];
+        const { data: sessData } = await supabase
+          .from("tryout_sessions")
+          .select("id, name, session_date")
+          .in("id", sessionIds);
+        const sessMap = new Map((sessData || []).map((s) => [s.id, s]));
+        setPreviousScores(
+          data
+            .filter((d) => d.session_id && sessMap.has(d.session_id))
+            .map((d) => ({
+              session_name: sessMap.get(d.session_id!)?.name || "",
+              session_date: sessMap.get(d.session_id!)?.session_date || "",
+              attempt_number: d.attempt_number,
+              value: d.value,
+            }))
+        );
+      });
+  }, [coach, resolvedActivePlayer?.id, selectedMetric, selectedSession]);
 
   const handleScore = async () => {
-    if (!activePlayer || !selectedMetric || !value || !coach) return;
+    if (!resolvedActivePlayer || !selectedMetric || !value || !coach || !selectedSession) return;
     setSaving(true);
 
-    // Check if an eval already exists for this player/metric/attempt
-    const existing = getPlayerAttemptEval(activePlayer.id, currentAttempt);
+    const existing = getPlayerAttemptEval(resolvedActivePlayer.id, currentAttempt);
 
     let error;
     if (existing) {
-      // Update existing
       ({ error } = await supabase.from("evaluations").update({ value: parseFloat(value) }).eq("id", existing.id));
     } else {
-      // Insert new
       ({ error } = await supabase.from("evaluations").insert({
         program_id: coach.program_id,
-        player_id: activePlayer.id,
+        player_id: resolvedActivePlayer.id,
         metric_id: selectedMetric,
         coach_id: coach.id,
         value: parseFloat(value),
         attempt_number: currentAttempt,
+        session_id: selectedSession,
       }));
     }
 
@@ -131,14 +207,13 @@ export default function ScoreEntry() {
       toast.error("Failed to save score");
     } else {
       setRecentScores((prev) => [
-        { player: activePlayer, metric: currentMetric?.name || "", value: `${value} ${currentMetric?.unit || ""}`, attempt: currentAttempt },
+        { player: resolvedActivePlayer, metric: currentMetric?.name || "", value: `${value} ${currentMetric?.unit || ""}`, attempt: currentAttempt },
         ...prev.slice(0, 9),
       ]);
-      toast.success(`${activePlayer.last_name}: ${value} ${currentMetric?.unit || ""}${maxAttempts > 1 ? ` (Att ${currentAttempt})` : ""}`, { duration: 1500 });
+      toast.success(`${resolvedActivePlayer.last_name}: ${value} ${currentMetric?.unit || ""}${maxAttempts > 1 ? ` (Att ${currentAttempt})` : ""}`, { duration: 1500 });
       setValue("");
 
       if (stationMode) {
-        // Auto-advance to next player
         if (stationIndex < filtered.length - 1) {
           setStationIndex((i) => i + 1);
         }
@@ -167,9 +242,28 @@ export default function ScoreEntry() {
   };
 
   const selectPlayerDirect = (p: Player) => {
-    // Clicking a player enters station mode at that player's index
     const idx = filtered.findIndex((fp) => fp.id === p.id);
     enterStationMode(idx >= 0 ? idx : 0);
+  };
+
+  const handleCreateSession = async () => {
+    if (!coach || !newSessionName.trim()) return;
+    setCreatingSession(true);
+    const { data, error } = await supabase
+      .from("tryout_sessions")
+      .insert({ program_id: coach.program_id, name: newSessionName.trim() })
+      .select()
+      .single();
+    if (error) {
+      toast.error("Failed to create session");
+    } else if (data) {
+      setSessions((prev) => [data, ...prev]);
+      setSelectedSession(data.id);
+      setShowNewSession(false);
+      setNewSessionName("");
+      toast.success(`Session "${data.name}" created`);
+    }
+    setCreatingSession(false);
   };
 
   const playerDisplay = (p: Player) => (
@@ -179,14 +273,13 @@ export default function ScoreEntry() {
     </>
   );
 
-  // Attempt selector component
   const AttemptSelector = () => {
     if (maxAttempts <= 1) return null;
     return (
       <div className="flex items-center justify-center gap-1.5 my-3">
         <span className="text-xs font-semibold text-muted-foreground mr-1">Attempt:</span>
         {Array.from({ length: maxAttempts }, (_, i) => i + 1).map((att) => {
-          const hasScore = activePlayer ? !!getPlayerAttemptEval(activePlayer.id, att) : false;
+          const hasScore = resolvedActivePlayer ? !!getPlayerAttemptEval(resolvedActivePlayer.id, att) : false;
           return (
             <button
               key={att}
@@ -208,8 +301,9 @@ export default function ScoreEntry() {
     );
   };
 
-  // Show existing score for current attempt
-  const currentExistingScore = activePlayer ? getPlayerAttemptEval(activePlayer.id, currentAttempt) : null;
+  const currentExistingScore = resolvedActivePlayer ? getPlayerAttemptEval(resolvedActivePlayer.id, currentAttempt) : null;
+
+  const sessionDisabled = !selectedSession;
 
   return (
     <div className="mx-auto max-w-lg px-4 pt-4 animate-fade-in">
@@ -232,15 +326,62 @@ export default function ScoreEntry() {
                 ? "bg-white/20 hover:bg-white/30 text-white border-0"
                 : "bg-white/10 hover:bg-white/20 text-white border-white/20"
             )}
+            disabled={sessionDisabled}
           >
             {stationMode ? "Exit Station" : "Station Mode"}
           </Button>
         </div>
       </div>
 
+      {/* Session selector */}
+      <div className="mb-4">
+        {showNewSession ? (
+          <div className="flex gap-2">
+            <Input
+              value={newSessionName}
+              onChange={(e) => setNewSessionName(e.target.value)}
+              placeholder="Session name (e.g. Day 2 Tryouts)"
+              className="tap-target text-base h-12 rounded-xl flex-1"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter") handleCreateSession(); }}
+            />
+            <Button onClick={handleCreateSession} disabled={!newSessionName.trim() || creatingSession} className="h-12 rounded-xl px-4">
+              <Check className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" onClick={() => { setShowNewSession(false); setNewSessionName(""); }} className="h-12 rounded-xl px-4">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Select value={selectedSession} onValueChange={setSelectedSession}>
+              <SelectTrigger className="tap-target text-base font-semibold h-12 rounded-xl flex-1">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Select session..." />
+                </div>
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                {sessions.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name} · {format(new Date(s.session_date + "T00:00:00"), "MMM d")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={() => setShowNewSession(true)} className="h-12 rounded-xl px-3 shrink-0" title="New session">
+              <Plus className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
+        {!selectedSession && !showNewSession && sessions.length === 0 && (
+          <p className="text-xs text-muted-foreground mt-1.5">No sessions yet — create one to start scoring.</p>
+        )}
+      </div>
+
       {/* Metric selector */}
       <div className="mb-4">
-        <Select value={selectedMetric} onValueChange={(v) => { setSelectedMetric(v); setCurrentAttempt(1); setValue(""); }}>
+        <Select value={selectedMetric} onValueChange={(v) => { setSelectedMetric(v); setCurrentAttempt(1); setValue(""); }} disabled={sessionDisabled}>
           <SelectTrigger className="tap-target text-base font-semibold h-12 rounded-xl">
             <SelectValue placeholder="Select metric" />
           </SelectTrigger>
@@ -254,7 +395,7 @@ export default function ScoreEntry() {
         </Select>
       </div>
 
-      {/* Search & sort - always visible */}
+      {/* Search & sort */}
       <div className="flex gap-2 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
@@ -263,6 +404,7 @@ export default function ScoreEntry() {
             onChange={(e) => { setSearch(e.target.value); if (stationMode) setStationIndex(0); }}
             placeholder="Search players..."
             className="pl-10 tap-target text-base h-12 rounded-xl"
+            disabled={sessionDisabled}
           />
         </div>
         <Button
@@ -271,13 +413,14 @@ export default function ScoreEntry() {
           className="tap-target h-12 w-12 rounded-xl shrink-0"
           title={sortBy === "alpha" ? "Sort by number" : "Sort alphabetically"}
           onClick={() => setSortBy(sortBy === "alpha" ? "number" : "alpha")}
+          disabled={sessionDisabled}
         >
           {sortBy === "alpha" ? <span className="font-bold text-sm">A-Z</span> : <span className="font-bold text-sm">#</span>}
         </Button>
       </div>
 
-      {/* Active scoring card - shown when a player is selected (station or direct) */}
-      {activePlayer ? (
+      {/* Active scoring card */}
+      {resolvedActivePlayer && !sessionDisabled ? (
         <div className="section-card p-6 text-center border-2 border-primary/30 shadow-elevated animate-scale-in mb-4">
           <div className="flex items-center justify-between">
             {stationMode && (
@@ -294,12 +437,10 @@ export default function ScoreEntry() {
             </button>
           </div>
 
-          <p className="text-3xl font-extrabold mt-1">{playerDisplay(activePlayer)}</p>
+          <p className="text-3xl font-extrabold mt-1">{playerDisplay(resolvedActivePlayer)}</p>
 
-          {/* Attempt selector */}
           <AttemptSelector />
 
-          {/* Show existing score for this attempt */}
           {currentExistingScore && (
             <p className="text-xs text-muted-foreground mb-2">
               Current: <span className="font-bold text-foreground">{currentExistingScore.value} {currentMetric?.unit}</span>
@@ -336,14 +477,27 @@ export default function ScoreEntry() {
           <Button onClick={handleScore} disabled={!value || saving} className="mt-5 w-full tap-target text-lg font-bold rounded-xl h-14 gradient-primary border-0 shadow-glow hover:shadow-lg transition-all">
             <Check className="mr-2 h-5 w-5" /> {stationMode ? "Save & Next" : "Save Score"}
           </Button>
+
+          {/* Previous session scores */}
+          {previousScores.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-border/50">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Previous Sessions</p>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {previousScores.map((ps, i) => (
+                  <span key={i} className="inline-block rounded-lg bg-muted/60 px-2 py-1 text-xs font-medium text-muted-foreground">
+                    {ps.value} {currentMetric?.unit} <span className="opacity-60">({ps.session_name}{maxAttempts > 1 ? ` Att ${ps.attempt_number}` : ""})</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       ) : null}
 
-      {/* Player list - shown when no player is selected or always in background */}
-      {!activePlayer && (
+      {/* Player list */}
+      {!resolvedActivePlayer && !sessionDisabled && (
         <div className="space-y-2 max-h-[50vh] overflow-y-auto stagger-list">
           {filtered.map((p) => {
-            // Show completion indicators per attempt
             const attemptDots = maxAttempts > 1 ? Array.from({ length: maxAttempts }, (_, i) => {
               const ev = getPlayerAttemptEval(p.id, i + 1);
               return ev ? ev.value : null;
