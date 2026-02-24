@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Upload, AlertCircle, CheckCircle2, Database, UserPlus, Plus } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle2, Database, UserPlus, Plus, CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSession } from "@/contexts/SessionContext";
 import { toast } from "sonner";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
@@ -251,6 +253,7 @@ interface MatchedRow {
 
 export default function DataImport({ open, onOpenChange, onSuccess }: DataImportProps) {
   const { coach } = useAuth();
+  const { sessions, createSession } = useSession();
   const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>("upload");
   const [headers, setHeaders] = useState<string[]>([]);
@@ -265,6 +268,9 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState({ players: 0, evals: 0 });
   const [creatingMetric, setCreatingMetric] = useState(false);
+  const [importSessionId, setImportSessionId] = useState<string>("");
+  const [creatingSession, setCreatingSession] = useState(false);
+  const [newSessionName, setNewSessionName] = useState("");
 
   useEffect(() => {
     if (!coach || !open) return;
@@ -287,6 +293,9 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
     setMatchedRows([]);
     setImporting(false);
     setImportResult({ players: 0, evals: 0 });
+    setImportSessionId("");
+    setCreatingSession(false);
+    setNewSessionName("");
     if (fileRef.current) fileRef.current.value = "";
   };
 
@@ -486,7 +495,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         }
       }
 
-      const evals: { program_id: string; player_id: string; metric_id: string; coach_id: string; value: number; attempt_number: number }[] = [];
+      const evals: { program_id: string; player_id: string; metric_id: string; coach_id: string; value: number; attempt_number: number; session_id: string | null }[] = [];
       for (const row of matchedRows) {
         const playerId = playerIdMap.get(row.rowIndex);
         if (!playerId || row.metricValues.length === 0) continue;
@@ -499,6 +508,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
             coach_id: coach.id,
             value: mv.value,
             attempt_number: mv.attemptNumber,
+            session_id: importSessionId && importSessionId !== "none" ? importSessionId : null,
           });
         }
       }
@@ -760,6 +770,67 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
                 <p className="text-lg font-extrabold text-foreground">{totalEvals}</p>
                 <p className="text-[10px] text-muted-foreground font-medium uppercase">Scores</p>
               </div>
+            </div>
+
+            {/* Session picker */}
+            <div className="rounded-xl border p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                <Label className="text-sm font-semibold">Assign to Session</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">Link imported scores to a tryout session so they appear when filtering by session.</p>
+              {!creatingSession ? (
+                <div className="flex gap-2">
+                  <Select value={importSessionId} onValueChange={setImportSessionId}>
+                    <SelectTrigger className="flex-1 h-9 rounded-lg text-sm">
+                      <SelectValue placeholder="No session (unassigned)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No session (unassigned)</SelectItem>
+                      {sessions.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name} ({s.session_date})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" className="h-9 rounded-lg shrink-0" onClick={() => setCreatingSession(true)}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> New
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Input
+                    value={newSessionName}
+                    onChange={(e) => setNewSessionName(e.target.value)}
+                    placeholder="Session name (e.g. Day 1)"
+                    className="flex-1 h-9 rounded-lg text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newSessionName.trim()) {
+                        createSession(newSessionName.trim()).then((s) => {
+                          if (s) {
+                            setImportSessionId(s.id);
+                            toast.success(`Session "${s.name}" created`);
+                          }
+                          setCreatingSession(false);
+                          setNewSessionName("");
+                        });
+                      }
+                      if (e.key === "Escape") { setCreatingSession(false); setNewSessionName(""); }
+                    }}
+                    autoFocus
+                  />
+                  <Button size="sm" className="h-9 rounded-lg" disabled={!newSessionName.trim()} onClick={() => {
+                    createSession(newSessionName.trim()).then((s) => {
+                      if (s) {
+                        setImportSessionId(s.id);
+                        toast.success(`Session "${s.name}" created`);
+                      }
+                      setCreatingSession(false);
+                      setNewSessionName("");
+                    });
+                  }}>Create</Button>
+                  <Button variant="ghost" size="sm" className="h-9 rounded-lg" onClick={() => { setCreatingSession(false); setNewSessionName(""); }}>Cancel</Button>
+                </div>
+              )}
             </div>
 
             {skippedCount > 0 && (

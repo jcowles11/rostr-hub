@@ -522,9 +522,10 @@ export default function PlayerDetail() {
           {sessionKeys.map((sessionKey) => {
             const sessEvals = evalsBySession.get(sessionKey) || [];
             const sessInfo = sessionKey !== "unsorted" ? sessionMap.get(sessionKey) : null;
-            const sessionLabel = sessInfo ? sessInfo.name : "General Scores";
+            const sessionLabel = sessInfo ? sessInfo.name : "Imported / Unassigned";
             const sessionDate = sessInfo ? format(new Date(sessInfo.session_date + "T00:00:00"), "MMM d, yyyy") : "";
             const isExpanded = expandedSessions.has(sessionKey);
+            const isUnsorted = sessionKey === "unsorted";
 
             // Group this session's evals by metric
             const sessEvalsByMetric = new Map<string, Evaluation[]>();
@@ -536,16 +537,44 @@ export default function PlayerDetail() {
 
             return (
               <div key={sessionKey}>
-                <button
-                  onClick={() => toggleSession(sessionKey)}
-                  className="flex items-center gap-2 w-full text-left mt-2"
-                >
-                  {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
-                  <span className="text-sm font-bold">{sessionLabel}</span>
-                  {sessionDate && <span className="text-[10px] text-muted-foreground font-medium">{sessionDate}</span>}
-                  {!sessInfo && <span className="text-[10px] text-muted-foreground italic">Scores not tied to a session</span>}
-                  <span className="text-[10px] text-muted-foreground">({sessEvals.length} scores)</span>
-                </button>
+                <div className="flex items-center gap-2 mt-2">
+                  <button
+                    onClick={() => toggleSession(sessionKey)}
+                    className="flex items-center gap-2 flex-1 text-left"
+                  >
+                    {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                    <span className={cn("text-sm font-bold", isUnsorted && "text-amber-600 dark:text-amber-400")}>{sessionLabel}</span>
+                    {sessionDate && <span className="text-[10px] text-muted-foreground font-medium">{sessionDate}</span>}
+                    {isUnsorted && <span className="text-[10px] text-amber-500 italic">Not tied to a session</span>}
+                    <span className="text-[10px] text-muted-foreground">({sessEvals.length} scores)</span>
+                  </button>
+                  {/* Bulk-assign unsorted evals to a session */}
+                  {isUnsorted && (
+                    <Select onValueChange={async (sessionId) => {
+                      if (!id) return;
+                      const { error } = await supabase
+                        .from("evaluations")
+                        .update({ session_id: sessionId })
+                        .eq("player_id", id)
+                        .is("session_id", null);
+                      if (error) {
+                        toast.error("Failed to assign session");
+                      } else {
+                        toast.success("Scores assigned to session");
+                        fetchAll();
+                      }
+                    }}>
+                      <SelectTrigger className="h-7 w-auto text-[11px] rounded-lg px-2 shrink-0">
+                        <SelectValue placeholder="Assign to session…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sessionInfos.map((s) => (
+                          <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
                 {isExpanded && (
                   <div className="space-y-2 ml-6 mt-1 animate-fade-in">
                     {metrics.filter((m) => sessEvalsByMetric.has(m.id)).map((m) => {
