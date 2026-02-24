@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Globe, Search, User, LogOut, Home } from "lucide-react";
+import { Globe, Search, User, LogOut, Home, Bell } from "lucide-react";
 import rostrLogo from "@/assets/rostr-logo.png";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,16 +19,20 @@ function getNavItems(role: string | null): NavItem[] {
   if (role === "scout") {
     items.push({ key: "search", icon: Search, label: "Search", path: "/scout" });
     items.push({ key: "social", icon: Globe, label: "Social", path: "/social" });
+    items.push({ key: "notifications", icon: Bell, label: "Alerts", path: "/notifications" });
     items.push({ key: "profile", icon: User, label: "Profile", path: "/scout-profile" });
   } else if (role === "player") {
     items.push({ key: "feed", icon: Home, label: "Feed", path: "/social" });
     items.push({ key: "search", icon: Search, label: "Search", path: "/search" });
+    items.push({ key: "notifications", icon: Bell, label: "Alerts", path: "/notifications" });
     items.push({ key: "profile", icon: User, label: "Profile", path: "/player-dashboard" });
   } else if (role === "evaluator") {
     items.push({ key: "social", icon: Globe, label: "Social", path: "/social" });
+    items.push({ key: "notifications", icon: Bell, label: "Alerts", path: "/notifications" });
     items.push({ key: "profile", icon: User, label: "Profile", path: "/evaluator" });
   } else {
     items.push({ key: "social", icon: Globe, label: "Social", path: "/social" });
+    items.push({ key: "notifications", icon: Bell, label: "Alerts", path: "/notifications" });
     items.push({ key: "profile", icon: User, label: "Profile", path: "/settings" });
   }
 
@@ -42,6 +46,7 @@ function getActiveKey(pathname: string, role: string | null): string {
     if (pathname === "/player-dashboard") return "profile";
     return "feed";
   }
+  if (pathname === "/notifications") return "notifications";
   if (pathname === "/social" || pathname.startsWith("/social")) return "social";
   if (role === "scout" && pathname === "/scout") return "search";
   if (pathname === "/player-dashboard") return "profile";
