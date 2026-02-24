@@ -20,6 +20,7 @@ export default function Auth() {
   const [orgName, setOrgName] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const redirectTo = new URLSearchParams(window.location.search).get("redirect");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +31,7 @@ export default function Auth() {
       if (error) {
         toast.error(error.message);
       } else {
-        navigate("/");
+        navigate(redirectTo || "/");
       }
     } else if (mode === "signup-coach") {
       const { error } = await supabase.auth.signUp({
