@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Shield, User, Eye, Search, Zap } from "lucide-react";
+import { Shield, User, Eye, Search, Zap, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
@@ -46,11 +46,37 @@ export default function DemoTour() {
   const navigate = useNavigate();
   const { user, setDevRoleOverride } = useAuth();
   const [seeding, setSeeding] = useState(false);
+  const [loadingRole, setLoadingRole] = useState<string | null>(null);
 
-  const handleRoleSelect = (role: typeof DEMO_ROLES[number]) => {
-    setDevRoleOverride(role.key as any);
-    sessionStorage.setItem("rostr_demo_mode", "1");
-    navigate(role.path);
+  const handleRoleSelect = async (role: typeof DEMO_ROLES[number]) => {
+    setLoadingRole(role.key);
+    try {
+      let userId = user?.id;
+
+      // If not signed in, sign in anonymously
+      if (!userId) {
+        const { data, error } = await supabase.auth.signInAnonymously();
+        if (error) throw error;
+        userId = data.user?.id;
+        if (!userId) throw new Error("Failed to create anonymous session");
+      }
+
+      // Provision demo access via edge function
+      const { error: provisionError } = await supabase.functions.invoke("provision-demo-access", {
+        body: { role: role.key, user_id: userId },
+      });
+      if (provisionError) throw provisionError;
+
+      // Set demo mode flags
+      setDevRoleOverride(role.key as any);
+      sessionStorage.setItem("rostr_demo_mode", "1");
+
+      // Full page reload to let AuthContext pick up the new records
+      window.location.href = role.path;
+    } catch (e: any) {
+      toast.error(`Demo setup failed: ${e.message}`);
+      setLoadingRole(null);
+    }
   };
 
   const handleSeedData = async () => {
@@ -73,22 +99,23 @@ export default function DemoTour() {
           <img src={rostrLogo} alt="Rostr" className="mx-auto h-16 w-16 rounded-2xl object-cover shadow-lg" />
           <h1 className="text-2xl font-black tracking-tight">Demo Tour</h1>
           <p className="text-muted-foreground text-sm">
-            Choose a role to explore. Switch anytime with the floating button.
+            Choose a role to explore. No sign-in required.
           </p>
         </div>
 
         <div className="grid gap-3">
           {DEMO_ROLES.map((role) => {
             const Icon = role.icon;
+            const isLoading = loadingRole === role.key;
             return (
               <button
                 key={role.key}
                 onClick={() => handleRoleSelect(role)}
-                disabled={!user}
+                disabled={!!loadingRole}
                 className="flex items-center gap-4 rounded-2xl border bg-card p-4 text-left transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
               >
                 <div className={`flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${role.color} text-white shadow-md`}>
-                  <Icon className="h-6 w-6" />
+                  {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : <Icon className="h-6 w-6" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-sm">{role.label}</p>
@@ -98,12 +125,6 @@ export default function DemoTour() {
             );
           })}
         </div>
-
-        {!user && (
-          <p className="text-center text-xs text-muted-foreground">
-            Please <button onClick={() => navigate("/auth?redirect=/demo")} className="text-primary underline">log in</button> first to use demo mode.
-          </p>
-        )}
 
         <div className="border-t pt-6 space-y-3">
           <Button
