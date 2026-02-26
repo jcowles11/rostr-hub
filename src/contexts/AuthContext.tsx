@@ -114,7 +114,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [scoutInfo, setScoutInfo] = useState<ScoutInfo | null>(null);
   const [userRole, setUserRole] = useState<UserRole>(null);
   const [loading, setLoading] = useState(true);
-  const [devRoleOverride, setDevRoleOverride] = useState<UserRole>(null);
+  const [devRoleOverride, setDevRoleOverrideState] = useState<UserRole>(() => {
+    const stored = sessionStorage.getItem("rostr_dev_role_override");
+    return (stored as UserRole) || null;
+  });
+
+  const setDevRoleOverride = (role: UserRole) => {
+    setDevRoleOverrideState(role);
+    if (role) {
+      sessionStorage.setItem("rostr_dev_role_override", role);
+    } else {
+      sessionStorage.removeItem("rostr_dev_role_override");
+    }
+  };
 
   const fetchCoaches = async (userId: string) => {
     try {
