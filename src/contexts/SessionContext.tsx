@@ -2,13 +2,10 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback,
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
+import { fetchTryoutSessions, deleteTryoutSession, type TryoutSession } from "@/services/sessionService";
+import { track } from "@/services/analyticsService";
 
-export interface TryoutSession {
-  id: string;
-  name: string;
-  session_date: string;
-  notes: string | null;
-}
+export type { TryoutSession };
 
 interface SessionContextType {
   sessions: TryoutSession[];
@@ -48,19 +45,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const fetchSessions = async () => {
+    const loadSessions = async () => {
       try {
-        const { data, error } = await supabase
-          .from("tryout_sessions")
-          .select("id, name, session_date, notes")
-          .eq("program_id", coach.program_id)
-          .order("session_date", { ascending: false });
-
+        const { data, error } = await fetchTryoutSessions(coach.program_id);
         if (error) {
-          console.error("[SessionContext] fetchSessions error:", error.message);
+          console.error("[SessionContext] fetchSessions error:", error);
         }
-
-        const list = data || [];
+        // Service returns ascending by date; reverse for context (newest first)
+        const list = [...data].reverse();
         setSessions(list);
         if (isDemo && list.length > 0) {
           setSelectedSessionId(list[0].id);
@@ -74,7 +66,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    fetchSessions();
+    loadSessions();
   }, [coach?.program_id, isDemo]);
 
   const setSession = useCallback((id: string) => {
@@ -94,20 +86,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const newSession: TryoutSession = data;
     setSessions((prev) => [newSession, ...prev]);
     setSelectedSessionId(newSession.id);
+    if (coach) track("session_create", coach.program_id, coach.id, { source: "context" });
     return newSession;
   }, [coach]);
 
   const deleteSession = useCallback(async (id: string): Promise<boolean> => {
     if (!coach) return false;
-    // Unassign evaluations from this session first
-    await supabase
-      .from("evaluations")
-      .update({ session_id: null })
-      .eq("session_id", id);
-    // Delete attendance records
-    await supabase.from("session_attendance").delete().eq("session_id", id);
-    // Delete the session
-    const { error } = await supabase.from("tryout_sessions").delete().eq("id", id);
+    // Use unified service function for safe cascade delete
+    const { error } = await deleteTryoutSession(id);
     if (error) return false;
     setSessions((prev) => prev.filter((s) => s.id !== id));
     if (selectedSessionId === id) setSelectedSessionId("all");

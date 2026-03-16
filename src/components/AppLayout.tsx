@@ -1,11 +1,12 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Users, ClipboardList, BarChart3, Layers, Settings, ChevronDown, Plus, Trash2, Building2, Calendar, Check, X, Globe } from "lucide-react";
+import { Home, Users, ClipboardList, BarChart3, Layers, Settings, ChevronDown, Plus, Trash2, Building2, Calendar, Check, X, Globe, CalendarDays } from "lucide-react";
 import rostrLogo from "@/assets/rostr-logo.png";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
 import { useIsDemo } from "@/hooks/useIsDemo";
+import { getSessionStats, type SessionStats } from "@/services/sessionService";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
@@ -29,16 +30,18 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const PRODUCTION_NAV = [
-  { path: "/", icon: Users, label: "Roster" },
+  { path: "/", icon: Home, label: "Home" },
+  { path: "/roster", icon: Users, label: "Roster" },
+  { path: "/schedule", icon: CalendarDays, label: "Schedule" },
   { path: "/score", icon: ClipboardList, label: "Score" },
-  { path: "/dashboard", icon: BarChart3, label: "Stats" },
   { path: "/settings", icon: Settings, label: "More" },
 ];
 
 const DEMO_NAV = [
-  { path: "/", icon: Users, label: "Roster" },
+  { path: "/", icon: Home, label: "Home" },
+  { path: "/roster", icon: Users, label: "Roster" },
+  { path: "/schedule", icon: CalendarDays, label: "Schedule" },
   { path: "/score", icon: ClipboardList, label: "Score" },
-  { path: "/dashboard", icon: BarChart3, label: "Stats" },
   { path: "/social", icon: Globe, label: "Social" },
   { path: "/settings", icon: Settings, label: "More" },
 ];
@@ -52,10 +55,20 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const navItems = isDemo ? DEMO_NAV : PRODUCTION_NAV;
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleteEventTarget, setDeleteEventTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleteEventStats, setDeleteEventStats] = useState<SessionStats | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showNewSession, setShowNewSession] = useState(false);
   const [newSessionName, setNewSessionName] = useState("");
   const [creatingSession, setCreatingSession] = useState(false);
+
+  // Fetch session stats when a delete event target is set
+  useEffect(() => {
+    if (!deleteEventTarget) {
+      setDeleteEventStats(null);
+      return;
+    }
+    getSessionStats(deleteEventTarget.id).then(({ data }) => setDeleteEventStats(data));
+  }, [deleteEventTarget?.id]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -294,7 +307,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete "{deleteEventTarget?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will delete the event. Any scores assigned to it will be kept but become unassigned.
+              {deleteEventStats && deleteEventStats.evaluationCount > 0 ? (
+                <>
+                  This event has <span className="font-semibold text-foreground">{deleteEventStats.evaluationCount} score{deleteEventStats.evaluationCount !== 1 ? "s" : ""}</span> recorded.
+                  Scores will be preserved but will no longer be linked to this event.
+                </>
+              ) : (
+                <>This will delete the event. No scores are linked to this event.</>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

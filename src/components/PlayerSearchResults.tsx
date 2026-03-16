@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, User, Trophy, Share2, MapPin, Bookmark, ListPlus, MessageSquare, Link2, RotateCcw, X, CheckSquare } from "lucide-react";
+import { Search, User, Trophy, Share2, MapPin, Bookmark, ListPlus, MessageSquare, Link2, RotateCcw, X, CheckSquare, GitCompareArrows } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,9 +23,32 @@ interface Props {
 }
 
 export default function PlayerSearchResults({ results, loading, searched, onClearSearch }: Props) {
+  const navigate = useNavigate();
   const { scoutInfo, userRole, devRoleOverride } = useAuth();
   const effectiveRole = devRoleOverride || userRole;
   const isScout = effectiveRole === "scout";
+
+  // Compare mode
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareSlugs, setCompareSlugs] = useState<string[]>([]);
+
+  const toggleCompare = (slug: string) => {
+    setCompareSlugs((prev) => {
+      if (prev.includes(slug)) return prev.filter((s) => s !== slug);
+      if (prev.length >= 3) { toast.error("Maximum 3 players for comparison"); return prev; }
+      return [...prev, slug];
+    });
+  };
+
+  const launchCompare = () => {
+    if (compareSlugs.length < 2) { toast.error("Select at least 2 players to compare"); return; }
+    navigate(`/compare?players=${compareSlugs.join(",")}`);
+  };
+
+  const exitCompareMode = () => {
+    setCompareMode(false);
+    setCompareSlugs([]);
+  };
 
   const [savingId, setSavingId] = useState<string | null>(null);
   const [lists, setLists] = useState<{ id: string; name: string }[]>([]);
@@ -125,6 +149,11 @@ export default function PlayerSearchResults({ results, loading, searched, onClea
   };
 
   const handleCardClick = (player: PlayerResult) => {
+    // In compare mode, toggle selection instead of opening sheet
+    if (compareMode && player.profile_slug) {
+      toggleCompare(player.profile_slug);
+      return;
+    }
     // Open sheet for any player with a profile_slug (scouts or otherwise)
     if (player.profile_slug) {
       setSheetPlayer(player);
@@ -216,7 +245,17 @@ export default function PlayerSearchResults({ results, loading, searched, onClea
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground font-medium">{results.length} player{results.length !== 1 ? "s" : ""} found</p>
           <div className="flex gap-1.5 items-center">
-            {isScout && (
+            {/* Compare toggle */}
+            <Button
+              variant={compareMode ? "default" : "ghost"}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => compareMode ? exitCompareMode() : setCompareMode(true)}
+            >
+              <GitCompareArrows className="h-3 w-3 mr-1" />
+              {compareMode ? "Exit Compare" : "Compare"}
+            </Button>
+            {isScout && !compareMode && (
               <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={selectAll}>
                 <CheckSquare className="h-3 w-3 mr-1" />
                 {selectedIds.size === results.length ? "Deselect All" : "Select All"}
@@ -248,12 +287,37 @@ export default function PlayerSearchResults({ results, loading, searched, onClea
           </div>
         )}
 
+        {/* Compare bar */}
+        {compareMode && (
+          <div className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2">
+            <GitCompareArrows className="h-4 w-4 text-blue-600 shrink-0" />
+            <span className="text-xs font-medium">
+              {compareSlugs.length === 0 ? "Tap players to select for comparison (2-3)" :
+               `${compareSlugs.length} selected`}
+            </span>
+            <div className="flex gap-1.5 ml-auto">
+              <Button
+                variant="default"
+                size="sm"
+                className="h-7 text-xs"
+                disabled={compareSlugs.length < 2}
+                onClick={launchCompare}
+              >
+                Compare {compareSlugs.length >= 2 ? `(${compareSlugs.length})` : ""}
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={exitCompareMode}>
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Player grid */}
         <div className="grid gap-3 sm:grid-cols-2">
           {results.map((player) => (
             <Card
               key={player.id}
-              className={`section-card cursor-pointer transition-all hover:shadow-md hover:border-primary/20 hover:-translate-y-[1px] ${selectedIds.has(player.id) ? "ring-2 ring-primary/30 border-primary/30" : ""}`}
+              className={`section-card cursor-pointer transition-all hover:shadow-md hover:border-primary/20 hover:-translate-y-[1px] ${selectedIds.has(player.id) ? "ring-2 ring-primary/30 border-primary/30" : ""} ${compareMode && player.profile_slug && compareSlugs.includes(player.profile_slug) ? "ring-2 ring-blue-500/40 border-blue-500/30" : ""}`}
               onClick={() => handleCardClick(player)}
             >
               <CardContent className="p-4">

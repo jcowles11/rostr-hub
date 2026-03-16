@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,31 +7,40 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Calendar, SlidersHorizontal, Plus, Trash2, Pencil, Check, X, ArrowLeft, Clock, Ruler, Star } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { getSportCategories, formatCategory } from "@/lib/sports";
+import {
+  fetchTryoutSessions,
+  createTryoutSession,
+  updateTryoutSession,
+  deleteTryoutSession,
+  getSessionStats,
+  type TryoutSession,
+  type SessionStats,
+} from "@/services/sessionService";
+import {
+  fetchMetricsFull,
+  createMetric,
+  updateMetric,
+  deleteMetric,
+  type MetricFull,
+} from "@/services/metricService";
 
-interface Session {
-  id: string;
-  name: string;
-  session_date: string;
-  notes: string | null;
-}
-
-interface Metric {
-  id: string;
-  name: string;
-  unit: string;
-  category: string;
-  metric_type: string;
-  aggregation: string;
-  max_attempts: number;
-  sort_order: number;
-  min_value: number | null;
-  max_value: number | null;
-}
+type Session = TryoutSession;
+type Metric = MetricFull;
 
 export default function TryoutPlanner() {
   const { coach } = useAuth();
@@ -53,6 +61,11 @@ export default function TryoutPlanner() {
   const [editingMetricId, setEditingMetricId] = useState<string | null>(null);
   const [editMetric, setEditMetric] = useState<Partial<Metric>>({});
 
+  // Session delete confirmation
+  const [deleteSessionTarget, setDeleteSessionTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleteSessionStats, setDeleteSessionStats] = useState<SessionStats | null>(null);
+  const [deletingSession, setDeletingSession] = useState(false);
+
   // Add metric dialog
   const [addMetricOpen, setAddMetricOpen] = useState(false);
   const [newMetric, setNewMetric] = useState({
@@ -65,11 +78,11 @@ export default function TryoutPlanner() {
   const fetchData = async () => {
     if (!coach) return;
     const [sRes, mRes] = await Promise.all([
-      supabase.from("tryout_sessions").select("*").eq("program_id", coach.program_id).order("session_date", { ascending: true }),
-      supabase.from("metrics").select("*").eq("program_id", coach.program_id).order("sort_order"),
+      fetchTryoutSessions(coach.program_id),
+      fetchMetricsFull(coach.program_id),
     ]);
-    setSessions(sRes.data || []);
-    setMetrics(mRes.data || []);
+    setSessions(sRes.data);
+    setMetrics(mRes.data);
     setLoading(false);
   };
 
@@ -78,26 +91,38 @@ export default function TryoutPlanner() {
   // Sessions CRUD
   const addSession = async () => {
     if (!coach || !newSessionName.trim()) return;
-    const { error } = await supabase.from("tryout_sessions").insert({
+    const { error } = await createTryoutSession({
       program_id: coach.program_id,
       name: newSessionName.trim(),
       session_date: newSessionDate,
     });
-    if (error) toast.error("Failed to add event");
+    if (error) toast.error(error);
     else { toast.success("Event added!"); setAddingSession(false); setNewSessionName(""); fetchData(); }
   };
 
-  const updateSession = async (id: string) => {
+  const handleUpdateSession = async (id: string) => {
     if (!editSessionName.trim()) return;
-    const { error } = await supabase.from("tryout_sessions").update({ name: editSessionName.trim(), session_date: editSessionDate }).eq("id", id);
-    if (error) toast.error("Failed to update");
+    const { error } = await updateTryoutSession(id, { name: editSessionName.trim(), session_date: editSessionDate });
+    if (error) toast.error(error);
     else { toast.success("Event updated!"); setEditingSessionId(null); fetchData(); }
   };
 
-  const deleteSession = async (id: string) => {
-    const { error } = await supabase.from("tryout_sessions").delete().eq("id", id);
+  const promptDeleteSession = async (session: Session) => {
+    setDeleteSessionTarget({ id: session.id, name: session.name });
+    setDeleteSessionStats(null);
+    // Fetch stats so we can warn the coach
+    const { data } = await getSessionStats(session.id);
+    setDeleteSessionStats(data);
+  };
+
+  const confirmDeleteSession = async () => {
+    if (!deleteSessionTarget) return;
+    setDeletingSession(true);
+    const { error } = await deleteTryoutSession(deleteSessionTarget.id);
     if (error) toast.error("Failed to delete event");
     else { toast.success("Event deleted"); fetchData(); }
+    setDeletingSession(false);
+    setDeleteSessionTarget(null);
   };
 
   // Metric inline edit
@@ -106,22 +131,22 @@ export default function TryoutPlanner() {
     setEditMetric({ name: m.name, unit: m.unit, max_attempts: m.max_attempts, aggregation: m.aggregation, metric_type: m.metric_type });
   };
 
-  const saveMetric = async (id: string) => {
-    const { error } = await supabase.from("metrics").update({
+  const saveMetricEdits = async (id: string) => {
+    const { error } = await updateMetric(id, {
       name: editMetric.name,
       unit: editMetric.unit,
       max_attempts: editMetric.max_attempts,
-      aggregation: editMetric.aggregation as "best" | "average" | "latest",
-      metric_type: editMetric.metric_type as "timed" | "measured" | "rated",
-    }).eq("id", id);
-    if (error) toast.error("Failed to update metric");
+      aggregation: editMetric.aggregation,
+      metric_type: editMetric.metric_type,
+    });
+    if (error) toast.error(error);
     else { toast.success("Metric updated!"); setEditingMetricId(null); fetchData(); }
   };
 
-  const addMetric = async (e: React.FormEvent) => {
+  const addMetricHandler = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!coach) return;
-    const { error } = await supabase.from("metrics").insert({
+    const { error } = await createMetric({
       program_id: coach.program_id,
       name: newMetric.name,
       unit: newMetric.unit,
@@ -132,8 +157,8 @@ export default function TryoutPlanner() {
       sort_order: metrics.length,
       aggregation: newMetric.aggregation,
       max_attempts: parseInt(newMetric.max_attempts) || 1,
-    } as any);
-    if (error) toast.error("Failed to add metric");
+    });
+    if (error) toast.error(error);
     else {
       toast.success("Metric added!");
       setAddMetricOpen(false);
@@ -142,8 +167,8 @@ export default function TryoutPlanner() {
     }
   };
 
-  const deleteMetric = async (id: string) => {
-    const { error } = await supabase.from("metrics").delete().eq("id", id);
+  const handleDeleteMetric = async (id: string) => {
+    const { error } = await deleteMetric(id);
     if (error) toast.error("Failed to delete metric");
     else { toast.success("Metric removed"); fetchData(); }
   };
@@ -242,7 +267,7 @@ export default function TryoutPlanner() {
                     <Input value={editSessionName} onChange={(e) => setEditSessionName(e.target.value)} className="h-8 rounded-lg text-sm font-medium" autoFocus />
                     <Input type="date" value={editSessionDate} onChange={(e) => setEditSessionDate(e.target.value)} className="h-8 rounded-lg text-sm" />
                     <div className="flex gap-2">
-                      <Button size="sm" className="flex-1 h-7 rounded-lg text-xs" onClick={() => updateSession(s.id)}><Check className="h-3 w-3 mr-1" /> Save</Button>
+                      <Button size="sm" className="flex-1 h-7 rounded-lg text-xs" onClick={() => handleUpdateSession(s.id)}><Check className="h-3 w-3 mr-1" /> Save</Button>
                       <Button size="sm" variant="outline" className="h-7 rounded-lg text-xs" onClick={() => setEditingSessionId(null)}><X className="h-3 w-3" /></Button>
                     </div>
                   </div>
@@ -257,7 +282,7 @@ export default function TryoutPlanner() {
                         <button className="p-1.5 rounded-md hover:bg-muted text-muted-foreground" onClick={() => { setEditingSessionId(s.id); setEditSessionName(s.name); setEditSessionDate(s.session_date); }}>
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
-                        <button className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive" onClick={() => deleteSession(s.id)}>
+                        <button className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive" onClick={() => promptDeleteSession(s)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
@@ -285,7 +310,7 @@ export default function TryoutPlanner() {
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader><DialogTitle>Add Tryout Metric</DialogTitle></DialogHeader>
-                  <form onSubmit={addMetric} className="space-y-4">
+                  <form onSubmit={addMetricHandler} className="space-y-4">
                     <div className="space-y-2">
                       <Label>Name</Label>
                       <Input value={newMetric.name} onChange={(e) => setNewMetric({ ...newMetric, name: e.target.value })} placeholder="e.g. 60-Yard Dash" required />
@@ -424,7 +449,7 @@ export default function TryoutPlanner() {
                           </Select>
                         </div>
                         <div className="flex gap-2">
-                          <Button size="sm" className="flex-1 h-7 rounded-lg text-xs font-bold" onClick={() => saveMetric(m.id)}>
+                          <Button size="sm" className="flex-1 h-7 rounded-lg text-xs font-bold" onClick={() => saveMetricEdits(m.id)}>
                             <Check className="h-3 w-3 mr-1" /> Save
                           </Button>
                           <Button size="sm" variant="outline" className="h-7 rounded-lg text-xs" onClick={() => setEditingMetricId(null)}>
@@ -452,7 +477,7 @@ export default function TryoutPlanner() {
                             <button className="p-1.5 rounded-md hover:bg-muted text-muted-foreground" onClick={() => startEditMetric(m)}>
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
-                            <button className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive" onClick={() => deleteMetric(m.id)}>
+                            <button className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteMetric(m.id)}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
@@ -466,6 +491,37 @@ export default function TryoutPlanner() {
           ))}
         </div>
       </div>
+
+      {/* Session delete confirmation */}
+      <AlertDialog open={!!deleteSessionTarget} onOpenChange={(open) => !open && setDeleteSessionTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteSessionTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteSessionStats && deleteSessionStats.evaluationCount > 0 ? (
+                <>
+                  This event has <span className="font-semibold text-foreground">{deleteSessionStats.evaluationCount} score{deleteSessionStats.evaluationCount !== 1 ? "s" : ""}</span> recorded.
+                  Scores will be preserved but will no longer be linked to this event.
+                </>
+              ) : deleteSessionStats ? (
+                <>This will delete the event. No scores are linked to this event.</>
+              ) : (
+                <>Checking event data...</>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingSession}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteSession}
+              disabled={deletingSession}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingSession ? "Deleting..." : "Delete Event"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

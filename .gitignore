@@ -10,7 +10,14 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.vite
 *.local
+.env
+
+# Vite/Vitest temp files
+*.timestamp-*.mjs
+supabase/.temp/
+check_migrations.cjs
 
 # Editor directories and files
 .vscode/*

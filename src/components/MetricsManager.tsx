@@ -6,11 +6,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import { getSportCategories, formatCategory } from "@/lib/sports";
+import { track } from "@/services/analyticsService";
 
 interface Metric {
   id: string;
@@ -30,6 +41,9 @@ export default function MetricsManager() {
   const { coach } = useAuth();
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [addOpen, setAddOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleteEvalCount, setDeleteEvalCount] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [newMetric, setNewMetric] = useState({
     name: "", unit: "", category: "other", metric_type: "measured", min_value: "", max_value: "", aggregation: "best", max_attempts: "1",
   });
@@ -61,16 +75,32 @@ export default function MetricsManager() {
     if (error) toast.error("Failed to add metric");
     else {
       toast.success("Metric added!");
+      if (coach) track("metric_configure", coach.program_id, coach.id, { label: newMetric.metric_type, source: "settings" });
       setAddOpen(false);
       setNewMetric({ name: "", unit: "", category: "other", metric_type: "measured", min_value: "", max_value: "", aggregation: "best", max_attempts: "1" });
       fetchMetrics();
     }
   };
 
-  const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("metrics").delete().eq("id", id);
+  const confirmDelete = async (metric: Metric) => {
+    setDeleteTarget({ id: metric.id, name: metric.name });
+    setDeleteEvalCount(null);
+    // Fetch evaluation count for this metric
+    const { count } = await supabase
+      .from("evaluations")
+      .select("id", { count: "exact", head: true })
+      .eq("metric_id", metric.id);
+    setDeleteEvalCount(count ?? 0);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { error } = await supabase.from("metrics").delete().eq("id", deleteTarget.id);
     if (error) toast.error("Failed to delete metric");
-    else { toast.success("Metric removed"); fetchMetrics(); }
+    else { toast.success(`"${deleteTarget.name}" deleted`); fetchMetrics(); }
+    setDeleting(false);
+    setDeleteTarget(null);
   };
 
   const categoryColor = (cat: string) => {
@@ -197,13 +227,43 @@ export default function MetricsManager() {
               </div>
             </div>
             {isHead && (
-              <Button variant="ghost" size="icon" onClick={() => handleDelete(m.id)} className="text-muted-foreground hover:text-destructive">
+              <Button variant="ghost" size="icon" onClick={() => confirmDelete(m)} className="text-muted-foreground hover:text-destructive">
                 <Trash2 className="h-4 w-4" />
               </Button>
             )}
           </div>
         ))}
       </div>
+
+      {/* Metric deletion confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteEvalCount === null ? (
+                "Checking for associated scores..."
+              ) : deleteEvalCount > 0 ? (
+                <>
+                  This metric has <span className="font-semibold text-foreground">{deleteEvalCount} score{deleteEvalCount !== 1 ? "s" : ""}</span> recorded across all players and sessions. Deleting it will <span className="font-semibold text-destructive">permanently remove all of those scores</span>. This cannot be undone.
+                </>
+              ) : (
+                "No scores are recorded for this metric. It can be safely deleted."
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting || deleteEvalCount === null}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting..." : deleteEvalCount && deleteEvalCount > 0 ? `Delete Metric & ${deleteEvalCount} Scores` : "Delete Metric"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

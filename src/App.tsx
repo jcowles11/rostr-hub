@@ -25,6 +25,7 @@ import ExportPage from "@/pages/ExportPage";
 import PlayerDashboard from "@/pages/PlayerDashboard";
 import PlayerLinkPage from "@/pages/PlayerLinkPage";
 import PublicProfile from "@/pages/PublicProfile";
+import PlayerCompare from "@/pages/PlayerCompare";
 import EvaluatorDashboard from "@/pages/EvaluatorDashboard";
 import EvaluatorProfile from "@/pages/EvaluatorProfile";
 import ScoutDashboard from "@/pages/ScoutDashboard";
@@ -39,6 +40,15 @@ import SearchPage from "@/pages/SearchPage";
 import NotificationsPage from "@/pages/NotificationsPage";
 import DemoTour from "@/pages/DemoTour";
 import ReadinessChecklist from "@/pages/ReadinessChecklist";
+import PilotAnalytics from "@/pages/PilotAnalytics";
+import TeamManagement from "@/pages/TeamManagement";
+import GameDetail from "@/pages/GameDetail";
+import PrintLineupView from "@/pages/PrintLineupView";
+import PracticePlanner from "@/pages/PracticePlanner";
+import PracticePlanDetail from "@/pages/PracticePlanDetail";
+import PrintPracticeView from "@/pages/PrintPracticeView";
+import TeamHome from "@/pages/TeamHome";
+import SchedulePage from "@/pages/SchedulePage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -249,8 +259,12 @@ const App = () => (
             <Route path="/notifications" element={<NotificationsRoute />} />
             <Route path="/social" element={<SocialRoute />} />
             <Route path="/p/:slug" element={<PublicProfile />} />
+            <Route path="/compare" element={<PlayerCompare />} />
             <Route path="/evaluator/:id" element={<EvaluatorProfile />} />
-            <Route path="/" element={<ProtectedRoute><Roster /></ProtectedRoute>} />
+            <Route path="/" element={<ProtectedRoute><TeamHome /></ProtectedRoute>} />
+            <Route path="/home" element={<ProtectedRoute><TeamHome /></ProtectedRoute>} />
+            <Route path="/roster" element={<ProtectedRoute><Roster /></ProtectedRoute>} />
+            <Route path="/schedule" element={<ProtectedRoute><SchedulePage /></ProtectedRoute>} />
             <Route path="/score" element={<ProtectedRoute><ScoreEntry /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/roster-board" element={<ProtectedRoute><RosterBoard /></ProtectedRoute>} />
@@ -259,6 +273,13 @@ const App = () => (
             <Route path="/plan" element={<ProtectedRoute><TryoutPlanner /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="/readiness" element={<ProtectedRoute><ReadinessChecklist /></ProtectedRoute>} />
+            <Route path="/analytics" element={<ProtectedRoute><PilotAnalytics /></ProtectedRoute>} />
+            <Route path="/teams" element={<ProtectedRoute><TeamManagement /></ProtectedRoute>} />
+            <Route path="/game/:id" element={<ProtectedRoute><GameDetail /></ProtectedRoute>} />
+            <Route path="/game/:id/print-lineup" element={<ProtectedRoute><PrintLineupView /></ProtectedRoute>} />
+            <Route path="/practices" element={<ProtectedRoute><PracticePlanner /></ProtectedRoute>} />
+            <Route path="/practice/:id" element={<ProtectedRoute><PracticePlanDetail /></ProtectedRoute>} />
+            <Route path="/practice/:id/print" element={<ProtectedRoute><PrintPracticeView /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

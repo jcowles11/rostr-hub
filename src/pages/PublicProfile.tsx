@@ -1,19 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle, MapPin, Ruler, Weight, GraduationCap, Trophy, Youtube, Instagram, Twitter, User, Award, Copy, Mail, Phone, ExternalLink, Share2, Link2, Heart, Grid3X3, Image } from "lucide-react";
+import {
+  CheckCircle, MapPin, Ruler, Weight, GraduationCap, Trophy, Youtube,
+  Instagram, Twitter, User, Award, Copy, Mail, Phone, ExternalLink,
+  Share2, Link2, Heart, Grid3X3, Image, QrCode, TrendingUp, TrendingDown,
+  Minus, FileDown, BarChart3,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ProfileQrCode from "@/components/ProfileQrCode";
+
+// ── Types ──────────────────────────────────────────────────────────
 
 interface MetricEntry {
   name: string;
   unit: string;
   metric_type: string;
+  aggregation?: string;       // Added by migration 000006
   value: number;
   verified: boolean;
   source_type?: string;
@@ -23,6 +31,20 @@ interface MetricEntry {
   event_name?: string;
   event_date?: string;
   created_at?: string;
+}
+
+interface TrendPoint {
+  session_name: string;
+  session_date: string;
+  value: number;
+}
+
+interface TrendEntry {
+  metric_name: string;
+  metric_unit: string;
+  metric_type: string;
+  aggregation: string;
+  points: TrendPoint[] | null;
 }
 
 interface PublicProfileData {
@@ -60,12 +82,99 @@ interface PublicProfileData {
   };
   metrics: MetricEntry[];
   evaluator_metrics: MetricEntry[];
+  trend_data?: TrendEntry[];   // Added by migration 000006
 }
+
+// ── Aggregation labels ─────────────────────────────────────────────
+
+const AGG_LABELS: Record<string, string> = {
+  best: "Best",
+  average: "Avg",
+  latest: "Latest",
+};
+
+// ── Helpers ────────────────────────────────────────────────────────
 
 function getYouTubeEmbedUrl(url: string): string | null {
   const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/);
   return match ? `https://www.youtube.com/embed/${match[1]}` : null;
 }
+
+function copyToClipboard(text: string, label: string) {
+  navigator.clipboard.writeText(text);
+  toast.success(`${label} copied!`);
+}
+
+// ── Sparkline (reused from PlayerDevelopment pattern) ──────────────
+
+function ProfileSparkline({
+  points,
+  direction,
+  width = 64,
+  height = 24,
+}: {
+  points: number[];
+  direction: "improving" | "regressing" | "stable";
+  width?: number;
+  height?: number;
+}) {
+  if (points.length < 2) return null;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || 1;
+  const pad = 2;
+  const coords = points.map((v, i) => ({
+    x: pad + (i / (points.length - 1)) * (width - pad * 2),
+    y: pad + (1 - (v - min) / range) * (height - pad * 2),
+  }));
+  const d = coords.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x} ${c.y}`).join(" ");
+  const color = direction === "improving" ? "#22c55e" : direction === "regressing" ? "#ef4444" : "#94a3b8";
+
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="shrink-0">
+      <path d={d} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={coords[0].x} cy={coords[0].y} r={2} fill={color} opacity={0.4} />
+      <circle cx={coords[coords.length - 1].x} cy={coords[coords.length - 1].y} r={2} fill={color} />
+    </svg>
+  );
+}
+
+// ── Trend computation from RPC data ───────────────────────────────
+
+interface ComputedTrend {
+  name: string;
+  unit: string;
+  points: TrendPoint[];
+  first: number;
+  latest: number;
+  delta: number;
+  direction: "improving" | "regressing" | "stable";
+}
+
+function computePublicTrends(trendData: TrendEntry[]): ComputedTrend[] {
+  const results: ComputedTrend[] = [];
+  for (const t of trendData) {
+    if (!t.points || t.points.length < 2) continue;
+    const pts = t.points;
+    const first = pts[0].value;
+    const latest = pts[pts.length - 1].value;
+    const delta = latest - first;
+    const threshold = Math.abs(first) * 0.02;
+    const lowerIsBetter = t.metric_type === "timed";
+    let direction: ComputedTrend["direction"];
+    if (Math.abs(delta) <= threshold) {
+      direction = "stable";
+    } else if (lowerIsBetter) {
+      direction = delta < 0 ? "improving" : "regressing";
+    } else {
+      direction = delta > 0 ? "improving" : "regressing";
+    }
+    results.push({ name: t.metric_name, unit: t.metric_unit, points: pts, first, latest, delta, direction });
+  }
+  return results;
+}
+
+// ── Program Metrics Section (enhanced) ────────────────────────────
 
 function ProgramMetricsSection({ metrics, programName }: { metrics: MetricEntry[]; programName: string }) {
   if (metrics.length === 0) return null;
@@ -73,14 +182,26 @@ function ProgramMetricsSection({ metrics, programName }: { metrics: MetricEntry[
     <Card className="section-card">
       <CardContent className="pt-5 pb-4">
         <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
-          <CheckCircle className="h-5 w-5 text-accent" /> Program Metrics
+          <CheckCircle className="h-5 w-5 text-accent" /> Verified Metrics
         </h2>
-        <p className="text-xs text-muted-foreground mb-4">Verified by {programName}</p>
+        <p className="text-xs text-muted-foreground mb-4">Evaluated by {programName} coaching staff</p>
         <div className="grid grid-cols-2 gap-2.5">
           {metrics.map((m, i) => (
             <div key={i} className="rounded-xl bg-muted/40 p-3.5">
-              <p className="text-xs text-muted-foreground mb-0.5">{m.name} {m.unit && `(${m.unit})`}</p>
-              <p className="text-2xl font-extrabold">{Number(m.value).toFixed(1)}</p>
+              <div className="flex items-baseline justify-between mb-0.5">
+                <p className="text-xs text-muted-foreground truncate">{m.name}</p>
+                {m.aggregation && (
+                  <span className="text-[9px] text-muted-foreground/60 font-medium ml-1 shrink-0">
+                    {AGG_LABELS[m.aggregation] || m.aggregation}
+                  </span>
+                )}
+              </div>
+              <p className="text-2xl font-extrabold tabular-nums">
+                {Number(m.value).toFixed(1)}
+                {m.unit && (
+                  <span className="text-xs font-medium text-muted-foreground ml-1">{m.unit}</span>
+                )}
+              </p>
             </div>
           ))}
         </div>
@@ -88,6 +209,113 @@ function ProgramMetricsSection({ metrics, programName }: { metrics: MetricEntry[
     </Card>
   );
 }
+
+// ── Development Trends Section ────────────────────────────────────
+
+function DevelopmentSection({ trends }: { trends: ComputedTrend[] }) {
+  if (trends.length === 0) return null;
+  const improving = trends.filter((t) => t.direction === "improving").length;
+
+  return (
+    <Card className="section-card">
+      <CardContent className="pt-5 pb-4">
+        <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
+          <BarChart3 className="h-5 w-5 text-primary" /> Development
+        </h2>
+        <p className="text-xs text-muted-foreground mb-3">
+          {trends.length} metric{trends.length !== 1 ? "s" : ""} tracked across sessions
+          {improving > 0 && (
+            <span className="text-green-600 font-semibold ml-2">
+              {improving} improving
+            </span>
+          )}
+        </p>
+        <div className="space-y-2">
+          {trends.map((t, i) => {
+            const DirIcon = t.direction === "improving" ? TrendingUp : t.direction === "regressing" ? TrendingDown : Minus;
+            const dirColor = t.direction === "improving" ? "text-green-600" : t.direction === "regressing" ? "text-red-500" : "text-muted-foreground";
+            const sign = t.direction === "stable" ? "" : t.delta > 0 ? "+" : "";
+
+            return (
+              <div key={i} className="rounded-xl bg-muted/40 p-3 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm truncate">{t.name}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {t.points.length} sessions
+                  </p>
+                </div>
+                <ProfileSparkline
+                  points={t.points.map((p) => p.value)}
+                  direction={t.direction}
+                />
+                <div className="text-right shrink-0 min-w-[4rem]">
+                  <p className="text-sm font-extrabold tabular-nums">
+                    {t.latest.toFixed(1)}
+                    <span className="text-[10px] font-medium text-muted-foreground ml-0.5">
+                      {t.unit}
+                    </span>
+                  </p>
+                  <div className={cn("flex items-center justify-end gap-0.5 text-[10px] font-semibold", dirColor)}>
+                    <DirIcon className="h-3 w-3" />
+                    <span className="tabular-nums">{sign}{t.delta.toFixed(1)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Share & QR Section ────────────────────────────────────────────
+
+function ShareSection({ profileUrl, playerName }: { profileUrl: string; playerName: string }) {
+  const [showQr, setShowQr] = useState(false);
+
+  return (
+    <Card className="section-card">
+      <CardContent className="py-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-bold flex items-center gap-2">
+            <Share2 className="h-4 w-4" /> Share Profile
+          </h2>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={() => setShowQr(!showQr)}
+          >
+            <QrCode className="h-3.5 w-3.5 mr-1" />
+            {showQr ? "Hide QR" : "Show QR"}
+          </Button>
+        </div>
+
+        {/* Profile URL */}
+        <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2.5 mb-3">
+          <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="text-xs text-muted-foreground truncate flex-1 font-mono">{profileUrl}</span>
+          <Button variant="ghost" size="sm" className="h-7 px-2 shrink-0" onClick={() => copyToClipboard(profileUrl, "Profile link")}>
+            <Copy className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+
+        {/* QR Code */}
+        {showQr && (
+          <div className="flex flex-col items-center gap-2 pt-2">
+            <ProfileQrCode url={profileUrl} size={160} />
+            <p className="text-[10px] text-muted-foreground text-center">
+              Scan to view {playerName}'s profile
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Showcase Metrics Section (unchanged) ──────────────────────────
 
 interface GroupedEval {
   evaluatorName: string;
@@ -156,10 +384,7 @@ function ShowcaseMetricsSection({ metrics }: { metrics: MetricEntry[] }) {
   );
 }
 
-function copyToClipboard(text: string, label: string) {
-  navigator.clipboard.writeText(text);
-  toast.success(`${label} copied!`);
-}
+// ── Main Component ────────────────────────────────────────────────
 
 export default function PublicProfile() {
   const { slug } = useParams<{ slug: string }>();
@@ -244,6 +469,12 @@ export default function PublicProfile() {
     getPlayerData();
   }, [slug, user]);
 
+  // Compute trends from RPC trend_data (available after migration 000006)
+  const trends = useMemo(() => {
+    if (!data?.trend_data || data.trend_data.length === 0) return [];
+    return computePublicTrends(data.trend_data);
+  }, [data?.trend_data]);
+
   const toggleFollow = async () => {
     if (!user || !followPlayerId) return;
     if (isFollowed) {
@@ -281,6 +512,7 @@ export default function PublicProfile() {
   const embedUrl = player.highlight_video_url ? getYouTubeEmbedUrl(player.highlight_video_url) : null;
   const isCommitted = player.recruiting_status === "committed";
   const profileUrl = `${window.location.origin}/p/${player.profile_slug}`;
+  const playerName = `${player.first_name} ${player.last_name}`;
 
   return (
     <div className="min-h-screen bg-background">
@@ -302,7 +534,7 @@ export default function PublicProfile() {
 
           <div className="flex items-center gap-4">
             {player.photo_url ? (
-              <img src={player.photo_url} alt={`${player.first_name} ${player.last_name}`} className="h-24 w-24 rounded-2xl object-cover border-2 border-white/30 shadow-lg" />
+              <img src={player.photo_url} alt={playerName} className="h-24 w-24 rounded-2xl object-cover border-2 border-white/30 shadow-lg" />
             ) : (
               <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-white/20 border-2 border-white/30">
                 <User className="h-10 w-10 text-white/70" />
@@ -310,14 +542,16 @@ export default function PublicProfile() {
             )}
             <div>
               <h1 className="text-3xl font-extrabold text-white">
-                {player.first_name} {player.last_name}
+                {playerName}
               </h1>
-              <div className="flex items-center gap-2 mt-1">
-                {program.logo_url && (
-                  <img src={program.logo_url} alt={program.name} className="h-5 w-5 rounded object-cover" />
-                )}
-                <span className="text-sm font-medium text-white/80">{program.school_name} • {program.sport}</span>
-              </div>
+              {program && (
+                <div className="flex items-center gap-2 mt-1">
+                  {program.logo_url && (
+                    <img src={program.logo_url} alt={program.name} className="h-5 w-5 rounded object-cover" />
+                  )}
+                  <span className="text-sm font-medium text-white/80">{program.school_name} • {program.sport}</span>
+                </div>
+              )}
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {player.positions?.map((p) => (
                   <Badge key={p} variant="secondary" className="bg-white/20 text-white border-0 text-xs">{p}</Badge>
@@ -329,7 +563,7 @@ export default function PublicProfile() {
             </div>
           </div>
 
-          {/* Share button */}
+          {/* Hero action buttons */}
           <div className="flex gap-2 mt-4">
             {user && followPlayerId && (
               <Button
@@ -348,7 +582,7 @@ export default function PublicProfile() {
               </Button>
             )}
             <Button size="sm" variant="secondary" className="bg-white/15 text-white border-0 hover:bg-white/25 text-xs" onClick={() => copyToClipboard(profileUrl, "Profile link")}>
-              <Share2 className="h-3.5 w-3.5 mr-1" /> Share Profile
+              <Share2 className="h-3.5 w-3.5 mr-1" /> Share
             </Button>
           </div>
         </div>
@@ -455,11 +689,17 @@ export default function PublicProfile() {
           </Card>
         )}
 
-        {/* Program Metrics */}
-        <ProgramMetricsSection metrics={metrics || []} programName={program.name} />
+        {/* Program Metrics (enhanced with aggregation labels) */}
+        <ProgramMetricsSection metrics={metrics || []} programName={program?.name || "Program"} />
+
+        {/* Development Trends (from migration 000006 trend_data) */}
+        {trends.length > 0 && <DevelopmentSection trends={trends} />}
 
         {/* Showcase & Evaluator Data */}
         <ShowcaseMetricsSection metrics={evaluator_metrics || []} />
+
+        {/* Share & QR Section */}
+        <ShareSection profileUrl={profileUrl} playerName={playerName} />
 
         {/* Highlight Video */}
         {embedUrl && (

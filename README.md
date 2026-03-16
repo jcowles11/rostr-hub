@@ -1,73 +1,82 @@
-# Welcome to your Lovable project
+# Rostr
 
-## Project info
+Rostr is a sports team operating system for coaches, evaluators, and program administrators. It digitizes tryout evaluations, roster management, practice planning, game-day operations, and player development tracking.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+**This is a Vite + React 18 + TypeScript + TailwindCSS + Supabase SPA.** It is not Next.js — there is no SSR, no server components, no API routes. All data flows through the Supabase JS client. The app is deployed as a static build.
 
-## How can I edit this code?
+## Tech Stack
 
-There are several ways of editing your application.
+| Layer | Technology |
+|-------|------------|
+| Framework | Vite 5 + React 18 (via `@vitejs/plugin-react-swc`) |
+| Language | TypeScript 5 (strict) |
+| Styling | TailwindCSS 3 + tailwind-merge + tailwindcss-animate |
+| UI Components | Radix UI primitives + shadcn/ui |
+| Data | Supabase (PostgreSQL + Auth + RLS + Edge Functions) |
+| Validation | Zod |
+| Routing | react-router-dom v6 |
+| Testing | Vitest |
 
-**Use Lovable**
+## Local Development
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+Prerequisites: Node.js 18+ and npm.
 
-Changes made via Lovable will be committed automatically to this repo.
+```bash
+# Install dependencies
+npm install
 
-**Use your preferred IDE**
+# Copy environment template and fill in your Supabase credentials
+cp .env.example .env
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start dev server (http://localhost:8080)
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Commands
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```bash
+npm run dev          # Start dev server on :8080
+npm run build        # Production build (vite build)
+npm run typecheck    # TypeScript check (tsc --noEmit)
+npm run test         # Run unit tests (vitest run)
+npm run lint         # ESLint
+```
 
-**Use GitHub Codespaces**
+### Verification (run after every change)
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```bash
+npm run typecheck && npm run build
+```
 
-## What technologies are used for this project?
+Both must pass with zero errors.
 
-This project is built with:
+## Environment Variables
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Copy `.env.example` to `.env` and provide your Supabase project credentials:
 
-## How can I deploy this project?
+```
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-anon-key
+```
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Project Documentation
 
-## Can I connect a custom domain to my Lovable project?
+| Document | Purpose |
+|----------|---------|
+| [CLAUDE.md](./CLAUDE.md) | Engineering context and guardrails for AI-assisted development |
+| [PRODUCT_VISION.md](./PRODUCT_VISION.md) | Product thesis, scope discipline, out-of-scope list |
+| [LAUNCH_READINESS.md](./LAUNCH_READINESS.md) | Pilot readiness rubric, must-pass workflows, blockers |
+| [ROLE_MATRIX.md](./ROLE_MATRIX.md) | Role definitions, jobs to be done, implementation priority |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Technical architecture, routing, service layer, data flow |
+| [TASK_QUEUE.md](./TASK_QUEUE.md) | Active and upcoming development tasks by phase |
+| [KNOWN_ISSUES.md](./KNOWN_ISSUES.md) | Tracked bugs with severity and mitigation status |
+| [DECISIONS.md](./DECISIONS.md) | 51+ technical decision records with rationale |
+| [PROGRESS.md](./PROGRESS.md) | Chronological build log |
+| [BUILD_SUMMARY.md](./BUILD_SUMMARY.md) | Comprehensive snapshot of what was built and current state |
+| [PILOT_RUNBOOK.md](./PILOT_RUNBOOK.md) | Coach-facing pilot walkthrough |
 
-Yes, you can!
+## Current Status
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+The product is in its **UI Productization Sprint** — core features work; the current focus is polish, reliability, and demo/pilot readiness. See LAUNCH_READINESS.md for the pilot readiness rubric and TASK_QUEUE.md for active work items.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Seven prepared Supabase migrations (in `supabase/migrations/`) must be applied to the live instance before full feature availability. See CLAUDE.md §7 for details.

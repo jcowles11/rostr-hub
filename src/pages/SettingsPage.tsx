@@ -1,6 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { LogOut, Share2, User, Shield, Calendar, SlidersHorizontal, Upload, Database, Download, Users, Layers, Eye, Image, ChevronRight, ChevronDown, Clock, ClipboardCheck } from "lucide-react";
+import { LogOut, Share2, User, Shield, Calendar, SlidersHorizontal, Upload, Database, Download, Users, Layers, Eye, Image, ChevronRight, ChevronDown, Clock, ClipboardCheck, ClipboardList, BarChart3 } from "lucide-react";
 import ProgramLogoUpload from "@/components/ProgramLogoUpload";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,8 +13,9 @@ import MetricsManager from "@/components/MetricsManager";
 import SeasonsManager from "@/components/SeasonsManager";
 import RosterUpload from "@/components/RosterUpload";
 import DataImport from "@/components/DataImport";
+import { seedDemoData } from "@/services/demoSeedService";
 import { Input } from "@/components/ui/input";
-import { Pencil, Check, X } from "lucide-react";
+import { Pencil, Check, X, Sparkles } from "lucide-react";
 
 interface MenuTile {
   icon: React.ReactNode;
@@ -136,6 +137,7 @@ export default function SettingsPage() {
   // Dialogs
   const [rosterOpen, setRosterOpen] = useState(false);
   const [dataImportOpen, setDataImportOpen] = useState(false);
+  const [seeding, setSeeding] = useState(false);
 
   // Expandable sections
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -255,15 +257,15 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* TRYOUT PLANNING */}
+      {/* TEAM OPERATIONS */}
       <div className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">Tryout Planning</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">Team Operations</p>
         <div className="space-y-1.5">
           <TileButton
-            icon={<Calendar className="h-4 w-4" />}
-            label="Tryout Planner"
-            subtitle="Sessions, metrics & attempts overview"
-            onClick={() => navigate("/plan")}
+            icon={<Users className="h-4 w-4" />}
+            label="Team Management"
+            subtitle="Rosters, games & lineups"
+            onClick={() => navigate("/teams")}
             trailing={<ChevronRight className="h-4 w-4 text-muted-foreground" />}
           />
           <TileButton
@@ -271,6 +273,34 @@ export default function SettingsPage() {
             label="Roster Board"
             subtitle="Drag & drop roster assignments"
             onClick={() => navigate("/roster-board")}
+            trailing={<ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          />
+          <TileButton
+            icon={<ClipboardList className="h-4 w-4" />}
+            label="Practice Plans"
+            subtitle="Plan and share practice schedules"
+            onClick={() => navigate("/practices")}
+            trailing={<ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          />
+        </div>
+      </div>
+
+      {/* EVALUATION & SCORING */}
+      <div className="space-y-2">
+        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">Evaluation & Scoring</p>
+        <div className="space-y-1.5">
+          <TileButton
+            icon={<BarChart3 className="h-4 w-4" />}
+            label="Stats & Rankings"
+            subtitle="Player stats, rankings & comparison"
+            onClick={() => navigate("/dashboard")}
+            trailing={<ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          />
+          <TileButton
+            icon={<Calendar className="h-4 w-4" />}
+            label="Tryout Planner"
+            subtitle="Sessions, metrics & attempts overview"
+            onClick={() => navigate("/plan")}
             trailing={<ChevronRight className="h-4 w-4 text-muted-foreground" />}
           />
           <TileButton
@@ -292,6 +322,22 @@ export default function SettingsPage() {
       <div className="space-y-2">
         <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">Data</p>
         <div className="space-y-1.5">
+          <TileButton
+            icon={<Sparkles className="h-4 w-4" />}
+            label="Seed Demo Data"
+            subtitle={seeding ? "Generating..." : "Populate with realistic baseball program data"}
+            onClick={async () => {
+              if (!coach || seeding) return;
+              setSeeding(true);
+              const result = await seedDemoData(coach.program_id, coach.id);
+              if (result.success && result.counts) {
+                toast.success(`Demo data created: ${result.counts.players} players, ${result.counts.games} games, ${result.counts.evaluations} evaluations`);
+              } else {
+                toast.error(result.error || "Failed to seed demo data");
+              }
+              setSeeding(false);
+            }}
+          />
           <TileButton
             icon={<Upload className="h-4 w-4" />}
             label="Import Roster"
@@ -461,6 +507,13 @@ export default function SettingsPage() {
               label="Deployment Checklist"
               subtitle="Verify your program is ready for tryouts"
               onClick={() => navigate("/readiness")}
+              trailing={<ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            />
+            <TileButton
+              icon={<SlidersHorizontal className="h-4 w-4" />}
+              label="Pilot Analytics"
+              subtitle="View usage patterns and workflow data"
+              onClick={() => navigate("/analytics")}
               trailing={<ChevronRight className="h-4 w-4 text-muted-foreground" />}
             />
           </div>

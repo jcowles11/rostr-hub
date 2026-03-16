@@ -1,16 +1,19 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Upload, FileSpreadsheet, AlertCircle, AlertTriangle, CheckCircle2, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { normalizeHeader, splitFullName, splitBatsThrows } from "@/lib/importUtils";
+import { fetchPlayerNames, buildPlayerNameIndex } from "@/services/playerService";
+import { track } from "@/services/analyticsService";
 
 interface RosterUploadProps {
   open: boolean;
@@ -83,6 +86,17 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
   });
   const [importing, setImporting] = useState(false);
   const [importCount, setImportCount] = useState(0);
+  const [skipDuplicates, setSkipDuplicates] = useState(true);
+  const [existingNameIndex, setExistingNameIndex] = useState<Set<string>>(new Set());
+
+  // Fetch existing player names when dialog opens for duplicate detection
+  useEffect(() => {
+    if (open && coach?.program_id) {
+      fetchPlayerNames(coach.program_id).then(({ data }) => {
+        setExistingNameIndex(buildPlayerNameIndex(data));
+      });
+    }
+  }, [open, coach?.program_id]);
 
   const reset = () => {
     setStep("upload");
@@ -177,11 +191,29 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
     };
   }).filter((p) => p.first_name && p.last_name);
 
+  // Duplicate detection: mark each player as existing-duplicate or within-file-duplicate
+  const playerDuplicateInfo = mappedPlayers.map((p, i) => {
+    const key = `${p.first_name.trim().toLowerCase()}|${p.last_name.trim().toLowerCase()}`;
+    const isExistingDuplicate = existingNameIndex.has(key);
+    // Check if an earlier row in this file has the same name
+    const isFileDuplicate = mappedPlayers.findIndex((other) =>
+      other.first_name.trim().toLowerCase() === p.first_name.trim().toLowerCase() &&
+      other.last_name.trim().toLowerCase() === p.last_name.trim().toLowerCase()
+    ) < i;
+    return { ...p, isExistingDuplicate, isFileDuplicate, isDuplicate: isExistingDuplicate || isFileDuplicate };
+  });
+
+  const duplicateCount = playerDuplicateInfo.filter((p) => p.isDuplicate).length;
+  const newPlayerCount = playerDuplicateInfo.filter((p) => !p.isDuplicate).length;
+  const playersToImport = skipDuplicates
+    ? playerDuplicateInfo.filter((p) => !p.isDuplicate)
+    : playerDuplicateInfo;
+
   const handleImport = async () => {
-    if (!coach || importing) return;
+    if (!coach || importing || playersToImport.length === 0) return;
     setImporting(true);
 
-    const toInsert = mappedPlayers.map((p) => ({
+    const toInsert = playersToImport.map((p) => ({
       program_id: coach.program_id,
       first_name: p.first_name,
       last_name: p.last_name,
@@ -200,6 +232,7 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
       setImportCount(toInsert.length);
       setStep("done");
       setImporting(false);
+      if (coach) track("roster_import", coach.program_id, coach.id, { count: toInsert.length, source: "roster_upload" });
       onSuccess();
     }
   };
@@ -290,7 +323,7 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
                 disabled={!hasValidNameMapping}
                 onClick={() => setStep("preview")}
               >
-                Preview ({mappedPlayers.length} players)
+                Preview ({mappedPlayers.length} player{mappedPlayers.length !== 1 ? "s" : ""})
               </Button>
             </div>
           </div>
@@ -299,16 +332,47 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
         {step === "preview" && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Ready to import <span className="font-semibold text-foreground">{mappedPlayers.length}</span> players:
+              Found <span className="font-semibold text-foreground">{mappedPlayers.length}</span> players in file.
+              {duplicateCount > 0 && (
+                <span className="text-amber-600 dark:text-amber-400">
+                  {" "}{duplicateCount} already on roster.
+                </span>
+              )}
             </p>
+
+            {duplicateCount > 0 && (
+              <div className="flex items-center justify-between gap-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3">
+                <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>Skip {duplicateCount} duplicate{duplicateCount !== 1 ? "s" : ""}?</span>
+                </div>
+                <Switch checked={skipDuplicates} onCheckedChange={setSkipDuplicates} />
+              </div>
+            )}
+
             <div className="max-h-60 overflow-y-auto space-y-1.5 rounded-xl border p-3">
-              {mappedPlayers.map((p, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm">
+              {playerDuplicateInfo.map((p, i) => (
+                <div
+                  key={i}
+                  className={`flex items-center gap-2 text-sm ${
+                    p.isDuplicate && skipDuplicates ? "opacity-40 line-through" : ""
+                  }`}
+                >
                   <span className="font-medium">{p.last_name}, {p.first_name}</span>
                   {p.grade && <Badge variant="secondary" className="text-[10px] h-4">{p.grade}th</Badge>}
                   {p.positions?.map((pos) => (
                     <Badge key={pos} variant="outline" className="text-[10px] h-4">{pos}</Badge>
                   ))}
+                  {p.isExistingDuplicate && (
+                    <Badge variant="outline" className="text-[10px] h-4 text-amber-600 border-amber-300">
+                      <Users className="h-2.5 w-2.5 mr-0.5" />on roster
+                    </Badge>
+                  )}
+                  {p.isFileDuplicate && !p.isExistingDuplicate && (
+                    <Badge variant="outline" className="text-[10px] h-4 text-amber-600 border-amber-300">
+                      duplicate in file
+                    </Badge>
+                  )}
                 </div>
               ))}
             </div>
@@ -324,10 +388,10 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
               <Button variant="outline" className="flex-1 h-11 rounded-xl" onClick={() => setStep("map")}>Back</Button>
               <Button
                 className="flex-1 h-11 rounded-xl gradient-primary border-0 font-bold"
-                disabled={importing || mappedPlayers.length === 0}
+                disabled={importing || playersToImport.length === 0}
                 onClick={handleImport}
               >
-                {importing ? "Importing..." : `Import ${mappedPlayers.length} Players`}
+                {importing ? "Importing..." : `Import ${playersToImport.length} Player${playersToImport.length !== 1 ? "s" : ""}`}
               </Button>
             </div>
           </div>
@@ -340,6 +404,11 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
               <p className="text-lg font-bold">Import Complete!</p>
               <p className="text-sm text-muted-foreground mt-1">
                 Successfully imported {importCount} player{importCount !== 1 ? "s" : ""}.
+                {duplicateCount > 0 && skipDuplicates && (
+                  <span className="block mt-0.5 text-amber-600 dark:text-amber-400">
+                    {duplicateCount} duplicate{duplicateCount !== 1 ? "s" : ""} skipped.
+                  </span>
+                )}
               </p>
             </div>
             <Button className="w-full h-11 rounded-xl font-bold" onClick={() => handleClose(false)}>

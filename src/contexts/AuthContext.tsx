@@ -298,6 +298,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Check for placeholder coach records matching the user's email
+    // (created via CoachManager invitation before the coach signed up)
+    // Uses a SECURITY DEFINER DB function to bypass coaches UPDATE RLS
+    const userEmail = (await supabase.auth.getUser()).data.user?.email;
+    if (userEmail) {
+      const { data: linkResult } = await supabase.rpc("link_coach_by_email", {
+        target_email: userEmail,
+      });
+
+      if (linkResult && typeof linkResult === "object" && (linkResult as any).success) {
+        console.log("[AuthContext] Linked invited coach record to user:", userEmail);
+        const linkedCoach = await fetchCoaches(userId);
+        if (linkedCoach) {
+          setUserRole("coach");
+          return;
+        }
+      }
+    }
+
     const isEvaluator = await fetchEvaluator(userId);
     if (isEvaluator) {
       setUserRole("evaluator");

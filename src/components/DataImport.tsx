@@ -24,6 +24,7 @@ import {
   preprocessRawData,
   type ColumnGroup,
 } from "@/lib/importUtils";
+import { fetchPlayerNames, buildPlayerNameIndex } from "@/services/playerService";
 
 interface DataImportProps {
   open: boolean;
@@ -266,7 +267,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
   const [matchedRows, setMatchedRows] = useState<MatchedRow[]>([]);
   const [createMissing, setCreateMissing] = useState(true);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState({ players: 0, evals: 0 });
+  const [importResult, setImportResult] = useState({ players: 0, evals: 0, skippedDupes: 0 });
   const [creatingMetric, setCreatingMetric] = useState(false);
   const [importSessionId, setImportSessionId] = useState<string>("");
   const [creatingSession, setCreatingSession] = useState(false);
@@ -292,7 +293,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
     setGroupMapping({});
     setMatchedRows([]);
     setImporting(false);
-    setImportResult({ players: 0, evals: 0 });
+    setImportResult({ players: 0, evals: 0, skippedDupes: 0 });
     setImportSessionId("");
     setCreatingSession(false);
     setNewSessionName("");
@@ -371,7 +372,9 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
 
   const buildMatchedRows = () => {
     const profileCols = detectProfileColumns(headers);
-    const matched: MatchedRow[] = rows.map((row, i) => {
+
+    // Step 1: Build raw rows with player identification and metric extraction
+    const rawMatched: MatchedRow[] = rows.map((row, i) => {
       let firstName: string, lastName: string;
       if (useFullName) {
         const split = splitFullName(row[playerMapping.player_name] || "");
@@ -386,10 +389,8 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         (p) => p.first_name.toLowerCase() === firstName.toLowerCase() && p.last_name.toLowerCase() === lastName.toLowerCase()
       );
 
-      // Extract profile data (B/T, grade, position, height, weight)
       const profileData = extractProfileData(row, profileCols);
 
-      // Build metric values from grouped columns
       const metricValues: MatchedRow["metricValues"] = [];
       for (const group of columnGroups) {
         const metricId = groupMapping[group.displayName];
@@ -421,7 +422,56 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
       };
     }).filter((r) => r.firstName || r.lastName);
 
-    setMatchedRows(matched);
+    // Step 2: Merge rows that map to the same player (within-file duplicate detection)
+    // This handles CSVs where the same player appears on multiple rows (e.g., long-format timing data)
+    const playerKey = (r: MatchedRow) => `${r.firstName.trim().toLowerCase()}|${r.lastName.trim().toLowerCase()}`;
+    const seen = new Map<string, number>(); // key → index in merged array
+    const merged: MatchedRow[] = [];
+    let mergedRowCount = 0;
+
+    for (const row of rawMatched) {
+      const key = playerKey(row);
+      const existingIdx = seen.get(key);
+
+      if (existingIdx !== undefined) {
+        // Merge metric values: append with adjusted attempt numbers to avoid collisions
+        const existing = merged[existingIdx];
+        for (const mv of row.metricValues) {
+          // Check if this exact (metricId, attemptNumber) already exists
+          const collision = existing.metricValues.find(
+            (e) => e.metricId === mv.metricId && e.attemptNumber === mv.attemptNumber
+          );
+          if (collision) {
+            // Assign next available attempt number for this metric
+            const maxAttempt = Math.max(
+              ...existing.metricValues.filter((e) => e.metricId === mv.metricId).map((e) => e.attemptNumber),
+              0
+            );
+            existing.metricValues.push({ ...mv, attemptNumber: maxAttempt + 1 });
+          } else {
+            existing.metricValues.push(mv);
+          }
+        }
+        // Merge profile data (first row's data wins, fill in gaps from later rows)
+        if (row.profileData) {
+          for (const [k, v] of Object.entries(row.profileData)) {
+            if (v !== undefined && (existing.profileData as any)[k] === undefined) {
+              (existing.profileData as any)[k] = v;
+            }
+          }
+        }
+        mergedRowCount++;
+      } else {
+        seen.set(key, merged.length);
+        merged.push({ ...row });
+      }
+    }
+
+    if (mergedRowCount > 0) {
+      toast.info(`${mergedRowCount} duplicate row${mergedRowCount > 1 ? "s" : ""} merged (same player appeared multiple times in file)`);
+    }
+
+    setMatchedRows(merged);
   };
 
   const proceedToMetrics = () => {
@@ -495,21 +545,57 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         }
       }
 
-      const evals: { program_id: string; player_id: string; metric_id: string; coach_id: string; value: number; attempt_number: number; session_id: string | null }[] = [];
+      const sessionId = importSessionId && importSessionId !== "none" ? importSessionId : null;
+
+      // Build candidate evaluations
+      const candidateEvals: { program_id: string; player_id: string; metric_id: string; coach_id: string; value: number; attempt_number: number; session_id: string | null }[] = [];
       for (const row of matchedRows) {
         const playerId = playerIdMap.get(row.rowIndex);
         if (!playerId || row.metricValues.length === 0) continue;
 
         for (const mv of row.metricValues) {
-          evals.push({
+          candidateEvals.push({
             program_id: coach.program_id,
             player_id: playerId,
             metric_id: mv.metricId,
             coach_id: coach.id,
             value: mv.value,
             attempt_number: mv.attemptNumber,
-            session_id: importSessionId && importSessionId !== "none" ? importSessionId : null,
+            session_id: sessionId,
           });
+        }
+      }
+
+      // Deduplicate against existing evaluations to prevent re-import
+      let evals = candidateEvals;
+      let skippedDupes = 0;
+      if (evals.length > 0) {
+        const playerIds = [...new Set(evals.map((e) => e.player_id))];
+        const metricIds = [...new Set(evals.map((e) => e.metric_id))];
+
+        // Fetch existing evaluations for these players+metrics (scoped to session if set)
+        let query = supabase
+          .from("evaluations")
+          .select("player_id, metric_id, attempt_number, coach_id")
+          .in("player_id", playerIds)
+          .in("metric_id", metricIds)
+          .eq("coach_id", coach.id);
+        if (sessionId) {
+          query = query.eq("session_id", sessionId);
+        } else {
+          query = query.is("session_id", null);
+        }
+        const { data: existingEvals } = await query;
+
+        if (existingEvals && existingEvals.length > 0) {
+          const existingKeys = new Set(
+            existingEvals.map((e) => `${e.player_id}|${e.metric_id}|${e.attempt_number}|${e.coach_id}`)
+          );
+          const filtered = evals.filter(
+            (e) => !existingKeys.has(`${e.player_id}|${e.metric_id}|${e.attempt_number}|${e.coach_id}`)
+          );
+          skippedDupes = evals.length - filtered.length;
+          evals = filtered;
         }
       }
 
@@ -522,7 +608,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         }
       }
 
-      setImportResult({ players: createdPlayers, evals: insertedEvals });
+      setImportResult({ players: createdPlayers, evals: insertedEvals, skippedDupes });
       setStep("done");
       onSuccess();
     } catch (err: any) {
@@ -876,6 +962,11 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
               <p className="text-sm text-muted-foreground mt-1">
                 {importResult.players > 0 && <>Created {importResult.players} new player{importResult.players > 1 ? "s" : ""}. </>}
                 Imported {importResult.evals} evaluation{importResult.evals !== 1 ? "s" : ""}.
+                {importResult.skippedDupes > 0 && (
+                  <span className="block mt-0.5 text-amber-600 dark:text-amber-400">
+                    {importResult.skippedDupes} duplicate score{importResult.skippedDupes !== 1 ? "s" : ""} skipped (already existed).
+                  </span>
+                )}
               </p>
               <p className="text-xs text-muted-foreground mt-2">
                 View results on the Dashboard to see grades and percentile rankings.

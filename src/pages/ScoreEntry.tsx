@@ -1,50 +1,30 @@
-import { useEffect, useState, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Check, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Search, Check, ChevronLeft, ChevronRight, X, Loader2, WifiOff, RefreshCw, CalendarPlus, Calendar } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { fetchPlayerSummaries, type PlayerSummary } from "@/services/playerService";
+import { fetchMetricsForScoring, type MetricForScoring } from "@/services/metricService";
+import {
+  fetchSessionEvaluations,
+  fetchPreviousSessionScores,
+  saveScore,
+  type Evaluation,
+  type PreviousScore,
+} from "@/services/evaluationService";
+import { useRetryQueue, type QueuedScore } from "@/hooks/useRetryQueue";
+import { track } from "@/services/analyticsService";
 
-interface Player {
-  id: string;
-  first_name: string;
-  last_name: string;
-  player_number: number | null;
-}
-
-interface Metric {
-  id: string;
-  name: string;
-  unit: string;
-  category: string;
-  metric_type: string;
-  min_value: number | null;
-  max_value: number | null;
-  max_attempts: number;
-}
-
-interface Evaluation {
-  id: string;
-  player_id: string;
-  metric_id: string;
-  attempt_number: number;
-  value: number;
-}
-
-interface PreviousScore {
-  session_name: string;
-  session_date: string;
-  attempt_number: number;
-  value: number;
-}
+type Player = PlayerSummary;
+type Metric = MetricForScoring;
 
 export default function ScoreEntry() {
   const { coach } = useAuth();
-  const { selectedSessionId } = useSession();
+  const { selectedSessionId, sessions, setSession, createSession } = useSession();
   const [players, setPlayers] = useState<Player[]>([]);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [search, setSearch] = useState("");
@@ -59,21 +39,50 @@ export default function ScoreEntry() {
   const [sortBy, setSortBy] = useState<"alpha" | "number">("alpha");
   const [existingEvals, setExistingEvals] = useState<Evaluation[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Synchronous guard to prevent concurrent saves (React state is async)
+  const savingRef = useRef(false);
+  // Save status flash: "saved" | "error" | null
+  const [lastSaveStatus, setLastSaveStatus] = useState<"saved" | "error" | null>(null);
+  const saveFlashTimer = useRef<ReturnType<typeof setTimeout>>();
+  // Running count of saves this session for coach confidence
+  const [sessionSaveCount, setSessionSaveCount] = useState(0);
 
   const [previousScores, setPreviousScores] = useState<PreviousScore[]>([]);
 
+  // Retry queue for network failures
+  const retryCallbacks = useMemo(() => ({
+    onRetrySuccess: (item: QueuedScore) => {
+      setRecentScores((prev) => [
+        { player: { id: item.input.player_id, first_name: "", last_name: item.playerName } as Player, metric: item.metricName, value: `${item.value}`, attempt: item.input.attempt_number },
+        ...prev.slice(0, 9),
+      ]);
+      setSessionSaveCount((c) => c + 1);
+      toast.success(`Retry succeeded: ${item.playerName} — ${item.value}`, { duration: 2000 });
+    },
+    onRetryExhausted: (item: QueuedScore) => {
+      toast.error(`Save failed permanently: ${item.playerName} ${item.metricName} = ${item.value}. Check the retry queue.`, { duration: 5000 });
+    },
+  }), []);
+
+  const { enqueue, dismissFailed, retryAllFailed, status: retryStatus } = useRetryQueue(retryCallbacks);
+
   const selectedSession = selectedSessionId !== "all" ? selectedSessionId : "";
+
+  // Reset save count when session changes
+  useEffect(() => {
+    setSessionSaveCount(0);
+  }, [selectedSession]);
 
   // Fetch players and metrics on mount
   useEffect(() => {
     if (!coach) return;
     Promise.all([
-      supabase.from("players").select("id, first_name, last_name, player_number").eq("program_id", coach.program_id).order("last_name").order("first_name"),
-      supabase.from("metrics").select("id, name, unit, category, metric_type, min_value, max_value, max_attempts").eq("program_id", coach.program_id).order("sort_order"),
+      fetchPlayerSummaries(coach.program_id),
+      fetchMetricsForScoring(coach.program_id),
     ]).then(([pRes, mRes]) => {
-      setPlayers(pRes.data || []);
-      setMetrics(mRes.data || []);
-      if (mRes.data && mRes.data.length > 0) setSelectedMetric(mRes.data[0].id);
+      setPlayers(pRes.data);
+      setMetrics(mRes.data);
+      if (mRes.data.length > 0) setSelectedMetric(mRes.data[0].id);
     });
   }, [coach]);
 
@@ -83,14 +92,8 @@ export default function ScoreEntry() {
       setExistingEvals([]);
       return;
     }
-    supabase
-      .from("evaluations")
-      .select("id, player_id, metric_id, attempt_number, value")
-      .eq("program_id", coach.program_id)
-      .eq("metric_id", selectedMetric)
-      .eq("coach_id", coach.id)
-      .eq("session_id", selectedSession)
-      .then(({ data }) => setExistingEvals(data || []));
+    fetchSessionEvaluations(coach.program_id, selectedMetric, coach.id, selectedSession)
+      .then(({ data }) => setExistingEvals(data));
   }, [coach, selectedMetric, selectedSession, recentScores]);
 
   const filtered = players
@@ -129,48 +132,28 @@ export default function ScoreEntry() {
       setPreviousScores([]);
       return;
     }
-    supabase
-      .from("evaluations")
-      .select("attempt_number, value, session_id")
-      .eq("program_id", coach.program_id)
-      .eq("metric_id", selectedMetric)
-      .eq("player_id", resolvedActivePlayer.id)
-      .neq("session_id", selectedSession)
-      .then(async ({ data }) => {
-        if (!data || data.length === 0) {
-          setPreviousScores([]);
-          return;
-        }
-        const sessionIds = [...new Set(data.map((d) => d.session_id).filter(Boolean))] as string[];
-        const { data: sessData } = await supabase
-          .from("tryout_sessions")
-          .select("id, name, session_date")
-          .in("id", sessionIds);
-        const sessMap = new Map((sessData || []).map((s) => [s.id, s]));
-        setPreviousScores(
-          data
-            .filter((d) => d.session_id && sessMap.has(d.session_id))
-            .map((d) => ({
-              session_name: sessMap.get(d.session_id!)?.name || "",
-              session_date: sessMap.get(d.session_id!)?.session_date || "",
-              attempt_number: d.attempt_number,
-              value: d.value,
-            }))
-        );
-      });
+    fetchPreviousSessionScores(coach.program_id, resolvedActivePlayer.id, selectedMetric, selectedSession)
+      .then(({ data }) => setPreviousScores(data));
   }, [coach, resolvedActivePlayer?.id, selectedMetric, selectedSession]);
 
-  const handleScore = async () => {
+  const showSaveFlash = useCallback((status: "saved" | "error") => {
+    setLastSaveStatus(status);
+    if (saveFlashTimer.current) clearTimeout(saveFlashTimer.current);
+    saveFlashTimer.current = setTimeout(() => setLastSaveStatus(null), status === "saved" ? 1500 : 3000);
+  }, []);
+
+  const handleScore = useCallback(async () => {
+    // Synchronous ref guard — prevents concurrent saves even with rapid Enter key
+    if (savingRef.current) return;
     if (!resolvedActivePlayer || !selectedMetric || !value || !coach || !selectedSession) return;
+
+    savingRef.current = true;
     setSaving(true);
 
     const existing = getPlayerAttemptEval(resolvedActivePlayer.id, currentAttempt);
 
-    let error;
-    if (existing) {
-      ({ error } = await supabase.from("evaluations").update({ value: parseFloat(value) }).eq("id", existing.id));
-    } else {
-      ({ error } = await supabase.from("evaluations").insert({
+    const { error, retryable } = await saveScore(
+      {
         program_id: coach.program_id,
         player_id: resolvedActivePlayer.id,
         metric_id: selectedMetric,
@@ -178,16 +161,69 @@ export default function ScoreEntry() {
         value: parseFloat(value),
         attempt_number: currentAttempt,
         session_id: selectedSession,
-      }));
-    }
+      },
+      existing?.id,
+      currentMetric ? {
+        min_value: currentMetric.min_value,
+        max_value: currentMetric.max_value,
+        metric_type: currentMetric.metric_type,
+        name: currentMetric.name,
+        unit: currentMetric.unit,
+      } : undefined
+    );
 
     if (error) {
-      toast.error("Failed to save score");
+      if (retryable) {
+        // Network/transient error — enqueue for background retry
+        enqueue(
+          {
+            program_id: coach.program_id,
+            player_id: resolvedActivePlayer.id,
+            metric_id: selectedMetric,
+            coach_id: coach.id,
+            value: parseFloat(value),
+            attempt_number: currentAttempt,
+            session_id: selectedSession,
+          },
+          {
+            existingEvalId: existing?.id,
+            metricBounds: currentMetric ? {
+              min_value: currentMetric.min_value,
+              max_value: currentMetric.max_value,
+              metric_type: currentMetric.metric_type,
+              name: currentMetric.name,
+              unit: currentMetric.unit,
+            } : undefined,
+            lastError: error,
+            playerName: resolvedActivePlayer.last_name,
+            metricName: currentMetric?.name || "",
+          }
+        );
+        showSaveFlash("error");
+        toast.warning(`Score queued for retry: ${resolvedActivePlayer.last_name}`, { duration: 2000 });
+        // Clear value and advance — the queue will handle the save
+        setValue("");
+        if (stationMode) {
+          if (stationIndex < filtered.length - 1) {
+            setStationIndex((i) => i + 1);
+          } else if (maxAttempts > 1 && currentAttempt < maxAttempts) {
+            setStationIndex(0);
+            setCurrentAttempt((a) => a + 1);
+          }
+        }
+      } else {
+        // Validation error — not retryable, coach must fix
+        toast.error(error);
+        showSaveFlash("error");
+      }
     } else {
       setRecentScores((prev) => [
         { player: resolvedActivePlayer, metric: currentMetric?.name || "", value: `${value} ${currentMetric?.unit || ""}`, attempt: currentAttempt },
         ...prev.slice(0, 9),
       ]);
+      setSessionSaveCount((c) => c + 1);
+      showSaveFlash("saved");
+      if (coach) track("score_entry", coach.program_id, coach.id, { label: stationMode ? "station" : "direct", source: "score_page" });
       toast.success(`${resolvedActivePlayer.last_name}: ${value} ${currentMetric?.unit || ""}${maxAttempts > 1 ? ` (Att ${currentAttempt})` : ""}`, { duration: 1500 });
       setValue("");
 
@@ -203,12 +239,13 @@ export default function ScoreEntry() {
       }
     }
     setSaving(false);
+    savingRef.current = false;
     inputRef.current?.focus();
-  };
+  }, [resolvedActivePlayer, selectedMetric, value, coach, selectedSession, currentAttempt, currentMetric, stationMode, stationIndex, filtered.length, maxAttempts, showSaveFlash]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleScore();
-  };
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !savingRef.current) handleScore();
+  }, [handleScore]);
 
   const enterStationMode = (playerIndex?: number) => {
     setStationMode(true);
@@ -267,6 +304,14 @@ export default function ScoreEntry() {
 
   const currentExistingScore = resolvedActivePlayer ? getPlayerAttemptEval(resolvedActivePlayer.id, currentAttempt) : null;
 
+  // Station Mode progress: how many of the filtered players have at least one score for the current metric
+  const stationProgress = useMemo(() => {
+    if (!stationMode || filtered.length === 0) return { scored: 0, total: 0, pct: 0 };
+    const scoredPlayerIds = new Set(existingEvals.map((e) => e.player_id));
+    const scored = filtered.filter((p) => scoredPlayerIds.has(p.id)).length;
+    return { scored, total: filtered.length, pct: Math.round((scored / filtered.length) * 100) };
+  }, [stationMode, filtered, existingEvals]);
+
   const sessionDisabled = !selectedSession;
 
   return (
@@ -299,10 +344,77 @@ export default function ScoreEntry() {
         </div>
       </div>
 
-      {/* Event notice */}
+      {/* Event notice — guides coach to create or select a session */}
       {sessionDisabled && (
-        <div className="mb-4 rounded-xl bg-muted/60 p-3 text-center">
-          <p className="text-sm text-muted-foreground font-medium">Select an event from the header to start scoring.</p>
+        <div className="mb-4 rounded-xl border border-amber-300/50 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700/50 p-4 text-center space-y-3 animate-fade-in">
+          {sessions.length === 0 ? (
+            <>
+              <CalendarPlus className="h-8 w-8 mx-auto text-amber-600 dark:text-amber-400" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Create your first event to start scoring</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Events organize scores by tryout day or session.</p>
+              </div>
+              <div className="flex gap-2 max-w-xs mx-auto">
+                <Input
+                  placeholder="e.g. Fall Tryouts Day 1"
+                  className="h-10 text-sm rounded-xl flex-1"
+                  id="quickSessionName"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const input = e.currentTarget;
+                      const name = input.value.trim();
+                      if (!name) return;
+                      createSession(name).then((s) => {
+                        if (s) {
+                          toast.success(`Event "${s.name}" created — ready to score!`);
+                          input.value = "";
+                        } else {
+                          toast.error("Failed to create event");
+                        }
+                      });
+                    }
+                  }}
+                />
+                <Button
+                  className="h-10 rounded-xl font-bold gradient-primary border-0 shadow-glow"
+                  onClick={() => {
+                    const input = document.getElementById("quickSessionName") as HTMLInputElement | null;
+                    const name = input?.value?.trim();
+                    if (!name) { toast.error("Enter an event name"); return; }
+                    createSession(name).then((s) => {
+                      if (s) {
+                        toast.success(`Event "${s.name}" created — ready to score!`);
+                        if (input) input.value = "";
+                      } else {
+                        toast.error("Failed to create event");
+                      }
+                    });
+                  }}
+                >
+                  Create
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <Calendar className="h-6 w-6 mx-auto text-amber-600 dark:text-amber-400" />
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Select an event to start scoring</p>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {sessions.slice(0, 5).map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setSession(s.id)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border bg-white dark:bg-card hover:border-primary hover:text-primary transition-colors"
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+              {sessions.length > 5 && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">+ {sessions.length - 5} more in header dropdown</p>
+              )}
+            </>
+          )}
         </div>
       )}
 
@@ -350,21 +462,64 @@ export default function ScoreEntry() {
       {resolvedActivePlayer && !sessionDisabled ? (
         <div className="section-card p-6 text-center border-2 border-primary/30 shadow-elevated animate-scale-in mb-4">
           <div className="flex items-center justify-between">
-            {stationMode && (
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                Player {stationIndex + 1} of {filtered.length}
-              </p>
-            )}
-            <button
-              onClick={exitStationMode}
-              className="ml-auto text-muted-foreground hover:text-foreground transition-colors rounded-lg p-1"
-              title="Close"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              {stationMode && (
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                  Player {stationIndex + 1} of {filtered.length}
+                </p>
+              )}
+              {/* Save status indicator */}
+              {lastSaveStatus === "saved" && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-600 dark:text-green-400 animate-fade-in">
+                  <Check className="h-3 w-3" /> Saved
+                </span>
+              )}
+              {lastSaveStatus === "error" && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-destructive animate-fade-in">
+                  <X className="h-3 w-3" /> Failed
+                </span>
+              )}
+              {saving && (
+                <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin" />
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {sessionSaveCount > 0 && (
+                <span className="text-[10px] font-bold text-muted-foreground bg-muted/60 rounded-full px-2 py-0.5">
+                  {sessionSaveCount} saved
+                </span>
+              )}
+              <button
+                onClick={exitStationMode}
+                className="text-muted-foreground hover:text-foreground transition-colors rounded-lg p-1"
+                title="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           <p className="text-3xl font-extrabold mt-1">{playerDisplay(resolvedActivePlayer)}</p>
+
+          {/* Station Mode progress bar */}
+          {stationMode && stationProgress.total > 0 && (
+            <div className="mt-2 mb-1 mx-auto max-w-xs">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-semibold text-muted-foreground">
+                  {stationProgress.scored}/{stationProgress.total} scored
+                </span>
+                <span className="text-[10px] font-bold text-primary">
+                  {stationProgress.pct}%
+                </span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-muted/60 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                  style={{ width: `${stationProgress.pct}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           <AttemptSelector />
 
@@ -382,17 +537,26 @@ export default function ScoreEntry() {
               </Button>
             )}
 
-            <Input
-              ref={inputRef}
-              type="number"
-              inputMode="decimal"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={currentMetric?.unit || "Value"}
-              className="h-16 w-32 text-center text-3xl font-extrabold tap-target rounded-xl border-2 border-primary/20 focus:border-primary"
-              autoFocus
-            />
+            <div className="flex flex-col items-center">
+              <Input
+                ref={inputRef}
+                type="number"
+                inputMode="decimal"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={currentMetric?.unit || "Value"}
+                min={currentMetric?.min_value ?? undefined}
+                max={currentMetric?.max_value ?? undefined}
+                className="h-16 w-32 text-center text-3xl font-extrabold tap-target rounded-xl border-2 border-primary/20 focus:border-primary"
+                autoFocus
+              />
+              {currentMetric?.min_value != null && currentMetric?.max_value != null && (
+                <p className="text-xs text-muted-foreground mt-1.5 font-medium">
+                  Range: {currentMetric.min_value}–{currentMetric.max_value} {currentMetric.unit}
+                </p>
+              )}
+            </div>
 
             {stationMode && (
               <Button variant="outline" size="icon" className="tap-target rounded-xl h-14 w-14" onClick={() => { setStationIndex(Math.min(filtered.length - 1, stationIndex + 1)); setValue(""); setCurrentAttempt(1); }} disabled={stationIndex >= filtered.length - 1}>
@@ -402,7 +566,11 @@ export default function ScoreEntry() {
           </div>
 
           <Button onClick={handleScore} disabled={!value || saving} className="mt-5 w-full tap-target text-lg font-bold rounded-xl h-14 gradient-primary border-0 shadow-glow hover:shadow-lg transition-all">
-            <Check className="mr-2 h-5 w-5" /> {stationMode ? "Save & Next" : "Save Score"}
+            {saving ? (
+              <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Saving...</>
+            ) : (
+              <><Check className="mr-2 h-5 w-5" /> {stationMode ? "Save & Next" : "Save Score"}</>
+            )}
           </Button>
 
           {/* Previous session scores */}
@@ -466,6 +634,51 @@ export default function ScoreEntry() {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Retry queue status */}
+      {(retryStatus.pendingCount > 0 || retryStatus.failedItems.length > 0) && (
+        <div className="mb-4 rounded-xl border border-amber-300/50 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700/50 p-3 animate-fade-in">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <WifiOff className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <span className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                {retryStatus.pendingCount > 0
+                  ? `${retryStatus.pendingCount} score${retryStatus.pendingCount !== 1 ? "s" : ""} retrying...`
+                  : `${retryStatus.failedItems.length} score${retryStatus.failedItems.length !== 1 ? "s" : ""} failed`}
+              </span>
+              {retryStatus.isRetrying && <Loader2 className="h-3 w-3 animate-spin text-amber-600" />}
+            </div>
+            {retryStatus.failedItems.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                onClick={retryAllFailed}
+              >
+                <RefreshCw className="h-3 w-3 mr-1" /> Retry All
+              </Button>
+            )}
+          </div>
+          {retryStatus.failedItems.length > 0 && (
+            <div className="space-y-1 mt-2">
+              {retryStatus.failedItems.map((item) => (
+                <div key={item.key} className="flex items-center justify-between text-xs bg-white/60 dark:bg-black/20 rounded-lg px-2 py-1.5">
+                  <span className="font-medium text-amber-900 dark:text-amber-200">
+                    {item.playerName} — {item.metricName}: {item.value}
+                  </span>
+                  <button
+                    onClick={() => dismissFailed(item.key)}
+                    className="text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 ml-2"
+                    title="Dismiss"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -353,6 +353,169 @@ export type Database = {
           },
         ]
       }
+      game_rosters: {
+        Row: {
+          created_at: string
+          game_id: string
+          id: string
+          player_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          game_id: string
+          id?: string
+          player_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          game_id?: string
+          id?: string
+          player_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_rosters_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "game_rosters_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      games: {
+        Row: {
+          created_at: string
+          created_by: string
+          game_date: string
+          game_time: string | null
+          id: string
+          location: string | null
+          name: string
+          notes: string | null
+          opponent: string | null
+          program_id: string
+          season_id: string | null
+          status: string
+          team_level: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          game_date?: string
+          game_time?: string | null
+          id?: string
+          location?: string | null
+          name: string
+          notes?: string | null
+          opponent?: string | null
+          program_id: string
+          season_id?: string | null
+          status?: string
+          team_level?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          game_date?: string
+          game_time?: string | null
+          id?: string
+          location?: string | null
+          name?: string
+          notes?: string | null
+          opponent?: string | null
+          program_id?: string
+          season_id?: string | null
+          status?: string
+          team_level?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "games_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "coaches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lineup_entries: {
+        Row: {
+          batting_order: number | null
+          created_at: string
+          game_id: string
+          id: string
+          inning_half: string | null
+          notes: string | null
+          player_id: string
+          position: string | null
+          updated_at: string
+        }
+        Insert: {
+          batting_order?: number | null
+          created_at?: string
+          game_id: string
+          id?: string
+          inning_half?: string | null
+          notes?: string | null
+          player_id: string
+          position?: string | null
+          updated_at?: string
+        }
+        Update: {
+          batting_order?: number | null
+          created_at?: string
+          game_id?: string
+          id?: string
+          inning_half?: string | null
+          notes?: string | null
+          player_id?: string
+          position?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lineup_entries_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lineup_entries_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           body: string
@@ -1477,6 +1640,10 @@ export type Database = {
             }
             Returns: Json
           }
+      link_coach_by_email: {
+        Args: { target_email: string }
+        Returns: Json
+      }
     }
     Enums: {
       aggregation_method: "best" | "average" | "latest"

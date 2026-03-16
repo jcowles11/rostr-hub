@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import rostrLogo from "@/assets/rostr-logo.png";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
@@ -11,13 +11,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Star, AlertTriangle, Eye, MessageSquare, Send, Phone, HeartPulse, Pencil, Trash2, Plus, Check, X, ExternalLink, ChevronDown, ChevronRight, Award } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, AlertTriangle, Eye, MessageSquare, Send, Phone, HeartPulse, Pencil, Trash2, Plus, Check, X, ExternalLink, ChevronDown, ChevronRight, Award, BarChart3 } from "lucide-react";
 import PlayerPhotoUpload from "@/components/PlayerPhotoUpload";
 import { aggregateValues, AGGREGATION_LABELS } from "@/lib/metrics";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getSportPositions, sportHasBatsThrows } from "@/lib/sports";
 import { format } from "date-fns";
+import { addAdHocScore, updateScoreValue, deleteScore } from "@/services/evaluationService";
+import type { MetricBounds } from "@/lib/validation";
+import { track } from "@/services/analyticsService";
+import PlayerDevelopment from "@/components/PlayerDevelopment";
 
 interface Player {
   id: string;
@@ -53,7 +57,7 @@ interface SessionInfo {
   session_date: string;
 }
 
-interface Metric { id: string; name: string; unit: string; metric_type: string; category: string; aggregation: string; }
+interface Metric { id: string; name: string; unit: string; metric_type: string; category: string; aggregation: string; min_value: number | null; max_value: number | null; }
 interface Coach { id: string; full_name: string; color: string; }
 interface Note { id: string; content: string; flag: string | null; coach_id: string; created_at: string; }
 interface ExternalEntry {
@@ -69,11 +73,43 @@ interface ExternalEntry {
   evaluator: { id: string; full_name: string; organization_name: string } | null;
 }
 
+/** Navigation state passed from list pages (Dashboard, Roster, TeamManagement, etc.) */
+interface PlayerListNav {
+  playerIds: string[];
+  source?: string;
+}
+
 export default function PlayerDetail() {
   const { id } = useParams<{ id: string }>();
   const { coach } = useAuth();
   const { selectedSessionId, sessions: globalSessions } = useSession();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // ── Player list navigation (prev/next) ──────────────────────
+  const listNav = (location.state as PlayerListNav | null) ?? null;
+
+  const navContext = useMemo(() => {
+    if (!listNav?.playerIds?.length || !id) return null;
+    const ids = listNav.playerIds;
+    const idx = ids.indexOf(id);
+    if (idx < 0) return null;
+    return {
+      prevId: idx > 0 ? ids[idx - 1] : null,
+      nextId: idx < ids.length - 1 ? ids[idx + 1] : null,
+      position: idx + 1,
+      total: ids.length,
+      source: listNav.source || "list",
+    };
+  }, [listNav, id]);
+
+  const goToPlayer = useCallback(
+    (playerId: string) => {
+      navigate(`/player/${playerId}`, { state: listNav, replace: true });
+    },
+    [navigate, listNav]
+  );
+
   const [player, setPlayer] = useState<Player | null>(null);
   const [evals, setEvals] = useState<Evaluation[]>([]);
   const [metrics, setMetrics] = useState<Metric[]>([]);
@@ -103,7 +139,7 @@ export default function PlayerDetail() {
     const [pRes, eRes, mRes, cRes, nRes, sRes] = await Promise.all([
       supabase.from("players").select("*").eq("id", id).single(),
       supabase.from("evaluations").select("id, value, metric_id, coach_id, created_at, session_id").eq("player_id", id),
-      supabase.from("metrics").select("id, name, unit, metric_type, category, aggregation").eq("program_id", coach.program_id).order("sort_order"),
+      supabase.from("metrics").select("id, name, unit, metric_type, category, aggregation, min_value, max_value").eq("program_id", coach.program_id).order("sort_order"),
       supabase.from("coaches").select("id, full_name, color").eq("program_id", coach.program_id),
       supabase.from("player_notes").select("id, content, flag, coach_id, created_at").eq("player_id", id).order("created_at", { ascending: false }),
       supabase.from("tryout_sessions").select("id, name, session_date").eq("program_id", coach.program_id).order("session_date", { ascending: false }),
@@ -139,6 +175,30 @@ export default function PlayerDetail() {
       setExternalEntries([]);
     }
   };
+
+  // Track profile view on mount
+  useEffect(() => {
+    if (coach && id) track("player_profile_view", coach.program_id, coach.id, { source: "player_detail" });
+  }, [coach?.id, id]);
+
+  // Keyboard navigation: left/right arrow keys for prev/next player
+  useEffect(() => {
+    if (!navContext) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't navigate if user is typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.key === "ArrowLeft" && navContext.prevId) {
+        e.preventDefault();
+        goToPlayer(navContext.prevId);
+      } else if (e.key === "ArrowRight" && navContext.nextId) {
+        e.preventDefault();
+        goToPlayer(navContext.nextId);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [navContext, goToPlayer]);
 
   useEffect(() => {
     fetchAll();
@@ -206,13 +266,13 @@ export default function PlayerDetail() {
             value={editValue}
             onChange={(ev) => setEditValue(ev.target.value)}
             onKeyDown={(ev) => {
-              if (ev.key === "Enter") handleUpdateEval(e.id);
+              if (ev.key === "Enter") handleUpdateEval(e.id, e.metric_id);
               if (ev.key === "Escape") setEditingEval(null);
             }}
             className="h-6 w-16 text-center text-xs font-bold bg-white/20 border-white/30 text-white rounded"
             autoFocus
           />
-          <button onClick={() => handleUpdateEval(e.id)} className="hover:bg-white/20 rounded p-0.5"><Check className="h-3 w-3" /></button>
+          <button onClick={() => handleUpdateEval(e.id, e.metric_id)} className="hover:bg-white/20 rounded p-0.5"><Check className="h-3 w-3" /></button>
           <button onClick={() => setEditingEval(null)} className="hover:bg-white/20 rounded p-0.5"><X className="h-3 w-3" /></button>
         </span>
       );
@@ -263,33 +323,43 @@ export default function PlayerDetail() {
     else { setNewNote(""); setNewFlag(""); fetchAll(); }
   };
 
+  const getMetricBounds = (metricId: string): MetricBounds | undefined => {
+    const m = metrics.find((x) => x.id === metricId);
+    if (!m) return undefined;
+    return { min_value: m.min_value, max_value: m.max_value, metric_type: m.metric_type, name: m.name, unit: m.unit };
+  };
+
   const handleAddEval = async (metricId: string) => {
     if (!coach || !id || !addValue) return;
     setSavingEval(true);
-    const { error } = await supabase.from("evaluations").insert({
-      program_id: coach.program_id,
-      player_id: id,
-      metric_id: metricId,
-      coach_id: coach.id,
-      value: parseFloat(addValue),
-    });
-    if (error) toast.error("Failed to add score");
+    const { error } = await addAdHocScore(
+      {
+        program_id: coach.program_id,
+        player_id: id,
+        metric_id: metricId,
+        coach_id: coach.id,
+        value: parseFloat(addValue),
+      },
+      getMetricBounds(metricId)
+    );
+    if (error) toast.error(error);
     else { setAddingMetric(null); setAddValue(""); toast.success("Score added"); fetchAll(); }
     setSavingEval(false);
   };
 
-  const handleUpdateEval = async (evalId: string) => {
+  const handleUpdateEval = async (evalId: string, metricId?: string) => {
     if (!editValue) return;
     setSavingEval(true);
-    const { error } = await supabase.from("evaluations").update({ value: parseFloat(editValue) }).eq("id", evalId);
-    if (error) toast.error("Failed to update score");
+    const bounds = metricId ? getMetricBounds(metricId) : undefined;
+    const { error } = await updateScoreValue(evalId, parseFloat(editValue), bounds);
+    if (error) toast.error(error);
     else { setEditingEval(null); toast.success("Score updated"); fetchAll(); }
     setSavingEval(false);
   };
 
   const handleDeleteEval = async (evalId: string) => {
-    const { error } = await supabase.from("evaluations").delete().eq("id", evalId);
-    if (error) toast.error("Failed to delete score");
+    const { error } = await deleteScore(evalId);
+    if (error) toast.error(error);
     else { toast.success("Score deleted"); fetchAll(); }
   };
 
@@ -301,9 +371,35 @@ export default function PlayerDetail() {
 
   return (
     <div className="mx-auto max-w-lg px-4 pt-4 pb-8 animate-fade-in">
-      <button onClick={() => navigate(-1)} className="mb-3 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">
-        <ArrowLeft className="h-4 w-4" /> Back
-      </button>
+      {/* Navigation bar: back + prev/next */}
+      <div className="mb-3 flex items-center justify-between">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        {navContext && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => navContext.prevId && goToPlayer(navContext.prevId)}
+              disabled={!navContext.prevId}
+              className="p-2 rounded-xl hover:bg-muted transition-colors disabled:opacity-25 disabled:cursor-default"
+              title="Previous player"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-xs font-semibold text-muted-foreground tabular-nums min-w-[3.5rem] text-center">
+              {navContext.position} / {navContext.total}
+            </span>
+            <button
+              onClick={() => navContext.nextId && goToPlayer(navContext.nextId)}
+              disabled={!navContext.nextId}
+              className="p-2 rounded-xl hover:bg-muted transition-colors disabled:opacity-25 disabled:cursor-default"
+              title="Next player"
+            >
+              <ChevronRightIcon className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Player hero card */}
       <div className="page-hero mb-5">
@@ -463,7 +559,21 @@ export default function PlayerDetail() {
 
       {/* Scores by metric - aggregated with expandable history */}
       <Card className="section-card mb-4">
-        <CardHeader className="pb-2"><CardTitle className="text-lg font-bold">Evaluations</CardTitle></CardHeader>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg font-bold">Evaluations</CardTitle>
+            {metrics.length > 0 && (
+              <span className={cn(
+                "text-xs font-semibold px-2 py-0.5 rounded-full",
+                evalsByMetric.size < metrics.length
+                  ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400"
+                  : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+              )}>
+                {evalsByMetric.size}/{metrics.length} metrics
+              </span>
+            )}
+          </div>
+        </CardHeader>
         <CardContent className="space-y-2">
           {metrics.map((m) => {
             const mEvals = (evalsByMetric.get(m.id) || []).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -541,6 +651,25 @@ export default function PlayerDetail() {
           {metrics.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">No metrics configured</p>}
         </CardContent>
       </Card>
+
+      {/* Development Trends */}
+      {filteredEvals.length > 0 && sessionInfos.length >= 2 && (
+        <Card className="section-card mb-4">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" /> Development
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">Metric trends across evaluation sessions</p>
+          </CardHeader>
+          <CardContent>
+            <PlayerDevelopment
+              evals={filteredEvals}
+              metrics={metrics}
+              sessionInfos={sessionInfos}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* External Evaluations */}
       {externalEntries.length > 0 && (
