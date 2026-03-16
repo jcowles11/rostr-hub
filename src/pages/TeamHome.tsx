@@ -54,9 +54,8 @@ interface PracticePlan {
   id: string;
   title: string;
   practice_date: string;
-  start_time: string | null;
-  end_time: string | null;
   team_level: string | null;
+  notes: string | null;
 }
 
 // ── Component ──────────────────────────────────────────────────────
@@ -92,7 +91,7 @@ export default function TeamHome() {
         .eq("program_id", coach.program_id),
       supabase
         .from("practice_plans")
-        .select("id, title, practice_date, start_time, end_time, team_level")
+        .select("id, title, practice_date, team_level, notes")
         .eq("program_id", coach.program_id)
         .order("practice_date", { ascending: true }),
     ]);
@@ -357,7 +356,7 @@ export default function TeamHome() {
                 id: p.id,
                 date: p.practice_date,
                 title: p.title,
-                time: p.start_time,
+                time: p.notes?.split("–")[0]?.trim() ?? null,
                 level: p.team_level,
                 nav: `/practice/${p.id}`,
               })),

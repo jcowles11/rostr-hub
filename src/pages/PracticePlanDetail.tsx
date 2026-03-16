@@ -73,8 +73,8 @@ function blockDuration(start: string, end: string): number {
 export default function PracticePlanDetail() {
   const { id: planId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { currentProgram, coachInfo } = useAuth();
-  const programId = currentProgram?.id;
+  const { coach } = useAuth();
+  const programId = coach?.program_id;
 
   const [plan, setPlan] = useState<PracticePlan | null>(null);
   const [blocks, setBlocks] = useState<PracticeBlockWithCoach[]>([]);
@@ -99,7 +99,7 @@ export default function PracticePlanDetail() {
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [editBlock, setEditBlock] = useState<LocalBlock | null>(null);
 
-  const levels: string[] = currentProgram?.levels ?? [];
+  const levels: string[] = coach?.program_levels ?? [];
 
   // ── Data Loading ──────────────────────────────────────────────
 

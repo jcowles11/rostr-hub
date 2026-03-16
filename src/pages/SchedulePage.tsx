@@ -31,10 +31,8 @@ interface PracticePlan {
   id: string;
   title: string;
   practice_date: string;
-  start_time: string | null;
-  end_time: string | null;
   team_level: string | null;
-  status: string;
+  notes: string | null;
 }
 
 type ScheduleItem =
@@ -58,7 +56,7 @@ export default function SchedulePage() {
       fetchGames(coach.program_id),
       supabase
         .from("practice_plans")
-        .select("id, title, practice_date, start_time, end_time, team_level, status")
+        .select("id, title, practice_date, team_level, notes")
         .eq("program_id", coach.program_id)
         .order("practice_date", { ascending: true }),
     ]);
@@ -331,7 +329,7 @@ export default function SchedulePage() {
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-sm truncate">{p.title}</p>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            {p.start_time && <span>{p.start_time}{p.end_time ? ` – ${p.end_time}` : ""}</span>}
+                            {p.notes && <span>{p.notes}</span>}
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">

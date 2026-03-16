@@ -25,10 +25,10 @@ import {
 } from "@/services/practiceService";
 
 export default function PracticePlanner() {
-  const { currentProgram, user, coachInfo } = useAuth();
+  const { coach, user } = useAuth();
   const navigate = useNavigate();
-  const programId = currentProgram?.id;
-  const isHead = coachInfo?.role === "head_coach";
+  const programId = coach?.program_id;
+  const isHead = coach?.role === "head_coach";
 
   const [plans, setPlans] = useState<PracticePlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,17 +41,20 @@ export default function PracticePlanner() {
   const [newNotes, setNewNotes] = useState("");
   const [creating, setCreating] = useState(false);
 
-  const levels: string[] = currentProgram?.levels ?? [];
+  const levels: string[] = coach?.program_levels ?? [];
 
   const loadPlans = useCallback(async () => {
     if (!programId) return;
+    setLoading(true);
     const { data, error } = await fetchPracticePlans(programId);
     if (error) toast.error("Failed to load practice plans");
     setPlans(data);
     setLoading(false);
   }, [programId]);
 
-  useEffect(() => { loadPlans(); }, [loadPlans]);
+  useEffect(() => {
+    if (programId) loadPlans();
+  }, [programId, loadPlans]);
 
   const handleCreate = async () => {
     if (!programId || !newDate) return;

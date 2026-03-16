@@ -90,15 +90,25 @@ function generatePractices(today: Date) {
 // ── Demo metrics (sport-agnostic architecture, baseball defaults) ──
 
 const DEMO_METRICS = [
-  { name: "60 Yard Dash", unit: "sec", category: "Speed", metric_type: "timed", aggregation: "best", max_attempts: 3, min_value: 5.5, max_value: 9.0, sort_order: 1 },
-  { name: "Fastball Velo", unit: "mph", category: "Pitching", metric_type: "measured", aggregation: "best", max_attempts: 5, min_value: 55, max_value: 98, sort_order: 2 },
-  { name: "Exit Velocity", unit: "mph", category: "Hitting", metric_type: "measured", aggregation: "best", max_attempts: 5, min_value: 55, max_value: 105, sort_order: 3 },
-  { name: "Infield Velo", unit: "mph", category: "Fielding", metric_type: "measured", aggregation: "best", max_attempts: 3, min_value: 55, max_value: 90, sort_order: 4 },
-  { name: "Pop Time", unit: "sec", category: "Catching", metric_type: "timed", aggregation: "best", max_attempts: 3, min_value: 1.7, max_value: 2.8, sort_order: 5 },
-  { name: "Fielding", unit: "/10", category: "Defense", metric_type: "rated", aggregation: "average", max_attempts: 1, min_value: 1, max_value: 10, sort_order: 6 },
-  { name: "Hitting Mechanics", unit: "/10", category: "Hitting", metric_type: "rated", aggregation: "average", max_attempts: 1, min_value: 1, max_value: 10, sort_order: 7 },
-  { name: "Baseball IQ", unit: "/10", category: "Overall", metric_type: "rated", aggregation: "average", max_attempts: 1, min_value: 1, max_value: 10, sort_order: 8 },
+  { name: "60 Yard Dash", unit: "sec", category: "running", metric_type: "timed", aggregation: "best", max_attempts: 3, min_value: 5.5, max_value: 9.0, sort_order: 1 },
+  { name: "Fastball Velo", unit: "mph", category: "pitching", metric_type: "measured", aggregation: "best", max_attempts: 5, min_value: 55, max_value: 98, sort_order: 2 },
+  { name: "Exit Velocity", unit: "mph", category: "hitting", metric_type: "measured", aggregation: "best", max_attempts: 5, min_value: 55, max_value: 105, sort_order: 3 },
+  { name: "Infield Velo", unit: "mph", category: "fielding", metric_type: "measured", aggregation: "best", max_attempts: 3, min_value: 55, max_value: 90, sort_order: 4 },
+  { name: "Pop Time", unit: "sec", category: "fielding", metric_type: "timed", aggregation: "best", max_attempts: 3, min_value: 1.7, max_value: 2.8, sort_order: 5 },
+  { name: "Fielding", unit: "/10", category: "fielding", metric_type: "rated", aggregation: "average", max_attempts: 1, min_value: 1, max_value: 10, sort_order: 6 },
+  { name: "Hitting Mechanics", unit: "/10", category: "hitting", metric_type: "rated", aggregation: "average", max_attempts: 1, min_value: 1, max_value: 10, sort_order: 7 },
+  { name: "Baseball IQ", unit: "/10", category: "other", metric_type: "rated", aggregation: "average", max_attempts: 1, min_value: 1, max_value: 10, sort_order: 8 },
 ];
+
+// ── Helper: add minutes to "HH:MM" string ─────────────────────────
+
+function addMinutes(time: string, mins: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + m + mins;
+  const hh = Math.floor(total / 60) % 24;
+  const mm = total % 60;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
 
 // ── Deterministic pseudo-random number generator (seed-based) ──────
 
@@ -185,6 +195,10 @@ export async function seedDemoData(
   counts?: { players: number; games: number; practices: number; metrics: number; evaluations: number; sessions: number };
 }> {
   const today = new Date();
+
+  // Get auth user ID for tables that reference auth.users (e.g. practice_plans.created_by)
+  const { data: { user } } = await supabase.auth.getUser();
+  const authUserId = user?.id ?? null;
 
   try {
     // 1. Seed players
@@ -292,7 +306,7 @@ export async function seedDemoData(
           gameRosterInserts.push({
             game_id: game.id,
             player_id: pid,
-            status: game.status === "completed" ? "active" : "projected",
+            status: "active",
           });
           lineupInserts.push({
             game_id: game.id,
@@ -320,15 +334,56 @@ export async function seedDemoData(
       title: p.title,
       team_level: p.level,
       practice_date: p.practice_date,
-      start_time: p.start_time,
-      end_time: p.end_time,
-      status: "draft",
-      created_by: coachId,
+      notes: `${p.start_time} – ${p.end_time}`,
+      shared_with_players: false,
+      created_by: authUserId,
     }));
 
-    const { error: practiceErr } = await supabase.from("practice_plans").insert(practiceInserts);
+    const { data: insertedPlans, error: practiceErr } = await supabase
+      .from("practice_plans")
+      .insert(practiceInserts)
+      .select("id");
     if (practiceErr) {
       console.warn("Practice insert warning:", practiceErr.message);
+    }
+
+    // Seed practice blocks for each plan
+    if (insertedPlans && insertedPlans.length > 0) {
+      const blockInserts: Array<{
+        practice_plan_id: string;
+        start_time: string;
+        end_time: string;
+        activity_name: string;
+        player_group: string | null;
+        sort_order: number;
+      }> = [];
+
+      insertedPlans.forEach((plan, idx) => {
+        const p = practiceData[idx];
+        if (!p) return;
+        // Generate 3-4 blocks per practice
+        const blocks = [
+          { start: p.start_time, activity: "Warm-up & Stretching", group: null },
+          { start: addMinutes(p.start_time, 20), activity: p.title.split(" — ")[0] || p.title, group: p.level },
+          { start: addMinutes(p.start_time, 60), activity: "Live Reps / Scrimmage", group: null },
+          { start: addMinutes(p.start_time, 90), activity: "Cool Down & Review", group: null },
+        ];
+        blocks.forEach((b, bIdx) => {
+          blockInserts.push({
+            practice_plan_id: plan.id,
+            start_time: b.start,
+            end_time: blocks[bIdx + 1]?.start || p.end_time,
+            activity_name: b.activity,
+            player_group: b.group,
+            sort_order: bIdx,
+          });
+        });
+      });
+
+      if (blockInserts.length > 0) {
+        const { error: blockErr } = await supabase.from("practice_blocks").insert(blockInserts);
+        if (blockErr) console.warn("Practice block insert warning:", blockErr.message);
+      }
     }
 
     // 5. Seed metrics (skip if metrics already exist for this program)
