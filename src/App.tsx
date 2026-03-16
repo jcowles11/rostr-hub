@@ -50,6 +50,7 @@ import PrintPracticeView from "@/pages/PrintPracticeView";
 import TeamHome from "@/pages/TeamHome";
 import SchedulePage from "@/pages/SchedulePage";
 import NotFound from "@/pages/NotFound";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -102,7 +103,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const effectiveRole = devRoleOverride || userRole;
 
   if (effectiveRole === "coach") {
-    return <SessionProvider><AppLayout>{children}</AppLayout></SessionProvider>;
+    return <SessionProvider><AppLayout><RouteErrorBoundary>{children}</RouteErrorBoundary></AppLayout></SessionProvider>;
   }
 
   if (effectiveRole === "player") {
@@ -113,7 +114,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!coach) return <Navigate to="/setup" replace />;
 
-  return <SessionProvider><AppLayout>{children}</AppLayout></SessionProvider>;
+  return <SessionProvider><AppLayout><RouteErrorBoundary>{children}</RouteErrorBoundary></AppLayout></SessionProvider>;
 }
 
 function PlayerRoute({ children }: { children: React.ReactNode }) {

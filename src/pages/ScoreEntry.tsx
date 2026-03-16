@@ -123,8 +123,17 @@ export default function ScoreEntry() {
     );
   };
 
-  // Re-derive activePlayer after filtered is defined
-  const resolvedActivePlayer = stationMode ? filtered[stationIndex] : selectedPlayer;
+  // Clamp stationIndex when filtered array shrinks (KI-9b fix)
+  useEffect(() => {
+    if (stationMode && filtered.length > 0 && stationIndex >= filtered.length) {
+      setStationIndex(filtered.length - 1);
+    }
+  }, [stationMode, filtered.length, stationIndex]);
+
+  // Re-derive activePlayer after filtered is defined (with safe bounds check)
+  const resolvedActivePlayer = stationMode
+    ? filtered[Math.min(stationIndex, Math.max(0, filtered.length - 1))]
+    : selectedPlayer;
 
   // Fetch previous session scores for the active player + metric
   useEffect(() => {
