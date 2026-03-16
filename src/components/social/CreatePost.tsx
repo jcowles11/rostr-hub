@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { uploadPostMedia, getPlayerIdForUser, createPost } from "@/services/socialService";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -62,40 +62,26 @@ export default function CreatePost({ onPostCreated }: Props) {
 
     try {
       // Upload media
-      const mediaUrls: string[] = [];
-      for (const file of mediaFiles) {
-        const ext = file.name.split(".").pop();
-        const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error: uploadErr } = await supabase.storage
-          .from("post-media")
-          .upload(path, file);
-        if (uploadErr) throw uploadErr;
-        const { data: urlData } = supabase.storage
-          .from("post-media")
-          .getPublicUrl(path);
-        mediaUrls.push(urlData.publicUrl);
-      }
+      const uploadResult = await uploadPostMedia(user.id, mediaFiles);
+      if (uploadResult.error) throw new Error(uploadResult.error);
+      const mediaUrls = uploadResult.data!;
 
       // Get player_id if user is a player
       let playerId: string | null = null;
       if (playerInfo) {
-        const { data: player } = await supabase
-          .from("players")
-          .select("id")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        playerId = player?.id || null;
+        const playerResult = await getPlayerIdForUser(user.id);
+        if (playerResult.error) throw new Error(playerResult.error);
+        playerId = playerResult.data ?? null;
       }
 
-      const { error } = await supabase.from("posts").insert({
-        author_id: user.id,
-        player_id: playerId,
-        post_type: postType,
+      const postResult = await createPost({
+        authorId: user.id,
+        playerId,
+        postType: postType,
         caption: caption.trim() || null,
-        media_urls: mediaUrls,
+        mediaUrls,
       });
-
-      if (error) throw error;
+      if (postResult.error) throw new Error(postResult.error);
 
       setCaption("");
       setPostType("update");

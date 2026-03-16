@@ -24,6 +24,7 @@ export default function ExportPage() {
     if (!coach) return;
     setLoading(true);
 
+    try {
     const [pRes, aRes, mRes, eRes] = await Promise.all([
       supabase.from("players").select("*").eq("program_id", coach.program_id).order("last_name"),
       supabase.from("roster_assignments").select("player_id, assignment").eq("program_id", coach.program_id),
@@ -31,7 +32,19 @@ export default function ExportPage() {
       supabase.from("evaluations").select("player_id, metric_id, value, created_at").eq("program_id", coach.program_id).order("created_at"),
     ]);
 
+    if (pRes.error || aRes.error || mRes.error || eRes.error) {
+      toast.error("Failed to fetch data for export. Please try again.");
+      setLoading(false);
+      return;
+    }
+
     const players = pRes.data || [];
+    if (players.length === 0) {
+      toast.error("No players to export. Add players to your roster first.");
+      setLoading(false);
+      return;
+    }
+
     const assignments = new Map((aRes.data || []).map((a) => [a.player_id, a.assignment]));
     const metrics = mRes.data || [];
     const evals = eRes.data || [];
@@ -97,13 +110,18 @@ export default function ExportPage() {
     a.click();
     URL.revokeObjectURL(url);
     toast.success("CSV exported!");
-    setLoading(false);
+    } catch {
+      toast.error("Something went wrong during export. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const exportPlayerReports = async () => {
     if (!coach) return;
     setLoading(true);
 
+    try {
     const [pRes, mRes, eRes, nRes, cRes, aRes] = await Promise.all([
       supabase.from("players").select("*").eq("program_id", coach.program_id).order("last_name"),
       supabase.from("metrics").select("id, name, unit").eq("program_id", coach.program_id).order("sort_order"),
@@ -113,7 +131,19 @@ export default function ExportPage() {
       supabase.from("roster_assignments").select("player_id, assignment").eq("program_id", coach.program_id),
     ]);
 
+    if (pRes.error || mRes.error || eRes.error || nRes.error || cRes.error || aRes.error) {
+      toast.error("Failed to fetch data for export. Please try again.");
+      setLoading(false);
+      return;
+    }
+
     const players = pRes.data || [];
+    if (players.length === 0) {
+      toast.error("No players to export. Add players to your roster first.");
+      setLoading(false);
+      return;
+    }
+
     const metrics = mRes.data || [];
     const evals = eRes.data || [];
     const notes = nRes.data || [];
@@ -158,7 +188,11 @@ export default function ExportPage() {
     a.click();
     URL.revokeObjectURL(url);
     toast.success("Reports exported!");
-    setLoading(false);
+    } catch {
+      toast.error("Something went wrong during export. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -170,9 +204,9 @@ export default function ExportPage() {
           <CardTitle className="text-lg flex items-center gap-2"><Download className="h-5 w-5" /> Roster CSV</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground mb-3">Export all players with average scores and assignments</p>
+          <p className="text-sm text-muted-foreground mb-3">Export all players with individual attempts, average scores, and roster assignments as a spreadsheet-ready CSV file.</p>
           <Button className="w-full tap-target" onClick={exportRosterCSV} disabled={loading}>
-            Download CSV
+            {loading ? "Exporting..." : "Download CSV"}
           </Button>
         </CardContent>
       </Card>
@@ -182,9 +216,9 @@ export default function ExportPage() {
           <CardTitle className="text-lg flex items-center gap-2"><FileText className="h-5 w-5" /> Player Reports</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground mb-3">Detailed report cards with all scores, coach evaluations, and notes</p>
+          <p className="text-sm text-muted-foreground mb-3">Detailed text report for each player including all metric scores broken down by coach, evaluation notes, and roster assignment. Ideal for printing or sharing.</p>
           <Button className="w-full tap-target" onClick={exportPlayerReports} disabled={loading}>
-            Download Reports
+            {loading ? "Exporting..." : "Download Reports"}
           </Button>
         </CardContent>
       </Card>

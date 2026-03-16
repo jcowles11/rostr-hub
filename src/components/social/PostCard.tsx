@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { likePost, unlikePost, addComment, deletePost as deletePostService } from "@/services/socialService";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,17 +100,11 @@ export default function PostCard({ post, onDelete }: Props) {
     if (liked) {
       setLiked(false);
       setLikeCount((c) => Math.max(c - 1, 0));
-      await supabase
-        .from("post_likes")
-        .delete()
-        .eq("post_id", post.id)
-        .eq("user_id", user.id);
+      await unlikePost(post.id, user.id);
     } else {
       setLiked(true);
       setLikeCount((c) => c + 1);
-      await supabase
-        .from("post_likes")
-        .insert({ post_id: post.id, user_id: user.id });
+      await likePost(post.id, user.id);
     }
   };
 
@@ -162,17 +157,13 @@ export default function PostCard({ post, onDelete }: Props) {
     const content = commentText.trim();
     setCommentText("");
 
-    const { data, error } = await supabase
-      .from("post_comments")
-      .insert({ post_id: post.id, user_id: user.id, content })
-      .select()
-      .single();
+    const result = await addComment(post.id, user.id, content);
 
-    if (!error && data) {
+    if (!result.error && result.data) {
       setComments((prev) => [
         ...prev,
         {
-          ...data,
+          ...result.data!,
           author_name: "You",
           author_photo: null,
         },
@@ -181,13 +172,10 @@ export default function PostCard({ post, onDelete }: Props) {
     }
   };
 
-  const deletePost = async () => {
+  const handleDeletePost = async () => {
     if (!user) return;
-    const { error } = await supabase
-      .from("posts")
-      .delete()
-      .eq("id", post.id);
-    if (!error) {
+    const result = await deletePostService(post.id);
+    if (!result.error) {
       toast.success("Post deleted");
       onDelete?.();
     }
@@ -251,7 +239,7 @@ export default function PostCard({ post, onDelete }: Props) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
-                onClick={deletePost}
+                onClick={handleDeletePost}
                 className="text-destructive"
               >
                 <Trash2 className="h-4 w-4 mr-2" /> Delete Post

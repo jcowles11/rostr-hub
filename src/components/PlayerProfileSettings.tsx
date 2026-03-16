@@ -1,6 +1,14 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  fetchPlayerProfileFields,
+  savePlayerProfile,
+  fetchClubTeams,
+  addPlayerClubTeam,
+  removePlayerClubTeam,
+  togglePlayerClubTeamCurrent,
+  type ClubTeamItem,
+} from "@/services/playerService";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -44,12 +52,6 @@ interface ProfileFields {
   maxpreps_profile_url: string | null;
 }
 
-interface ClubTeam {
-  id: string;
-  name: string;
-  is_current: boolean;
-}
-
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
   "MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
@@ -82,30 +84,19 @@ function isValidPhone(val: string | null): boolean {
 
 export default function PlayerProfileSettings({ playerId }: Props) {
   const [fields, setFields] = useState<ProfileFields | null>(null);
-  const [clubTeams, setClubTeams] = useState<ClubTeam[]>([]);
+  const [clubTeams, setClubTeams] = useState<ClubTeamItem[]>([]);
   const [newClubTeam, setNewClubTeam] = useState("");
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    supabase
-      .from("players")
-      .select("profile_public, show_contact_info, graduation_year, grade, birthday, high_school, positions, bats, throws, height, weight, gpa, social_twitter, social_instagram, highlight_video_url, profile_slug, recruiting_status, committed_school_name, committed_school_logo_url, commitment_date, city, state, email, phone, gamechanger_profile_url, maxpreps_profile_url")
-      .eq("id", playerId)
-      .single()
-      .then(({ data }) => {
-        if (data) setFields(data as unknown as ProfileFields);
-      });
+    fetchPlayerProfileFields(playerId).then(({ data }) => {
+      if (data) setFields(data as unknown as ProfileFields);
+    });
 
-    // Fetch club teams
-    supabase
-      .from("player_club_teams")
-      .select("id, name, is_current")
-      .eq("player_id", playerId)
-      .order("is_current", { ascending: false })
-      .then(({ data }) => {
-        if (data) setClubTeams(data);
-      });
+    fetchClubTeams(playerId).then(({ data }) => {
+      setClubTeams(data);
+    });
   }, [playerId]);
 
   if (!fields) return null;
@@ -122,26 +113,22 @@ export default function PlayerProfileSettings({ playerId }: Props) {
     }
   };
 
-  const addClubTeam = async () => {
+  const handleAddClubTeam = async () => {
     const name = newClubTeam.trim();
     if (!name) return;
-    const { data, error } = await supabase
-      .from("player_club_teams")
-      .insert({ player_id: playerId, name, is_current: true } as any)
-      .select("id, name, is_current")
-      .single();
-    if (error) { toast.error("Failed to add club team"); return; }
+    const { data, error } = await addPlayerClubTeam(playerId, name);
+    if (error) { toast.error(error); return; }
     if (data) setClubTeams([...clubTeams, data]);
     setNewClubTeam("");
   };
 
-  const removeClubTeam = async (id: string) => {
-    await supabase.from("player_club_teams").delete().eq("id", id);
+  const handleRemoveClubTeam = async (id: string) => {
+    await removePlayerClubTeam(id);
     setClubTeams(clubTeams.filter((t) => t.id !== id));
   };
 
-  const toggleClubTeamCurrent = async (id: string, isCurrent: boolean) => {
-    await supabase.from("player_club_teams").update({ is_current: !isCurrent } as any).eq("id", id);
+  const handleToggleClubTeamCurrent = async (id: string, isCurrent: boolean) => {
+    await togglePlayerClubTeamCurrent(id, isCurrent);
     setClubTeams(clubTeams.map((t) => t.id === id ? { ...t, is_current: !isCurrent } : t));
   };
 
@@ -162,9 +149,9 @@ export default function PlayerProfileSettings({ playerId }: Props) {
       toSave.committed_school_logo_url = null;
       toSave.commitment_date = null;
     }
-    const { error } = await supabase.from("players").update(toSave as any).eq("id", playerId);
+    const { error } = await savePlayerProfile(playerId, toSave);
     setSaving(false);
-    if (error) toast.error("Failed to save profile settings");
+    if (error) toast.error(error);
     else toast.success("Profile updated");
   };
 
@@ -344,12 +331,12 @@ export default function PlayerProfileSettings({ playerId }: Props) {
                     <Badge
                       variant={team.is_current ? "default" : "secondary"}
                       className="text-[10px] cursor-pointer"
-                      onClick={() => toggleClubTeamCurrent(team.id, team.is_current)}
+                      onClick={() => handleToggleClubTeamCurrent(team.id, team.is_current)}
                     >
                       {team.is_current ? "Current" : "Past"}
                     </Badge>
                   </div>
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removeClubTeam(team.id)}>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleRemoveClubTeam(team.id)}>
                     <X className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -361,10 +348,10 @@ export default function PlayerProfileSettings({ playerId }: Props) {
               placeholder="Add a club team..."
               value={newClubTeam}
               onChange={(e) => setNewClubTeam(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addClubTeam())}
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddClubTeam())}
               className="flex-1"
             />
-            <Button size="sm" variant="outline" onClick={addClubTeam} disabled={!newClubTeam.trim()}>
+            <Button size="sm" variant="outline" onClick={handleAddClubTeam} disabled={!newClubTeam.trim()}>
               <Plus className="h-4 w-4" />
             </Button>
           </div>

@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { saveProspect as saveProspectService, addToScoutList, bulkAddToScoutList } from "@/services/scoutService";
+import { sendConversationRequest, bulkSendConversationRequests } from "@/services/messagingService";
 import PlayerProfileSheet from "@/components/PlayerProfileSheet";
 import type { PlayerResult } from "@/pages/ScoutDashboard";
 
@@ -92,13 +94,13 @@ export default function PlayerSearchResults({ results, loading, searched, onClea
     if (data) setLists(data);
   };
 
-  const saveProspect = async (e: React.MouseEvent, playerId: string) => {
+  const handleSaveProspect = async (e: React.MouseEvent, playerId: string) => {
     e.stopPropagation();
     if (!scoutInfo) { toast.error("No scout profile found. Please complete your scout registration first."); return; }
     setSavingId(playerId);
-    const { error } = await supabase.from("scout_saved_prospects").insert({ scout_id: scoutInfo.id, player_id: playerId });
-    if (error?.code === "23505") toast.info("Already saved");
-    else if (error) toast.error("Failed to save");
+    const result = await saveProspectService(scoutInfo.id, playerId);
+    if (result.error?.includes("23505")) toast.info("Already saved");
+    else if (result.error) toast.error("Failed to save");
     else toast.success("Prospect saved!");
     setSavingId(null);
   };
@@ -111,9 +113,9 @@ export default function PlayerSearchResults({ results, loading, searched, onClea
 
   const addToList = async () => {
     if (!selectedList || !listDialogPlayer) return;
-    const { error } = await supabase.from("scout_list_members").insert({ list_id: selectedList, player_id: listDialogPlayer });
-    if (error?.code === "23505") toast.error("Already in that list");
-    else if (error) toast.error("Failed to add");
+    const result = await addToScoutList(selectedList, listDialogPlayer);
+    if (result.error?.includes("23505")) toast.error("Already in that list");
+    else if (result.error) toast.error("Failed to add");
     else toast.success("Added to list");
     setListDialogPlayer(null);
     setSelectedList("");
@@ -125,16 +127,16 @@ export default function PlayerSearchResults({ results, loading, searched, onClea
     setInitialMessage("");
   };
 
-  const sendMessageRequest = async () => {
+  const handleSendMessageRequest = async () => {
     if (!scoutInfo || !messageDialogPlayer || !initialMessage.trim()) { if (!scoutInfo) toast.error("No scout profile found."); return; }
     setSendingMessage(true);
-    const { error } = await supabase.from("conversation_requests").insert({
-      scout_id: scoutInfo.id,
-      player_id: messageDialogPlayer.id,
-      initial_message: initialMessage.trim(),
+    const result = await sendConversationRequest({
+      scoutId: scoutInfo.id,
+      playerId: messageDialogPlayer.id,
+      initialMessage: initialMessage.trim(),
     });
-    if (error?.code === "23505") toast.error("Request already sent to this player");
-    else if (error) toast.error("Failed to send request");
+    if (result.error?.includes("23505")) toast.error("Request already sent to this player");
+    else if (result.error) toast.error("Failed to send request");
     else toast.success("Message request sent!");
     setMessageDialogPlayer(null);
     setSendingMessage(false);
@@ -166,27 +168,25 @@ export default function PlayerSearchResults({ results, loading, searched, onClea
     setBulkListDialogOpen(true);
   };
 
-  const bulkAddToList = async () => {
+  const handleBulkAddToList = async () => {
     if (!selectedList || selectedIds.size === 0) return;
-    const inserts = Array.from(selectedIds).map(player_id => ({ list_id: selectedList, player_id }));
-    const { error } = await supabase.from("scout_list_members").insert(inserts);
-    if (error) toast.error("Some players may already be in that list");
+    const result = await bulkAddToScoutList(selectedList, Array.from(selectedIds));
+    if (result.error) toast.error("Some players may already be in that list");
     else toast.success(`Added ${selectedIds.size} player(s) to list`);
     setBulkListDialogOpen(false);
     setSelectedList("");
     clearSelection();
   };
 
-  const bulkSendMessages = async () => {
+  const handleBulkSendMessages = async () => {
     if (!scoutInfo || !bulkMessage.trim() || selectedIds.size === 0) return;
     setBulkSending(true);
-    const inserts = Array.from(selectedIds).map(player_id => ({
-      scout_id: scoutInfo.id,
-      player_id,
-      initial_message: bulkMessage.trim(),
-    }));
-    const { error } = await supabase.from("conversation_requests").insert(inserts);
-    if (error) toast.error("Some requests may have already been sent");
+    const result = await bulkSendConversationRequests({
+      scoutId: scoutInfo.id,
+      playerIds: Array.from(selectedIds),
+      initialMessage: bulkMessage.trim(),
+    });
+    if (result.error) toast.error("Some requests may have already been sent");
     else toast.success(`Sent ${selectedIds.size} message request(s)`);
     setBulkMessageDialogOpen(false);
     setBulkMessage("");
@@ -196,10 +196,28 @@ export default function PlayerSearchResults({ results, loading, searched, onClea
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-center">
-          <Search className="mx-auto h-8 w-8 text-muted-foreground/40 animate-pulse mb-3" />
-          <p className="text-sm text-muted-foreground">Searching players...</p>
+      <div className="space-y-3">
+        <div className="h-5 w-32 rounded bg-muted animate-pulse" />
+        <div className="grid gap-3 sm:grid-cols-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="h-12 w-12 rounded-xl bg-muted animate-pulse shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                  <div className="h-3 w-40 rounded bg-muted/70 animate-pulse" />
+                  <div className="flex gap-1.5">
+                    <div className="h-4 w-10 rounded bg-muted/60 animate-pulse" />
+                    <div className="h-4 w-8 rounded bg-muted/60 animate-pulse" />
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2 border-t">
+                <div className="h-8 w-16 rounded-lg bg-muted/50 animate-pulse" />
+                <div className="h-8 w-16 rounded-lg bg-muted/50 animate-pulse" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -393,9 +411,9 @@ export default function PlayerSearchResults({ results, loading, searched, onClea
                 </div>
 
                 {/* Top metrics */}
-                {player.metrics.length > 0 && (
+                {(player.metrics || []).length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t">
-                    {player.metrics.slice(0, 4).map((m, i) => (
+                    {(player.metrics || []).slice(0, 4).map((m, i) => (
                       <div key={i} className="rounded-lg bg-muted/50 px-2.5 py-1.5">
                         <p className="text-[10px] text-muted-foreground leading-none mb-0.5">{m.name}</p>
                         <p className="text-sm font-bold leading-none">
@@ -410,7 +428,7 @@ export default function PlayerSearchResults({ results, loading, searched, onClea
                 {/* Action buttons on every card for scouts */}
                 {isScout && (
                   <div className="flex items-center gap-1.5 mt-3 pt-2 border-t">
-                    <Button variant="outline" size="sm" className="h-7 text-xs rounded-lg flex-1" disabled={savingId === player.id} onClick={(e) => saveProspect(e, player.id)}>
+                    <Button variant="outline" size="sm" className="h-7 text-xs rounded-lg flex-1" disabled={savingId === player.id} onClick={(e) => handleSaveProspect(e, player.id)}>
                       <Bookmark className="h-3 w-3 mr-1" /> Save
                     </Button>
                     <Button variant="outline" size="sm" className="h-7 text-xs rounded-lg flex-1" onClick={(e) => openListDialog(e, player.id)}>
@@ -472,7 +490,7 @@ export default function PlayerSearchResults({ results, loading, searched, onClea
             placeholder="Introduce yourself and why you're reaching out..."
             className="min-h-[80px]"
           />
-          <Button className="w-full" disabled={!initialMessage.trim() || sendingMessage} onClick={sendMessageRequest}>
+          <Button className="w-full" disabled={!initialMessage.trim() || sendingMessage} onClick={handleSendMessageRequest}>
             {sendingMessage ? "Sending..." : "Send Request"}
           </Button>
         </DialogContent>
@@ -492,7 +510,7 @@ export default function PlayerSearchResults({ results, loading, searched, onClea
                   {lists.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Button className="w-full" disabled={!selectedList} onClick={bulkAddToList}>
+              <Button className="w-full" disabled={!selectedList} onClick={handleBulkAddToList}>
                 Add {selectedIds.size} to List
               </Button>
             </div>
@@ -520,7 +538,7 @@ export default function PlayerSearchResults({ results, loading, searched, onClea
             placeholder="Introduce yourself and why you're reaching out..."
             className="min-h-[80px]"
           />
-          <Button className="w-full" disabled={!bulkMessage.trim() || bulkSending} onClick={bulkSendMessages}>
+          <Button className="w-full" disabled={!bulkMessage.trim() || bulkSending} onClick={handleBulkSendMessages}>
             {bulkSending ? "Sending..." : `Send ${selectedIds.size} Request(s)`}
           </Button>
         </DialogContent>

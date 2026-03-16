@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { sendPlayerMessage } from "@/services/messagingService";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -131,12 +132,7 @@ export default function PlayerMessagesPage() {
   const sendMessage = async () => {
     if (!activeConvo || !playerInfo || !newMessage.trim()) return;
     setSending(true);
-    await supabase.from("messages").insert({
-      conversation_id: activeConvo.id,
-      sender_role: "player",
-      sender_id: playerInfo.id,
-      body: newMessage.trim(),
-    });
+    await sendPlayerMessage(activeConvo.id, playerInfo.id, newMessage.trim());
     setNewMessage("");
     setSending(false);
   };

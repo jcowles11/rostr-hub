@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { fetchProgramVisibility, updateProgramResultsPublic } from "@/services/programService";
+import { fetchPlayerVisibility, updatePlayerResultsVisible, type PlayerVisibilityItem } from "@/services/playerService";
+import { fetchMetricVisibility, updateMetricVisibility, type MetricVisibilityItem } from "@/services/metricService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -9,34 +11,20 @@ import { toast } from "sonner";
 import { Eye, EyeOff, Globe, Users, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface PlayerVisibility {
-  id: string;
-  first_name: string;
-  last_name: string;
-  player_number: number | null;
-  results_visible: boolean | null;
-}
-
-interface MetricVisibility {
-  id: string;
-  name: string;
-  visible_to_players: boolean;
-}
-
 export default function VisibilityManager() {
   const { coach } = useAuth();
   const isHead = coach?.role === "head_coach";
   const [resultsPublic, setResultsPublic] = useState(false);
-  const [players, setPlayers] = useState<PlayerVisibility[]>([]);
-  const [metrics, setMetrics] = useState<MetricVisibility[]>([]);
+  const [players, setPlayers] = useState<PlayerVisibilityItem[]>([]);
+  const [metrics, setMetrics] = useState<MetricVisibilityItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
     if (!coach) return;
     const [prRes, pRes, mRes] = await Promise.all([
-      supabase.from("programs").select("results_public").eq("id", coach.program_id).single(),
-      supabase.from("players").select("id, first_name, last_name, player_number, results_visible").eq("program_id", coach.program_id).order("last_name"),
-      supabase.from("metrics").select("id, name, visible_to_players").eq("program_id", coach.program_id).order("sort_order"),
+      fetchProgramVisibility(coach.program_id),
+      fetchPlayerVisibility(coach.program_id),
+      fetchMetricVisibility(coach.program_id),
     ]);
     setResultsPublic(prRes.data?.results_public || false);
     setPlayers(pRes.data || []);
@@ -48,7 +36,7 @@ export default function VisibilityManager() {
 
   const toggleProgramVisibility = async (value: boolean) => {
     if (!coach) return;
-    const { error } = await supabase.from("programs").update({ results_public: value }).eq("id", coach.program_id);
+    const { error } = await updateProgramResultsPublic(coach.program_id, value);
     if (error) toast.error("Failed to update");
     else { setResultsPublic(value); toast.success(value ? "Results are now public" : "Results are now private"); }
   };
@@ -61,7 +49,7 @@ export default function VisibilityManager() {
     else if (currentValue === true) newValue = false;
     else newValue = null;
 
-    const { error } = await supabase.from("players").update({ results_visible: newValue }).eq("id", playerId);
+    const { error } = await updatePlayerResultsVisible(playerId, newValue);
     if (error) toast.error("Failed to update");
     else {
       setPlayers(players.map((p) => p.id === playerId ? { ...p, results_visible: newValue } : p));
@@ -70,7 +58,7 @@ export default function VisibilityManager() {
 
   const toggleMetricVisibility = async (metricId: string, value: boolean) => {
     if (!coach) return;
-    const { error } = await supabase.from("metrics").update({ visible_to_players: value }).eq("id", metricId);
+    const { error } = await updateMetricVisibility(metricId, value);
     if (error) toast.error("Failed to update");
     else {
       setMetrics(metrics.map((m) => m.id === metricId ? { ...m, visible_to_players: value } : m));

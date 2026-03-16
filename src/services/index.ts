@@ -7,8 +7,12 @@
 
 export * from "./playerService";
 export * from "./evaluationService";
+export * from "./evaluatorService";
 export * from "./metricService";
+export * from "./messagingService";
 export * from "./teamService";
 export * from "./noteService";
 export * from "./sessionService";
 export * from "./analyticsService";
+export * from "./socialService";
+export * from "./scoutService";

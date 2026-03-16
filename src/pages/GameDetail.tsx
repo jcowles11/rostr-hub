@@ -1,17 +1,22 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import {
+  fetchGame,
   fetchGameRoster,
   fetchGames,
   fetchLineup,
+  fetchRosterAssignments,
   saveLineup,
   updateGame,
+  addPlayerToGameRoster,
+  removePlayerFromGameRoster,
+  upsertGameRosterPlayers,
   type Game,
   type GameRosterEntry,
   type LineupEntry,
 } from "@/services/teamService";
+import { fetchDashboardPlayers } from "@/services/playerService";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -98,40 +103,40 @@ export default function GameDetail() {
     if (!coach || !gameId) return;
     setLoading(true);
 
-    const [gRes, pRes, aRes, grRes, lRes] = await Promise.all([
-      supabase
-        .from("games")
-        .select("id, program_id, season_id, name, opponent, team_level, game_date, game_time, location, notes, status, created_by, created_at")
-        .eq("id", gameId)
-        .single(),
-      supabase
-        .from("players")
-        .select("id, first_name, last_name, grade, positions, player_number")
-        .eq("program_id", coach.program_id)
-        .order("last_name"),
-      supabase
-        .from("roster_assignments")
-        .select("player_id, assignment")
-        .eq("program_id", coach.program_id),
-      fetchGameRoster(gameId),
-      fetchLineup(gameId),
-    ]);
+    try {
+      const [gRes, pRes, aRes, grRes, lRes] = await Promise.all([
+        fetchGame(gameId),
+        fetchDashboardPlayers(coach.program_id),
+        fetchRosterAssignments(coach.program_id),
+        fetchGameRoster(gameId),
+        fetchLineup(gameId),
+      ]);
 
-    if (gRes.data) setGame(gRes.data as Game);
-    setAllPlayers(pRes.data || []);
-    // Build assignment map (lowercase enum value → display)
-    const aMap = new Map<string, string>();
-    (aRes.data || []).forEach((a: { player_id: string; assignment: string }) => aMap.set(a.player_id, a.assignment));
-    setAssignments(aMap);
-    setRosterEntries(grRes.data);
-    const loadedLineup = lRes.data.map((e) => ({
-      player_id: e.player_id,
-      batting_order: e.batting_order,
-      position: e.position || "",
-    }));
-    setLineupEntries(loadedLineup);
-    savedLineupRef.current = JSON.stringify(loadedLineup);
-    setLoading(false);
+      if (gRes.error) toast.error("Failed to load game details");
+      if (pRes.error) toast.error("Failed to load players");
+      if (aRes.error) toast.error("Failed to load roster assignments");
+      if (grRes.error) toast.error("Failed to load game roster");
+      if (lRes.error) toast.error("Failed to load lineup");
+
+      if (gRes.data) setGame(gRes.data);
+      setAllPlayers(pRes.data || []);
+      // Build assignment map (lowercase enum value → display)
+      const aMap = new Map<string, string>();
+      (aRes.data || []).forEach((a) => aMap.set(a.player_id, a.assignment));
+      setAssignments(aMap);
+      setRosterEntries(grRes.data ?? []);
+      const loadedLineup = (lRes.data ?? []).map((e) => ({
+        player_id: e.player_id,
+        batting_order: e.batting_order,
+        position: e.position || "",
+      }));
+      setLineupEntries(loadedLineup);
+      savedLineupRef.current = JSON.stringify(loadedLineup);
+    } catch {
+      toast.error("Failed to load game data");
+    } finally {
+      setLoading(false);
+    }
   }, [coach, gameId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -170,16 +175,26 @@ export default function GameDetail() {
 
   const openCopyDialog = useCallback(async () => {
     if (!coach) return;
-    const { data } = await fetchGames(coach.program_id);
-    // Exclude current game, only show games that exist
-    setOtherGames(data.filter((g) => g.id !== gameId));
-    setCopyDialogOpen(true);
+    try {
+      const { data, error } = await fetchGames(coach.program_id);
+      if (error) { toast.error("Failed to load games"); return; }
+      // Exclude current game, only show games that exist
+      setOtherGames((data ?? []).filter((g) => g.id !== gameId));
+      setCopyDialogOpen(true);
+    } catch {
+      toast.error("Failed to load games");
+    }
   }, [coach, gameId]);
 
   const handleCopyLineup = useCallback(
     async (sourceGameId: string) => {
       setCopyingFrom(sourceGameId);
-      const { data: srcLineup } = await fetchLineup(sourceGameId);
+      const { data: srcLineup, error: lineupError } = await fetchLineup(sourceGameId);
+      if (lineupError) {
+        toast.error("Failed to load lineup from that game");
+        setCopyingFrom(null);
+        return;
+      }
       if (!srcLineup || srcLineup.length === 0) {
         toast.error("That game has no lineup to copy");
         setCopyingFrom(null);
@@ -194,25 +209,14 @@ export default function GameDetail() {
 
       if (missingIds.length > 0 && gameId) {
         // Batch-add missing players to game roster
-        const rows = missingIds.map((pid) => ({
-          game_id: gameId,
-          player_id: pid,
-          status: "active",
-        }));
-        const { data: newRosterRows, error } = await supabase
-          .from("game_rosters")
-          .upsert(rows, { onConflict: "game_id,player_id" })
-          .select();
+        const { data: newRosterRows, error } = await upsertGameRosterPlayers(gameId, missingIds);
         if (error) {
           toast.error("Failed to add players to roster");
           setCopyingFrom(null);
           return;
         }
-        if (newRosterRows) {
-          setRosterEntries((prev) => [
-            ...prev,
-            ...(newRosterRows as GameRosterEntry[]),
-          ]);
+        if (newRosterRows.length > 0) {
+          setRosterEntries((prev) => [...prev, ...newRosterRows]);
         }
       }
 
@@ -313,24 +317,16 @@ export default function GameDetail() {
     const isOn = rosterPlayerIds.has(playerId);
     if (isOn) {
       // Remove from game roster
-      const { error } = await supabase
-        .from("game_rosters")
-        .delete()
-        .eq("game_id", gameId)
-        .eq("player_id", playerId);
+      const { error } = await removePlayerFromGameRoster(gameId, playerId);
       if (error) { toast.error("Failed to remove player"); return; }
       setRosterEntries((prev) => prev.filter((r) => r.player_id !== playerId));
       // Also remove from lineup if present
       setLineupEntries((prev) => prev.filter((l) => l.player_id !== playerId));
     } else {
       // Add to game roster
-      const { data, error } = await supabase
-        .from("game_rosters")
-        .insert({ game_id: gameId, player_id: playerId, status: "active" })
-        .select()
-        .single();
+      const { data, error } = await addPlayerToGameRoster(gameId, playerId);
       if (error) { toast.error("Failed to add player"); return; }
-      setRosterEntries((prev) => [...prev, data as GameRosterEntry]);
+      if (data) setRosterEntries((prev) => [...prev, data]);
     }
   };
 
@@ -724,8 +720,9 @@ export default function GameDetail() {
           )}
 
           {lineupEntries.length === 0 && rosterPlayers.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground text-sm space-y-3">
-              <p>Add players to the game roster first, then build your lineup.</p>
+            <div className="rounded-xl border border-dashed bg-card/50 p-6 text-center space-y-3">
+              <p className="font-bold text-sm">No players on roster</p>
+              <p className="text-sm text-muted-foreground">Add players to the game roster first, then build your lineup.</p>
               <Button
                 variant="outline"
                 size="sm"

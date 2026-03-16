@@ -44,6 +44,19 @@ export interface SaveScoreInput {
 
 // ── Queries ────────────────────────────────────────────────────────
 
+/** Fetch all evaluations for a specific player (PlayerDetail). */
+export async function fetchPlayerEvaluations(
+  playerId: string
+): Promise<{ data: { id: string; value: number; metric_id: string; coach_id: string; created_at: string; session_id: string | null }[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from("evaluations")
+    .select("id, value, metric_id, coach_id, created_at, session_id")
+    .eq("player_id", playerId);
+
+  if (error) return { data: [], error: error.message };
+  return { data: data ?? [], error: null };
+}
+
 /** Fetch evaluations for a specific metric/coach/session combo (ScoreEntry). */
 export async function fetchSessionEvaluations(
   programId: string,
@@ -325,4 +338,47 @@ export async function bulkInsertEvaluations(
   }
 
   return { insertedCount, skippedCount: skipped, error: null };
+}
+
+/**
+ * Fetch existing evaluation keys for dedup during import.
+ * Returns a Set of "player_id|metric_id|attempt_number|coach_id" strings.
+ */
+export async function fetchExistingEvalKeys(
+  playerIds: string[],
+  metricIds: string[],
+  coachId: string,
+  sessionId: string | null
+): Promise<{ keys: Set<string>; error: string | null }> {
+  let query = supabase
+    .from("evaluations")
+    .select("player_id, metric_id, attempt_number, coach_id")
+    .in("player_id", playerIds)
+    .in("metric_id", metricIds)
+    .eq("coach_id", coachId);
+
+  if (sessionId) {
+    query = query.eq("session_id", sessionId);
+  } else {
+    query = query.is("session_id", null);
+  }
+
+  const { data, error } = await query;
+  if (error) return { keys: new Set(), error: error.message };
+
+  const keys = new Set(
+    (data ?? []).map((e) => `${e.player_id}|${e.metric_id}|${e.attempt_number}|${e.coach_id}`)
+  );
+  return { keys, error: null };
+}
+
+/** Count evaluations for a given metric (used by MetricsManager delete confirmation). */
+export async function fetchEvaluationCountByMetric(metricId: string): Promise<{ count: number; error: string | null }> {
+  const { count, error } = await supabase
+    .from("evaluations")
+    .select("id", { count: "exact", head: true })
+    .eq("metric_id", metricId);
+
+  if (error) return { count: 0, error: error.message };
+  return { count: count ?? 0, error: null };
 }

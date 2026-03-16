@@ -8,7 +8,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchCoachesWithColor } from "@/services/coachService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -118,11 +118,8 @@ export default function PracticePlanDetail() {
     setBlocks(blocksRes.data);
 
     // Load coaches for assignment dropdown
-    const { data: coachRows } = await supabase
-      .from("coaches")
-      .select("id, full_name, color")
-      .eq("program_id", programId);
-    setCoaches(coachRows ?? []);
+    const { data: coachRows } = await fetchCoachesWithColor(programId);
+    setCoaches(coachRows);
     setLoading(false);
   }, [planId, programId, navigate]);
 

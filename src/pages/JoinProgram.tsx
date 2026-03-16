@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { joinProgramByCode, insertPlayer } from "@/services/playerService";
 import rostrLogo from "@/assets/rostr-logo.png";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,10 +42,7 @@ export default function JoinProgram() {
 
     if (playerInfo) {
       // Already has a player record — update program_id
-      const { error } = await supabase
-        .from("players")
-        .update({ program_id: programId })
-        .eq("id", playerInfo.id);
+      const { error } = await joinProgramByCode(playerInfo.id, programId);
 
       if (error) {
         toast.error("Failed to join program. You may not have permission.");
@@ -56,7 +54,7 @@ export default function JoinProgram() {
       const meta = user.user_metadata;
       const firstName = meta?.full_name?.split(" ")[0] || "Player";
       const lastName = meta?.full_name?.split(" ").slice(1).join(" ") || "";
-      const { error } = await supabase.from("players").insert({
+      const { error } = await insertPlayer({
         program_id: programId,
         first_name: firstName,
         last_name: lastName,

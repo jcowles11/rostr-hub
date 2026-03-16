@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { updateProgramLevels } from "@/services/programService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,10 +60,7 @@ export default function LevelsManager() {
     }
 
     setSaving(true);
-    const { error } = await supabase
-      .from("programs")
-      .update({ levels: trimmed })
-      .eq("id", coach.program_id);
+    const { error } = await updateProgramLevels(coach.program_id, trimmed);
 
     if (error) {
       toast.error("Failed to save levels");

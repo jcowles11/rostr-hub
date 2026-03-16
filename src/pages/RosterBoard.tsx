@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { fetchPlayers, fetchRosterAssignments, updateRosterAssignment, createRosterAssignment } from "@/services/rosterService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -52,8 +52,8 @@ export default function RosterBoard() {
   const fetchData = async () => {
     if (!coach) return;
     const [pRes, aRes] = await Promise.all([
-      supabase.from("players").select("id, first_name, last_name, grade, positions, player_number").eq("program_id", coach.program_id).order("last_name"),
-      supabase.from("roster_assignments").select("id, player_id, assignment").eq("program_id", coach.program_id),
+      fetchPlayers(coach.program_id),
+      fetchRosterAssignments(coach.program_id),
     ]);
     setPlayers(pRes.data || []);
     const map = new Map<string, Assignment>();
@@ -67,14 +67,14 @@ export default function RosterBoard() {
     if (!coach || !isHead) return;
     const existing = assignments.get(playerId);
     if (existing) {
-      const { error } = await supabase.from("roster_assignments").update({ assignment: assignment as any }).eq("id", existing.id);
+      const { error } = await updateRosterAssignment(existing.id, assignment);
       if (error) { toast.error("Failed to update"); return; }
     } else {
-      const { error } = await supabase.from("roster_assignments").insert({
-        program_id: coach.program_id,
-        player_id: playerId,
-        assignment: assignment as any,
-        assigned_by: coach.id,
+      const { error } = await createRosterAssignment({
+        programId: coach.program_id,
+        playerId,
+        assignment,
+        assignedBy: coach.id,
       });
       if (error) { toast.error("Failed to assign"); return; }
     }

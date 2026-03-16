@@ -1,14 +1,16 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import {
   fetchGames,
   createGame,
   deleteGame,
   fetchGameRoster,
+  fetchRosterAssignments,
+  upsertRosterAssignment,
   type Game,
   type GameRosterEntry,
 } from "@/services/teamService";
+import { fetchDashboardPlayers } from "@/services/playerService";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -78,6 +80,7 @@ export default function TeamManagement() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [games, setGames] = useState<Game[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedLevel, setSelectedLevel] = useState<string>("all");
   const [search, setSearch] = useState("");
 
@@ -93,21 +96,24 @@ export default function TeamManagement() {
 
   const fetchData = useCallback(async () => {
     if (!coach) return;
-    const [pRes, aRes, gRes] = await Promise.all([
-      supabase
-        .from("players")
-        .select("id, first_name, last_name, grade, positions, player_number")
-        .eq("program_id", coach.program_id)
-        .order("last_name"),
-      supabase
-        .from("roster_assignments")
-        .select("player_id, assignment")
-        .eq("program_id", coach.program_id),
-      fetchGames(coach.program_id),
-    ]);
-    setPlayers(pRes.data || []);
-    setAssignments((aRes.data as Assignment[]) || []);
-    setGames(gRes.data);
+    setLoading(true);
+    try {
+      const [pRes, aRes, gRes] = await Promise.all([
+        fetchDashboardPlayers(coach.program_id),
+        fetchRosterAssignments(coach.program_id),
+        fetchGames(coach.program_id),
+      ]);
+      if (pRes.error) toast.error("Failed to load players");
+      if (aRes.error) toast.error("Failed to load roster assignments");
+      if (gRes.error) toast.error("Failed to load games");
+      setPlayers(pRes.data || []);
+      setAssignments(aRes.data || []);
+      setGames(gRes.data ?? []);
+    } catch {
+      toast.error("Failed to load team data");
+    } finally {
+      setLoading(false);
+    }
   }, [coach]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -182,26 +188,13 @@ export default function TeamManagement() {
 
   const handleAssign = async (playerId: string, newLevel: string) => {
     if (!coach || !isHead) return;
-    // Check if assignment already exists
-    const existing = assignments.find((a) => a.player_id === playerId);
-    if (existing) {
-      const { error } = await supabase
-        .from("roster_assignments")
-        .update({ assignment: newLevel as any })
-        .eq("program_id", coach.program_id)
-        .eq("player_id", playerId);
-      if (error) { toast.error("Failed to update assignment"); return; }
-    } else {
-      const { error } = await supabase
-        .from("roster_assignments")
-        .insert({
-          program_id: coach.program_id,
-          player_id: playerId,
-          assignment: newLevel as any,
-          assigned_by: coach.id,
-        });
-      if (error) { toast.error("Failed to assign player"); return; }
-    }
+    const { error } = await upsertRosterAssignment({
+      programId: coach.program_id,
+      playerId,
+      assignment: newLevel,
+      assignedBy: coach.id,
+    });
+    if (error) { toast.error("Failed to update assignment"); return; }
     // Optimistic update
     setAssignments((prev) => {
       const filtered = prev.filter((a) => a.player_id !== playerId);
@@ -248,6 +241,32 @@ export default function TeamManagement() {
   };
 
   // ── Render ────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-lg px-4 pt-4 space-y-4 animate-pulse">
+        <div className="h-20 rounded-xl bg-muted" />
+        <div className="flex gap-2">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-9 w-20 rounded-xl bg-muted" />
+          ))}
+        </div>
+        <div className="h-12 rounded-xl bg-muted" />
+        <div className="h-5 w-32 rounded-lg bg-muted" />
+        <div className="space-y-2">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-14 rounded-xl bg-muted" />
+          ))}
+        </div>
+        <div className="h-5 w-24 rounded-lg bg-muted mt-4" />
+        <div className="space-y-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-20 rounded-xl bg-muted" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-lg px-4 pt-4 animate-fade-in">

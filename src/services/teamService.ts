@@ -7,6 +7,7 @@
  * Used by: Roster.tsx, TeamManagement.tsx, GameDetail.tsx
  */
 import { supabase } from "@/integrations/supabase/client";
+import { validate, createGameSchema, updateGameSchema } from "@/lib/validation";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -107,19 +108,23 @@ export async function createGame(game: {
   season_id?: string;
   notes?: string;
 }): Promise<{ data: Game | null; error: string | null }> {
+  const validation = validate(createGameSchema, game);
+  if (!validation.success) return { data: null, error: validation.error };
+  const validated = validation.data;
+
   const { data, error } = await supabase
     .from("games")
     .insert({
-      program_id: game.program_id,
-      name: game.name,
-      created_by: game.created_by,
-      opponent: game.opponent || null,
-      team_level: game.team_level || null,
-      game_date: game.game_date || new Date().toISOString().split("T")[0],
-      game_time: game.game_time || null,
-      location: game.location || null,
-      season_id: game.season_id || null,
-      notes: game.notes || null,
+      program_id: validated.program_id,
+      name: validated.name,
+      created_by: validated.created_by,
+      opponent: validated.opponent || null,
+      team_level: validated.team_level || null,
+      game_date: validated.game_date || new Date().toISOString().split("T")[0],
+      game_time: validated.game_time || null,
+      location: validated.location || null,
+      season_id: validated.season_id || null,
+      notes: validated.notes || null,
     })
     .select()
     .single();
@@ -133,9 +138,13 @@ export async function updateGame(
   gameId: string,
   updates: Partial<Pick<Game, "name" | "opponent" | "team_level" | "game_date" | "game_time" | "location" | "notes" | "status">>
 ): Promise<{ error: string | null }> {
+  const validation = validate(updateGameSchema, updates);
+  if (!validation.success) return { error: validation.error };
+  const validated = validation.data;
+
   const { error } = await supabase
     .from("games")
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update({ ...validated, updated_at: new Date().toISOString() })
     .eq("id", gameId);
 
   return { error: error?.message ?? null };
@@ -238,6 +247,112 @@ export async function saveLineup(
 
   const { error } = await supabase.from("lineup_entries").insert(rows);
   return { error: error?.message ?? null };
+}
+
+/** Fetch a single game by ID. */
+export async function fetchGame(gameId: string): Promise<{ data: Game | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from("games")
+    .select("id, program_id, season_id, name, opponent, team_level, game_date, game_time, location, notes, status, created_by, created_at")
+    .eq("id", gameId)
+    .single();
+
+  if (error) return { data: null, error: error.message };
+  return { data: data as Game, error: null };
+}
+
+/** Fetch roster assignments for a program (player_id → assignment mapping). */
+export async function fetchRosterAssignments(
+  programId: string
+): Promise<{ data: Array<{ player_id: string; assignment: string }>; error: string | null }> {
+  const { data, error } = await supabase
+    .from("roster_assignments")
+    .select("player_id, assignment")
+    .eq("program_id", programId);
+
+  if (error) return { data: [], error: error.message };
+  return { data: data ?? [], error: null };
+}
+
+/** Upsert a roster assignment (update if exists, insert if not). */
+export async function upsertRosterAssignment(params: {
+  programId: string;
+  playerId: string;
+  assignment: string;
+  assignedBy: string;
+}): Promise<{ error: string | null }> {
+  const { data: existing } = await supabase
+    .from("roster_assignments")
+    .select("id")
+    .eq("program_id", params.programId)
+    .eq("player_id", params.playerId)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase
+      .from("roster_assignments")
+      .update({ assignment: params.assignment as any })
+      .eq("program_id", params.programId)
+      .eq("player_id", params.playerId);
+    return { error: error?.message ?? null };
+  } else {
+    const { error } = await supabase
+      .from("roster_assignments")
+      .insert({
+        program_id: params.programId,
+        player_id: params.playerId,
+        assignment: params.assignment as any,
+        assigned_by: params.assignedBy,
+      });
+    return { error: error?.message ?? null };
+  }
+}
+
+/** Add a single player to a game roster. Returns the new entry. */
+export async function addPlayerToGameRoster(
+  gameId: string,
+  playerId: string,
+  status: string = "active"
+): Promise<{ data: GameRosterEntry | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from("game_rosters")
+    .insert({ game_id: gameId, player_id: playerId, status })
+    .select()
+    .single();
+
+  if (error) return { data: null, error: error.message };
+  return { data: data as GameRosterEntry, error: null };
+}
+
+/** Remove a single player from a game roster. */
+export async function removePlayerFromGameRoster(
+  gameId: string,
+  playerId: string
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("game_rosters")
+    .delete()
+    .eq("game_id", gameId)
+    .eq("player_id", playerId);
+
+  return { error: error?.message ?? null };
+}
+
+/** Batch-upsert players into a game roster. Returns the upserted entries. */
+export async function upsertGameRosterPlayers(
+  gameId: string,
+  playerIds: string[],
+  status: string = "active"
+): Promise<{ data: GameRosterEntry[]; error: string | null }> {
+  if (playerIds.length === 0) return { data: [], error: null };
+  const rows = playerIds.map((pid) => ({ game_id: gameId, player_id: pid, status }));
+  const { data, error } = await supabase
+    .from("game_rosters")
+    .upsert(rows, { onConflict: "game_id,player_id" })
+    .select();
+
+  if (error) return { data: [], error: error.message };
+  return { data: (data as GameRosterEntry[]) ?? [], error: null };
 }
 
 /** Update a single lineup entry (position or batting order). */

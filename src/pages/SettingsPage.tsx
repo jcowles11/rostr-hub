@@ -3,8 +3,15 @@ import { Button } from "@/components/ui/button";
 import { LogOut, Share2, User, Shield, Calendar, SlidersHorizontal, Upload, Database, Download, Users, Layers, Eye, Image, ChevronRight, ChevronDown, Clock, ClipboardCheck, ClipboardList, BarChart3 } from "lucide-react";
 import ProgramLogoUpload from "@/components/ProgramLogoUpload";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
+import {
+  fetchRegistrationCode,
+  updateRegistrationCode,
+  updateProgramName,
+  fetchPendingJoinRequests,
+  approveJoinRequest,
+  denyJoinRequest,
+} from "@/services/programService";
 import { useNavigate } from "react-router-dom";
 import LevelsManager from "@/components/LevelsManager";
 import VisibilityManager from "@/components/VisibilityManager";
@@ -52,13 +59,8 @@ function JoinRequestsManager({ programId }: { programId?: string }) {
 
   const fetchRequests = async () => {
     if (!programId) return;
-    const { data } = await supabase
-      .from("program_join_requests")
-      .select("*")
-      .eq("program_id", programId)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false });
-    setRequests(data || []);
+    const { data } = await fetchPendingJoinRequests(programId);
+    setRequests(data);
     setLoading(false);
   };
 
@@ -66,35 +68,20 @@ function JoinRequestsManager({ programId }: { programId?: string }) {
 
   const handleAction = async (id: string, userId: string, playerName: string, action: "approved" | "denied") => {
     if (action === "approved") {
-      // Create a player record linked to this program
-      const parts = playerName.split(" ");
-      const firstName = parts[0] || "Player";
-      const lastName = parts.slice(1).join(" ") || "";
-      const { error: insertErr } = await supabase.from("players").insert({
-        program_id: programId!,
-        user_id: userId,
-        first_name: firstName,
-        last_name: lastName,
-      });
-      if (insertErr) {
-        // Player may already exist — try updating program_id
-        const { error: updateErr } = await supabase
-          .from("players")
-          .update({ program_id: programId })
-          .eq("user_id", userId);
-        if (updateErr) {
-          toast.error("Failed to add player");
-          return;
-        }
+      const { error } = await approveJoinRequest(id, programId!, userId, playerName);
+      if (error) {
+        toast.error(error);
+        return;
       }
+      toast.success("Player approved!");
+    } else {
+      const { error } = await denyJoinRequest(id);
+      if (error) {
+        toast.error(error);
+        return;
+      }
+      toast.success("Request denied");
     }
-
-    await supabase
-      .from("program_join_requests")
-      .update({ status: action, reviewed_at: new Date().toISOString() } as any)
-      .eq("id", id);
-
-    toast.success(action === "approved" ? "Player approved!" : "Request denied");
     fetchRequests();
   };
 
@@ -147,8 +134,8 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!coach) return;
     setProgramName(coach.program_name || "");
-    supabase.from("programs").select("registration_code").eq("id", coach.program_id).single().then(({ data }) => {
-      if (data) setRegCode(data.registration_code);
+    fetchRegistrationCode(coach.program_id).then(({ code }) => {
+      if (code) setRegCode(code);
     });
   }, [coach]);
 
@@ -172,12 +159,9 @@ export default function SettingsPage() {
       return;
     }
     setSavingCode(true);
-    const { error } = await supabase
-      .from("programs")
-      .update({ registration_code: cleaned })
-      .eq("id", coach.program_id);
+    const { error } = await updateRegistrationCode(coach.program_id, cleaned);
     if (error) {
-      toast.error(error.message.includes("duplicate") ? "That code is already taken" : "Failed to update code");
+      toast.error(error);
     } else {
       setRegCode(cleaned);
       toast.success("Registration code updated!");
@@ -194,12 +178,9 @@ export default function SettingsPage() {
   const handleSaveName = async () => {
     if (!coach || !programName.trim()) return;
     setSavingName(true);
-    const { error } = await supabase
-      .from("programs")
-      .update({ name: programName.trim() })
-      .eq("id", coach.program_id);
+    const { error } = await updateProgramName(coach.program_id, programName.trim());
     if (error) {
-      toast.error("Failed to update program name");
+      toast.error(error);
     } else {
       toast.success("Program name updated!");
       await refreshCoach();

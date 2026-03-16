@@ -46,6 +46,30 @@ export async function fetchMetricsForScoring(programId: string): Promise<{ data:
   return { data: data ?? [], error: null };
 }
 
+/** Metric info for player detail display. */
+export interface MetricForPlayerDetail {
+  id: string;
+  name: string;
+  unit: string;
+  metric_type: string;
+  category: string;
+  aggregation: string;
+  min_value: number | null;
+  max_value: number | null;
+}
+
+/** Fetch metrics for player detail display (PlayerDetail). */
+export async function fetchMetricsForPlayerDetail(programId: string): Promise<{ data: MetricForPlayerDetail[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from("metrics")
+    .select("id, name, unit, metric_type, category, aggregation, min_value, max_value")
+    .eq("program_id", programId)
+    .order("sort_order");
+
+  if (error) return { data: [], error: error.message };
+  return { data: data ?? [], error: null };
+}
+
 /** Fetch metrics for dashboard display (Dashboard). */
 export async function fetchMetricsForDashboard(programId: string): Promise<{ data: MetricForDashboard[]; error: string | null }> {
   const { data, error } = await supabase
@@ -155,4 +179,100 @@ export async function deleteMetric(metricId: string): Promise<{ error: string | 
     .eq("id", metricId);
 
   return { error: error?.message ?? null };
+}
+
+// ── Visibility ──────────────────────────────────────────────────────
+
+export interface MetricVisibilityItem {
+  id: string;
+  name: string;
+  visible_to_players: boolean;
+}
+
+/** Fetch metric visibility info for the visibility manager. */
+export async function fetchMetricVisibility(
+  programId: string
+): Promise<{ data: MetricVisibilityItem[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from("metrics")
+    .select("id, name, visible_to_players")
+    .eq("program_id", programId)
+    .order("sort_order");
+
+  if (error) return { data: [], error: error.message };
+  return { data: (data ?? []) as MetricVisibilityItem[], error: null };
+}
+
+/** Update a metric's visible_to_players flag. */
+export async function updateMetricVisibility(
+  metricId: string,
+  visibleToPlayers: boolean
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("metrics")
+    .update({ visible_to_players: visibleToPlayers })
+    .eq("id", metricId);
+
+  return { error: error?.message ?? null };
+}
+
+// ── Import-specific helpers ─────────────────────────────────────────
+
+/** Lightweight metric summary used during data import. */
+export interface MetricSummary {
+  id: string;
+  name: string;
+  unit: string;
+  metric_type: string;
+  min_value?: number | null;
+  max_value?: number | null;
+}
+
+/** Fetch lightweight metric list for import mapping. */
+export async function fetchMetricSummaries(programId: string): Promise<{ data: MetricSummary[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from("metrics")
+    .select("id, name, unit, metric_type, min_value, max_value")
+    .eq("program_id", programId)
+    .order("sort_order");
+
+  if (error) return { data: [], error: error.message };
+  return { data: data ?? [], error: null };
+}
+
+/** Create a single metric and return its summary (used during import). */
+export async function createMetricAndReturn(input: {
+  program_id: string;
+  name: string;
+  unit: string;
+  metric_type: string;
+  max_attempts: number;
+  sort_order: number;
+}): Promise<{ data: MetricSummary | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from("metrics")
+    .insert(input)
+    .select("id, name, unit, metric_type")
+    .single();
+
+  if (error) return { data: null, error: error.message };
+  return { data, error: null };
+}
+
+/** Bulk-create metrics and return their summaries (used during import). */
+export async function createMetricsAndReturn(inputs: {
+  program_id: string;
+  name: string;
+  unit: string;
+  metric_type: string;
+  max_attempts: number;
+  sort_order: number;
+}[]): Promise<{ data: MetricSummary[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from("metrics")
+    .insert(inputs)
+    .select("id, name, unit, metric_type");
+
+  if (error) return { data: [], error: error.message };
+  return { data: data ?? [], error: null };
 }

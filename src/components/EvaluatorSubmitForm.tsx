@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { submitEvaluatorEntry } from "@/services/evaluatorService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +38,7 @@ export default function EvaluatorSubmitForm({ player, evaluatorId, onClose, onSu
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await supabase.from("evaluator_entries").insert({
+    const { error } = await submitEvaluatorEntry({
       evaluator_id: evaluatorId,
       player_id: player.id,
       metric_name: metricName,
@@ -51,7 +51,7 @@ export default function EvaluatorSubmitForm({ player, evaluatorId, onClose, onSu
     });
 
     if (error) {
-      toast.error(error.message);
+      toast.error(error);
     } else {
       onSubmitted();
     }

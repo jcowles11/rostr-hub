@@ -164,9 +164,10 @@ function generateScore(
 
 function generateSessions(today: Date) {
   return [
-    { offset: -12, name: "Early Tryout — Day 1", notes: "First look at all candidates" },
-    { offset: -9, name: "Early Tryout — Day 2", notes: "Speed and arm strength focus" },
-    { offset: -6, name: "Mid-Season Evaluation", notes: "Full team assessment after first games" },
+    { offset: -14, name: "Early Tryout — Day 1", notes: "First look at all candidates" },
+    { offset: -11, name: "Early Tryout — Day 2", notes: "Speed and arm strength focus" },
+    { offset: -7, name: "Mid-Season Evaluation", notes: "Full team assessment after first games" },
+    { offset: -2, name: "Pre-Conference Checkup", notes: "Final rankings before conference play begins" },
   ].map((s) => ({
     ...s,
     session_date: format(addDays(today, s.offset), "yyyy-MM-dd"),
@@ -269,15 +270,14 @@ export async function seedDemoData(
       console.warn("Game insert warning:", gameErr.message);
     }
 
-    // 3b. Seed game rosters + lineups for completed games
+    // 3b. Seed game rosters + lineups for all games (completed + upcoming)
     const BASEBALL_POSITIONS = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
     if (insertedGames && insertedGames.length > 0 && insertedPlayerIds.length > 0) {
       const lineupRand = seededRandom(99); // separate seed for lineup determinism
-      const completedGames = insertedGames.filter((g) => g.status === "completed");
       const gameRosterInserts: Array<{ game_id: string; player_id: string; status: string }> = [];
       const lineupInserts: Array<{ game_id: string; player_id: string; batting_order: number; position: string }> = [];
 
-      for (const game of completedGames) {
+      for (const game of insertedGames) {
         const level = (game.team_level || "").toLowerCase();
         // Pick players matching this game's level
         const pool = level === "jv"
@@ -289,7 +289,11 @@ export async function seedDemoData(
         const rosterPlayers = shuffled.slice(0, Math.min(9, shuffled.length));
 
         rosterPlayers.forEach((pid, idx) => {
-          gameRosterInserts.push({ game_id: game.id, player_id: pid, status: "active" });
+          gameRosterInserts.push({
+            game_id: game.id,
+            player_id: pid,
+            status: game.status === "completed" ? "active" : "projected",
+          });
           lineupInserts.push({
             game_id: game.id,
             player_id: pid,
@@ -409,9 +413,23 @@ export async function seedDemoData(
           id: playerMap.get(`${p.first_name} ${p.last_name}`),
           tier: (p._level === "Varsity" ? "varsity" : p._level === "JV" ? "jv" : "unassigned") as "varsity" | "jv" | "unassigned",
           ability: rand(), // each player gets a fixed ability seed
+          positions: p.positions,
           index: idx,
         }))
         .filter((p) => p.id);
+
+      // Position-relevance boosts: players score higher on metrics
+      // that match their position, creating realistic data patterns
+      function positionBoost(positions: string[], metricName: string): number {
+        const pos = positions.map((p) => p.toUpperCase());
+        if (metricName === "Fastball Velo" && pos.some((p) => p === "P")) return 0.12;
+        if (metricName === "Pop Time" && pos.some((p) => p === "C")) return 0.10;
+        if (metricName === "Exit Velocity" && pos.some((p) => ["1B", "DH", "3B", "LF", "RF"].includes(p))) return 0.08;
+        if (metricName === "Infield Velo" && pos.some((p) => ["SS", "3B", "2B"].includes(p))) return 0.08;
+        if (metricName === "60 Yard Dash" && pos.some((p) => ["CF", "LF", "RF", "OF", "SS"].includes(p))) return -0.06; // lower = faster
+        if (metricName === "Fielding" && pos.some((p) => ["SS", "2B", "C", "CF"].includes(p))) return 0.08;
+        return 0;
+      }
 
       // For each player, generate scores across sessions and metrics
       for (const player of playerEntries) {
@@ -419,18 +437,26 @@ export async function seedDemoData(
 
         // Determine which metrics this player gets scored on
         // Most players get most metrics; some only get a subset for realism
+        // Position-specific: catchers always get Pop Time, pitchers always get Velo
         const metricCoverage = player.tier === "unassigned" ? 0.5 : 0.85;
 
         for (let mi = 0; mi < metricIds.length; mi++) {
-          // Skip some metrics randomly for realism
-          if (rand() > metricCoverage) continue;
-
           const metricDef = DEMO_METRICS[mi] || DEMO_METRICS[0];
 
+          // Always include position-relevant metrics
+          const boost = positionBoost(player.positions, metricDef.name);
+          const isPositionMetric = Math.abs(boost) > 0;
+
+          // Skip some metrics randomly for realism (but keep position-relevant ones)
+          if (!isPositionMetric && rand() > metricCoverage) continue;
+
           // Score in 2-3 sessions for this metric (more sessions = more data)
+          // Position-relevant metrics get scored in more sessions
           const numSessions = player.tier === "unassigned"
             ? (rand() > 0.5 ? 1 : 2)
-            : (rand() > 0.3 ? Math.min(3, sessionIds.length) : 2);
+            : isPositionMetric
+              ? Math.min(3, sessionIds.length)
+              : (rand() > 0.3 ? Math.min(3, sessionIds.length) : 2);
 
           for (let si = 0; si < numSessions && si < sessionIds.length; si++) {
             // 1-3 attempts per session depending on metric
@@ -439,7 +465,9 @@ export async function seedDemoData(
               : 1;
 
             for (let attempt = 1; attempt <= attempts; attempt++) {
-              const value = generateScore(rand, metricDef, player.tier, player.ability);
+              // Apply position boost to effective ability
+              const effectiveAbility = Math.max(0, Math.min(1, player.ability + boost));
+              const value = generateScore(rand, metricDef, player.tier, effectiveAbility);
               evalInserts.push({
                 program_id: programId,
                 player_id: player.id,

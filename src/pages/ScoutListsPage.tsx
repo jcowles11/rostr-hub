@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { createScoutList, deleteScoutList, removeScoutListMember } from "@/services/scoutService";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,14 +70,14 @@ export default function ScoutListsPage() {
     setLoading(false);
   };
 
-  const createList = async () => {
+  const handleCreateList = async () => {
     if (!scoutInfo || !newName.trim()) return;
-    const { error } = await supabase.from("scout_lists").insert({
-      scout_id: scoutInfo.id,
+    const result = await createScoutList({
+      scoutId: scoutInfo.id,
       name: newName.trim(),
       description: newDesc.trim() || null,
     });
-    if (error) toast.error("Failed to create list");
+    if (result.error) toast.error("Failed to create list");
     else {
       toast.success("List created");
       setNewName(""); setNewDesc(""); setShowCreate(false);
@@ -84,8 +85,8 @@ export default function ScoutListsPage() {
     }
   };
 
-  const deleteList = async (id: string) => {
-    await supabase.from("scout_lists").delete().eq("id", id);
+  const handleDeleteList = async (id: string) => {
+    await deleteScoutList(id);
     setLists(prev => prev.filter(l => l.id !== id));
     if (activeList?.id === id) setActiveList(null);
     toast.success("List deleted");
@@ -103,7 +104,7 @@ export default function ScoutListsPage() {
   };
 
   const removeMember = async (memberId: string) => {
-    await supabase.from("scout_list_members").delete().eq("id", memberId);
+    await removeScoutListMember(memberId);
     setMembers(prev => prev.filter(m => m.id !== memberId));
     toast.success("Removed from list");
   };
@@ -190,7 +191,7 @@ export default function ScoutListsPage() {
             <div className="space-y-3">
               <Input placeholder="List name" value={newName} onChange={e => setNewName(e.target.value)} />
               <Input placeholder="Description (optional)" value={newDesc} onChange={e => setNewDesc(e.target.value)} />
-              <Button className="w-full" disabled={!newName.trim()} onClick={createList}>Create</Button>
+              <Button className="w-full" disabled={!newName.trim()} onClick={handleCreateList}>Create</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -213,7 +214,7 @@ export default function ScoutListsPage() {
                   <p className="text-xs text-muted-foreground mt-0.5">{l.member_count} player{l.member_count !== 1 ? "s" : ""}</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={e => { e.stopPropagation(); deleteList(l.id); }}>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={e => { e.stopPropagation(); handleDeleteList(l.id); }}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>

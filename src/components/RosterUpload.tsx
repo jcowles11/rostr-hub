@@ -6,13 +6,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Upload, FileSpreadsheet, AlertCircle, AlertTriangle, CheckCircle2, Users } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { normalizeHeader, splitFullName, splitBatsThrows } from "@/lib/importUtils";
-import { fetchPlayerNames, buildPlayerNameIndex } from "@/services/playerService";
+import { fetchPlayerNames, buildPlayerNameIndex, bulkInsertPlayers } from "@/services/playerService";
 import { track } from "@/services/analyticsService";
 
 interface RosterUploadProps {
@@ -92,7 +91,10 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
   // Fetch existing player names when dialog opens for duplicate detection
   useEffect(() => {
     if (open && coach?.program_id) {
-      fetchPlayerNames(coach.program_id).then(({ data }) => {
+      fetchPlayerNames(coach.program_id).then(({ data, error }) => {
+        if (error) {
+          toast.error("Could not load existing roster for duplicate detection.");
+        }
         setExistingNameIndex(buildPlayerNameIndex(data));
       });
     }
@@ -224,7 +226,7 @@ export default function RosterUpload({ open, onOpenChange, onSuccess }: RosterUp
       throws: p.throws,
     }));
 
-    const { error } = await supabase.from("players").insert(toInsert);
+    const { error } = await bulkInsertPlayers(toInsert);
     if (error) {
       toast.error(`Import failed: ${error.message}`);
       setImporting(false);

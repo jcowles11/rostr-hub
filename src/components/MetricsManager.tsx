@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { createMetric, deleteMetric, fetchMetricsFull, type CreateMetricInput, type MetricFull } from "@/services/metricService";
+import { fetchEvaluationCountByMetric } from "@/services/evaluationService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,23 +24,9 @@ import { toast } from "sonner";
 import { getSportCategories, formatCategory } from "@/lib/sports";
 import { track } from "@/services/analyticsService";
 
-interface Metric {
-  id: string;
-  name: string;
-  unit: string;
-  category: string;
-  metric_type: string;
-  min_value: number | null;
-  max_value: number | null;
-  is_default: boolean;
-  sort_order: number;
-  aggregation: string;
-  max_attempts: number;
-}
-
 export default function MetricsManager() {
   const { coach } = useAuth();
-  const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [metrics, setMetrics] = useState<MetricFull[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleteEvalCount, setDeleteEvalCount] = useState<number | null>(null);
@@ -51,7 +38,7 @@ export default function MetricsManager() {
 
   const fetchMetrics = async () => {
     if (!coach) return;
-    const { data } = await supabase.from("metrics").select("*").eq("program_id", coach.program_id).order("sort_order");
+    const { data } = await fetchMetricsFull(coach.program_id);
     setMetrics(data || []);
   };
 
@@ -60,7 +47,7 @@ export default function MetricsManager() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!coach) return;
-    const { error } = await supabase.from("metrics").insert({
+    const { error } = await createMetric({
       program_id: coach.program_id,
       name: newMetric.name,
       unit: newMetric.unit,
@@ -71,7 +58,7 @@ export default function MetricsManager() {
       sort_order: metrics.length,
       aggregation: newMetric.aggregation,
       max_attempts: parseInt(newMetric.max_attempts) || 1,
-    } as any);
+    });
     if (error) toast.error("Failed to add metric");
     else {
       toast.success("Metric added!");
@@ -82,21 +69,18 @@ export default function MetricsManager() {
     }
   };
 
-  const confirmDelete = async (metric: Metric) => {
+  const confirmDelete = async (metric: MetricFull) => {
     setDeleteTarget({ id: metric.id, name: metric.name });
     setDeleteEvalCount(null);
     // Fetch evaluation count for this metric
-    const { count } = await supabase
-      .from("evaluations")
-      .select("id", { count: "exact", head: true })
-      .eq("metric_id", metric.id);
-    setDeleteEvalCount(count ?? 0);
+    const { count } = await fetchEvaluationCountByMetric(metric.id);
+    setDeleteEvalCount(count);
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    const { error } = await supabase.from("metrics").delete().eq("id", deleteTarget.id);
+    const { error } = await deleteMetric(deleteTarget.id);
     if (error) toast.error("Failed to delete metric");
     else { toast.success(`"${deleteTarget.name}" deleted`); fetchMetrics(); }
     setDeleting(false);

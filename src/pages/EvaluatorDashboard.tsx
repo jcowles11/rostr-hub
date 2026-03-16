@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { createEvaluatorProfile } from "@/services/evaluatorService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,13 +68,14 @@ export default function EvaluatorDashboard() {
   useEffect(() => {
     if (!evaluatorInfo) return;
     const fetchRecent = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("evaluator_entries")
         .select("id, metric_name, metric_value, metric_unit, event_name, event_date, created_at, players(first_name, last_name)")
         .eq("evaluator_id", evaluatorInfo.id)
         .order("created_at", { ascending: false })
         .limit(20);
 
+      if (error) { toast.error("Failed to load recent evaluations."); }
       if (data) {
         setRecentEntries(data.map((d: any) => ({
           id: d.id,
@@ -96,14 +98,10 @@ export default function EvaluatorDashboard() {
     if (!user) return;
     setSetupLoading(true);
 
-    const { error } = await supabase.from("evaluators").insert({
-      user_id: user.id,
-      full_name: setupName,
-      organization_name: setupOrg,
-    });
+    const { error } = await createEvaluatorProfile(user.id, setupName, setupOrg);
 
     if (error) {
-      toast.error(error.message);
+      toast.error(error);
     } else {
       localStorage.removeItem(`rostr_evaluator_setup_${user.id}`);
       toast.success("Evaluator profile created!");
@@ -128,7 +126,8 @@ export default function EvaluatorDashboard() {
       query = query.or(`first_name.ilike.%${terms[0]}%,last_name.ilike.%${terms[0]}%`);
     }
 
-    const { data } = await query;
+    const { data, error } = await query;
+    if (error) { toast.error("Player search failed."); }
     setSearchResults((data || []).map((d: any) => ({
       id: d.id,
       first_name: d.first_name,
@@ -174,8 +173,8 @@ export default function EvaluatorDashboard() {
         {/* Search players */}
         <Card className="section-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-bold flex items-center gap-2">
-              <Search className="h-5 w-5" /> Find a Player
+            <CardTitle className="text-xs font-extrabold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+              <Search className="h-4 w-4" /> Find a Player
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -265,13 +264,16 @@ export default function EvaluatorDashboard() {
         {/* Recent entries */}
         <Card className="section-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-bold flex items-center gap-2">
-              <ClipboardList className="h-5 w-5" /> Recent Evaluations
+            <CardTitle className="text-xs font-extrabold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+              <ClipboardList className="h-4 w-4" /> Recent Evaluations
             </CardTitle>
           </CardHeader>
           <CardContent>
             {recentEntries.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">No evaluations submitted yet. Search for a player to get started!</p>
+              <div className="rounded-xl border border-dashed bg-card/50 p-6 text-center">
+                <h4 className="text-sm font-bold mb-1">No Evaluations Yet</h4>
+                <p className="text-xs text-muted-foreground">Search for a player above to submit your first evaluation.</p>
+              </div>
             ) : (
               <div className="space-y-2">
                 {recentEntries.map((entry) => (

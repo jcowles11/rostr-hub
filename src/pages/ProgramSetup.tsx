@@ -1,8 +1,15 @@
 import { useState, useEffect } from "react";
 import rostrLogo from "@/assets/rostr-logo.png";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  createOrganization,
+  addOrganizationMember,
+  createProgram,
+  createCoach,
+  createDefaultTeam,
+  seedDefaultMetrics,
+} from "@/services/programService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,11 +50,10 @@ export default function ProgramSetup() {
       if (!orgId) {
         // Create new organization
         const orgName = newOrgName.trim() || schoolName.trim();
-        const { data: org, error: orgError } = await supabase
-          .from("organizations")
-          .insert({ name: orgName, created_by: user.id })
-          .select()
-          .single();
+        const { data: org, error: orgError } = await createOrganization({
+          name: orgName,
+          createdBy: user.id,
+        });
         if (orgError || !org) {
           toast.error("Failed to create organization");
           setLoading(false);
@@ -56,28 +62,24 @@ export default function ProgramSetup() {
         orgId = org.id;
 
         // Add user as org admin
-        await supabase.from("organization_members").insert({
-          user_id: user.id,
-          organization_id: orgId,
+        await addOrganizationMember({
+          userId: user.id,
+          organizationId: orgId,
           role: "admin",
-          full_name: user.user_metadata?.full_name || user.email || "Admin",
+          fullName: user.user_metadata?.full_name || user.email || "Admin",
           email: user.email || "",
           color: COACH_COLORS[0],
         });
       }
 
       // 2. Create program
-      const { data: program, error: programError } = await supabase
-        .from("programs")
-        .insert({
-          name: programName,
-          school_name: schoolName || newOrgName,
-          created_by: user.id,
-          sport: selectedSport.id,
-          organization_id: orgId,
-        })
-        .select()
-        .single();
+      const { data: program, error: programError } = await createProgram({
+        name: programName,
+        schoolName: schoolName || newOrgName,
+        createdBy: user.id,
+        sport: selectedSport.id,
+        organizationId: orgId,
+      });
 
       if (programError || !program) {
         toast.error("Failed to create program");
@@ -86,10 +88,10 @@ export default function ProgramSetup() {
       }
 
       // 3. Create coach record (for evaluation attribution)
-      const { error: coachError } = await supabase.from("coaches").insert({
-        user_id: user.id,
-        program_id: program.id,
-        full_name: user.user_metadata?.full_name || user.email || "Head Coach",
+      const { error: coachError } = await createCoach({
+        userId: user.id,
+        programId: program.id,
+        fullName: user.user_metadata?.full_name || user.email || "Head Coach",
         email: user.email || "",
         role: "head_coach",
         color: COACH_COLORS[0],
@@ -102,28 +104,27 @@ export default function ProgramSetup() {
       }
 
       // 4. Create organization_member at program level
-      await supabase.from("organization_members").insert({
-        user_id: user.id,
-        program_id: program.id,
+      await addOrganizationMember({
+        userId: user.id,
+        organizationId: orgId,
+        programId: program.id,
         role: "admin",
-        full_name: user.user_metadata?.full_name || user.email || "Head Coach",
+        fullName: user.user_metadata?.full_name || user.email || "Head Coach",
         email: user.email || "",
         color: COACH_COLORS[0],
       });
 
       // 5. Create default team
-      await supabase.from("teams").insert({
-        program_id: program.id,
+      await createDefaultTeam({
+        programId: program.id,
         name: "Main Team",
       });
 
       // 6. Seed default metrics
-      const metricsToInsert = selectedSport.defaultMetrics.map((m) => ({
-        ...m,
-        program_id: program.id,
-        is_default: true,
-      }));
-      await supabase.from("metrics").insert(metricsToInsert as any);
+      await seedDefaultMetrics({
+        programId: program.id,
+        metrics: selectedSport.defaultMetrics,
+      });
 
       await refreshCoach();
       toast.success("Program created!");

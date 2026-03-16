@@ -16,6 +16,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { saveProspect as saveProspectService, addToScoutList } from "@/services/scoutService";
+import { sendConversationRequest } from "@/services/messagingService";
 import type { PlayerResult } from "@/pages/ScoutDashboard";
 
 interface Props {
@@ -64,9 +66,9 @@ export default function PlayerProfileSheet({ player, open, onOpenChange }: Props
   const saveProspect = async () => {
     if (!scoutInfo || !player) return;
     setSavingProspect(true);
-    const { error } = await supabase.from("scout_saved_prospects").insert({ scout_id: scoutInfo.id, player_id: player.id });
-    if (error?.code === "23505") toast.info("Already saved");
-    else if (error) toast.error("Failed to save");
+    const result = await saveProspectService(scoutInfo.id, player.id);
+    if (result.error?.includes("23505")) toast.info("Already saved");
+    else if (result.error) toast.error("Failed to save");
     else toast.success("Prospect saved!");
     setSavingProspect(false);
   };
@@ -80,24 +82,24 @@ export default function PlayerProfileSheet({ player, open, onOpenChange }: Props
 
   const addToList = async () => {
     if (!selectedList || !player) return;
-    const { error } = await supabase.from("scout_list_members").insert({ list_id: selectedList, player_id: player.id });
-    if (error?.code === "23505") toast.error("Already in that list");
-    else if (error) toast.error("Failed to add");
+    const result = await addToScoutList(selectedList, player.id);
+    if (result.error?.includes("23505")) toast.error("Already in that list");
+    else if (result.error) toast.error("Failed to add");
     else toast.success("Added to list");
     setListDialogOpen(false);
     setSelectedList("");
   };
 
-  const sendMessageRequest = async () => {
+  const handleSendMessageRequest = async () => {
     if (!scoutInfo || !player || !initialMessage.trim()) return;
     setSendingMessage(true);
-    const { error } = await supabase.from("conversation_requests").insert({
-      scout_id: scoutInfo.id,
-      player_id: player.id,
-      initial_message: initialMessage.trim(),
+    const result = await sendConversationRequest({
+      scoutId: scoutInfo.id,
+      playerId: player.id,
+      initialMessage: initialMessage.trim(),
     });
-    if (error?.code === "23505") toast.error("Request already sent to this player");
-    else if (error) toast.error("Failed to send request");
+    if (result.error?.includes("23505")) toast.error("Request already sent to this player");
+    else if (result.error) toast.error("Failed to send request");
     else toast.success("Message request sent!");
     setMessageDialogOpen(false);
     setInitialMessage("");
@@ -306,7 +308,7 @@ export default function PlayerProfileSheet({ player, open, onOpenChange }: Props
             placeholder="Introduce yourself and why you're reaching out..."
             className="min-h-[80px]"
           />
-          <Button className="w-full" disabled={!initialMessage.trim() || sendingMessage} onClick={sendMessageRequest}>
+          <Button className="w-full" disabled={!initialMessage.trim() || sendingMessage} onClick={handleSendMessageRequest}>
             {sendingMessage ? "Sending..." : "Send Request"}
           </Button>
         </DialogContent>

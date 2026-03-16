@@ -1,19 +1,17 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Check, Star } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-interface Season {
-  id: string;
-  name: string;
-  start_date: string | null;
-  end_date: string | null;
-  is_active: boolean;
-}
+import {
+  fetchSeasons as loadSeasonsService,
+  createSeason,
+  setActiveSeason,
+  deleteSeason,
+  type Season,
+} from "@/services/seasonService";
 
 export default function SeasonsManager() {
   const { coach } = useAuth();
@@ -22,55 +20,49 @@ export default function SeasonsManager() {
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
 
-  const fetchSeasons = async () => {
+  const loadSeasons = async () => {
     if (!coach) return;
-    const { data } = await supabase
-      .from("seasons")
-      .select("id, name, start_date, end_date, is_active")
-      .eq("program_id", coach.program_id)
-      .order("created_at", { ascending: false });
-    setSeasons(data || []);
+    const { data } = await loadSeasonsService(coach.program_id);
+    setSeasons(data);
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchSeasons();
+    loadSeasons();
   }, [coach]);
 
   const handleAdd = async () => {
     if (!coach || !newName.trim()) return;
     setAdding(true);
-    const { error } = await supabase.from("seasons").insert({
-      program_id: coach.program_id,
-      name: newName.trim(),
-      is_active: seasons.length === 0, // First season is active by default
-    });
+    const { error } = await createSeason(coach.program_id, newName.trim(), seasons.length === 0);
     if (error) {
-      toast.error("Failed to create season");
+      toast.error(error);
     } else {
       toast.success("Season created!");
       setNewName("");
-      fetchSeasons();
+      loadSeasons();
     }
     setAdding(false);
   };
 
   const handleSetActive = async (id: string) => {
     if (!coach) return;
-    // Deactivate all, then activate the selected one
-    await supabase.from("seasons").update({ is_active: false }).eq("program_id", coach.program_id);
-    await supabase.from("seasons").update({ is_active: true }).eq("id", id);
-    toast.success("Active season updated");
-    fetchSeasons();
+    const { error } = await setActiveSeason(coach.program_id, id);
+    if (error) {
+      toast.error(error);
+    } else {
+      toast.success("Active season updated");
+    }
+    loadSeasons();
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("seasons").delete().eq("id", id);
+    const { error } = await deleteSeason(id);
     if (error) {
-      toast.error("Failed to delete season");
+      toast.error(error);
     } else {
       toast.success("Season deleted");
-      fetchSeasons();
+      loadSeasons();
     }
   };
 

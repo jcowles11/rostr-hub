@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { sendScoutMessage } from "@/services/messagingService";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,13 +115,12 @@ export default function ScoutMessagesPage() {
     if (data) setMessages(data);
   };
 
-  const sendMessage = async () => {
+  const handleSendMessage = async () => {
     if (!activeConvo || !scoutInfo || !newMessage.trim()) return;
     setSending(true);
-    await supabase.from("messages").insert({
-      conversation_id: activeConvo.id,
-      sender_role: "scout",
-      sender_id: scoutInfo.id,
+    await sendScoutMessage({
+      conversationId: activeConvo.id,
+      senderId: scoutInfo.id,
       body: newMessage.trim(),
     });
     setNewMessage("");
@@ -173,10 +173,10 @@ export default function ScoutMessagesPage() {
             value={newMessage}
             onChange={e => setNewMessage(e.target.value)}
             placeholder="Type a message..."
-            onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()}
+            onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
             className="flex-1"
           />
-          <Button onClick={sendMessage} disabled={sending || !newMessage.trim()} size="sm">
+          <Button onClick={handleSendMessage} disabled={sending || !newMessage.trim()} size="sm">
             <Send className="h-4 w-4" />
           </Button>
         </div>

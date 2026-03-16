@@ -7,11 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Upload, AlertCircle, CheckCircle2, Database, UserPlus, Plus, CalendarDays } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
-import { bulkCreatePlayers, updatePlayerProfile } from "@/services/playerService";
-import { bulkInsertEvaluations } from "@/services/evaluationService";
+import { fetchPlayerImportSummaries, bulkCreatePlayers, updatePlayerProfile } from "@/services/playerService";
+import { bulkInsertEvaluations, fetchExistingEvalKeys } from "@/services/evaluationService";
+import { fetchMetricSummaries, createMetricAndReturn, createMetricsAndReturn } from "@/services/metricService";
 import type { MetricBounds } from "@/lib/validation";
 import { toast } from "sonner";
 import Papa from "papaparse";
@@ -27,7 +27,6 @@ import {
   preprocessRawData,
   type ColumnGroup,
 } from "@/lib/importUtils";
-import { fetchPlayerNames, buildPlayerNameIndex } from "@/services/playerService";
 
 interface DataImportProps {
   open: boolean;
@@ -281,11 +280,13 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
   useEffect(() => {
     if (!coach || !open) return;
     Promise.all([
-      supabase.from("players").select("id, first_name, last_name").eq("program_id", coach.program_id),
-      supabase.from("metrics").select("id, name, unit, metric_type, min_value, max_value").eq("program_id", coach.program_id).order("sort_order"),
+      fetchPlayerImportSummaries(coach.program_id),
+      fetchMetricSummaries(coach.program_id),
     ]).then(([pRes, mRes]) => {
       setExistingPlayers(pRes.data || []);
       setMetrics(mRes.data || []);
+    }).catch(() => {
+      toast.error("Failed to load roster or metrics. Please close and try again.");
     });
   }, [coach, open]);
 
@@ -477,6 +478,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
     }
 
     setMatchedRows(merged);
+    return merged;
   };
 
   const proceedToMetrics = () => {
@@ -485,7 +487,15 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
   };
 
   const proceedToPreview = () => {
-    buildMatchedRows();
+    const matched = buildMatchedRows();
+    if (matched.length === 0) {
+      toast.error("No players could be identified. Check your name column mapping.");
+      return;
+    }
+    const hasAnyScores = matched.some((r) => (r.matchedPlayer || r.createNew) && r.metricValues.length > 0);
+    if (!hasAnyScores) {
+      toast.warning("No scores to import. All metric values are empty or could not be parsed.");
+    }
     setStep("preview");
   };
 
@@ -537,7 +547,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
       // Update existing players with profile data from spreadsheet (via service layer)
       const existingWithProfile = matchedRows.filter((r) => r.matchedPlayer && Object.keys(r.profileData).length > 0);
       for (const r of existingWithProfile) {
-        const updates: Record<string, unknown> = {};
+        const updates: Partial<PlayerProfileData> = {};
         if (r.profileData.bats) updates.bats = r.profileData.bats;
         if (r.profileData.throws) updates.throws = r.profileData.throws;
         if (r.profileData.grade) updates.grade = r.profileData.grade;
@@ -546,7 +556,10 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         if (r.profileData.height) updates.height = r.profileData.height;
         if (r.profileData.weight) updates.weight = r.profileData.weight;
         if (Object.keys(updates).length > 0) {
-          await updatePlayerProfile(r.matchedPlayer!.id, updates);
+          const { error: profileErr } = await updatePlayerProfile(r.matchedPlayer!.id, updates);
+          if (profileErr) {
+            toast.error(`Failed to update profile for ${r.firstName} ${r.lastName}: ${profileErr}`);
+          }
         }
       }
 
@@ -578,24 +591,9 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         const playerIds = [...new Set(evals.map((e) => e.player_id))];
         const metricIds = [...new Set(evals.map((e) => e.metric_id))];
 
-        // Fetch existing evaluations for these players+metrics (scoped to session if set)
-        let query = supabase
-          .from("evaluations")
-          .select("player_id, metric_id, attempt_number, coach_id")
-          .in("player_id", playerIds)
-          .in("metric_id", metricIds)
-          .eq("coach_id", coach.id);
-        if (sessionId) {
-          query = query.eq("session_id", sessionId);
-        } else {
-          query = query.is("session_id", null);
-        }
-        const { data: existingEvals } = await query;
+        const { keys: existingKeys } = await fetchExistingEvalKeys(playerIds, metricIds, coach.id, sessionId);
 
-        if (existingEvals && existingEvals.length > 0) {
-          const existingKeys = new Set(
-            existingEvals.map((e) => `${e.player_id}|${e.metric_id}|${e.attempt_number}|${e.coach_id}`)
-          );
+        if (existingKeys.size > 0) {
           const filtered = evals.filter(
             (e) => !existingKeys.has(`${e.player_id}|${e.metric_id}|${e.attempt_number}|${e.coach_id}`)
           );
@@ -740,16 +738,16 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
                         if (!coach || creatingMetric) return;
                         setCreatingMetric(true);
                         try {
-                          const { data: newMetric, error } = await supabase.from("metrics").insert({
+                          const { data: newMetric, error } = await createMetricAndReturn({
                             program_id: coach.program_id,
                             name: group.displayName,
                             unit: "",
-                            metric_type: "measured" as const,
+                            metric_type: "measured",
                             max_attempts: group.columns.length,
                             sort_order: metrics.length,
-                          }).select("id, name, unit, metric_type").single();
+                          });
 
-                          if (error) { toast.error(`Failed to create metric: ${error.message}`); return; }
+                          if (error) { toast.error(`Failed to create metric: ${error}`); return; }
                           if (newMetric) {
                             setMetrics((prev) => [...prev, newMetric]);
                             setGroupMapping((prev) => ({ ...prev, [group.displayName]: newMetric.id }));
@@ -795,15 +793,12 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
                       program_id: coach.program_id,
                       name: g.displayName,
                       unit: "",
-                      metric_type: "measured" as const,
+                      metric_type: "measured",
                       max_attempts: g.columns.length,
                       sort_order: metrics.length + i,
                     }));
-                    const { data: created, error } = await supabase
-                      .from("metrics")
-                      .insert(toCreate)
-                      .select("id, name, unit, metric_type");
-                    if (error) { toast.error(`Failed to create metrics: ${error.message}`); return; }
+                    const { data: created, error } = await createMetricsAndReturn(toCreate);
+                    if (error) { toast.error(`Failed to create metrics: ${error}`); return; }
                     if (created && created.length > 0) {
                       setMetrics((prev) => [...prev, ...created]);
                       const newMappings: GroupMetricMap = {};
@@ -915,6 +910,8 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
                           }
                           setCreatingSession(false);
                           setNewSessionName("");
+                        }).catch(() => {
+                          toast.error("Failed to create event");
                         });
                       }
                       if (e.key === "Escape") { setCreatingSession(false); setNewSessionName(""); }
@@ -925,10 +922,12 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
                     createSession(newSessionName.trim()).then((s) => {
                       if (s) {
                         setImportSessionId(s.id);
-                            toast.success(`Event "${s.name}" created`);
+                        toast.success(`Event "${s.name}" created`);
                       }
                       setCreatingSession(false);
                       setNewSessionName("");
+                    }).catch(() => {
+                      toast.error("Failed to create event");
                     });
                   }}>Create</Button>
                   <Button variant="ghost" size="sm" className="h-9 rounded-lg" onClick={() => { setCreatingSession(false); setNewSessionName(""); }}>Cancel</Button>
@@ -940,6 +939,13 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
               <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 {skippedCount} player{skippedCount > 1 ? "s" : ""} not matched and will be skipped.
+              </div>
+            )}
+
+            {totalEvals === 0 && (
+              <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-lg p-3">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                No scores to import. Check that your metric columns contain valid numeric values.
               </div>
             )}
 

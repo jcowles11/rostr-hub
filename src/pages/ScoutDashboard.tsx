@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Search } from "lucide-react";
+import { toast } from "sonner";
 import PlayerSearchFilters, { type SearchFilters } from "@/components/PlayerSearchFilters";
 import PlayerSearchResults from "@/components/PlayerSearchResults";
 
@@ -60,6 +61,7 @@ export default function ScoutDashboard() {
 
     if (error) {
       console.error("Search error:", error);
+      toast.error("Search failed — please try again.");
       setResults([]);
     } else {
       let players = (data as unknown as PlayerResult[]) || [];
@@ -67,7 +69,7 @@ export default function ScoutDashboard() {
       if (searchFilters.metricFilters?.length) {
         players = players.filter((p) =>
           searchFilters.metricFilters!.every((mf) => {
-            const metric = p.metrics.find(
+            const metric = (p.metrics || []).find(
               (m) => m.name.toLowerCase() === mf.metricName.toLowerCase()
             );
             if (!metric) return false;

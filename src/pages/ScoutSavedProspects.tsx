@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { updateProspectStatus, updateProspectNotes, removeProspect, addToScoutList } from "@/services/scoutService";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -87,29 +88,29 @@ export default function ScoutSavedProspects() {
     if (data) setLists(data);
   };
 
-  const updateStatus = async (id: string, status: string) => {
-    await supabase.from("scout_saved_prospects").update({ status }).eq("id", id);
+  const handleUpdateStatus = async (id: string, status: string) => {
+    await updateProspectStatus(id, status);
     setProspects(prev => prev.map(p => p.id === id ? { ...p, status } : p));
   };
 
   const saveNotes = async (id: string) => {
-    await supabase.from("scout_saved_prospects").update({ notes: noteText }).eq("id", id);
+    await updateProspectNotes(id, noteText);
     setProspects(prev => prev.map(p => p.id === id ? { ...p, notes: noteText } : p));
     setEditingNotes(null);
     toast.success("Notes saved");
   };
 
-  const removeProspect = async (id: string) => {
-    await supabase.from("scout_saved_prospects").delete().eq("id", id);
+  const handleRemoveProspect = async (id: string) => {
+    await removeProspect(id);
     setProspects(prev => prev.filter(p => p.id !== id));
     toast.success("Prospect removed");
   };
 
-  const addToList = async (playerId: string) => {
+  const handleAddToList = async (playerId: string) => {
     if (!selectedList) return;
-    const { error } = await supabase.from("scout_list_members").insert({ list_id: selectedList, player_id: playerId });
-    if (error?.code === "23505") toast.error("Already in that list");
-    else if (error) toast.error("Failed to add");
+    const result = await addToScoutList(selectedList, playerId);
+    if (result.error?.includes("23505")) toast.error("Already in that list");
+    else if (result.error) toast.error("Failed to add");
     else toast.success("Added to list");
     setAddToListId(null);
     setSelectedList("");
@@ -179,7 +180,7 @@ export default function ScoutSavedProspects() {
                     <button onClick={() => p.player.profile_slug && navigate(`/p/${p.player.profile_slug}`)} className="font-bold text-sm hover:text-primary truncate">
                       {p.player.first_name} {p.player.last_name}
                     </button>
-                    <Select value={p.status} onValueChange={v => updateStatus(p.id, v)}>
+                    <Select value={p.status} onValueChange={v => handleUpdateStatus(p.id, v)}>
                       <SelectTrigger className={`h-5 text-[10px] px-2 py-0 w-auto border-0 ${STATUS_COLORS[p.status] || ""}`}>
                         <SelectValue />
                       </SelectTrigger>
@@ -237,12 +238,12 @@ export default function ScoutSavedProspects() {
                               {lists.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
-                          <Button className="w-full" disabled={!selectedList} onClick={() => addToList(p.player_id)}>Add</Button>
+                          <Button className="w-full" disabled={!selectedList} onClick={() => handleAddToList(p.player_id)}>Add</Button>
                         </div>
                       )}
                     </DialogContent>
                   </Dialog>
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => removeProspect(p.id)}>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => handleRemoveProspect(p.id)}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>

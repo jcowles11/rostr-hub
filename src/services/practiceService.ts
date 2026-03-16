@@ -7,6 +7,7 @@
  * Tables: practice_plans, practice_blocks (migration 20260315000007)
  */
 import { supabase } from "@/integrations/supabase/client";
+import { validate, createPracticeSchema, updatePracticeSchema, createPracticeBlockSchema } from "@/lib/validation";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -97,16 +98,20 @@ export async function fetchPracticePlan(
 export async function createPracticePlan(
   input: CreatePlanInput
 ): Promise<{ data: PracticePlan | null; error: string | null }> {
+  const validation = validate(createPracticeSchema, input);
+  if (!validation.success) return { data: null, error: validation.error };
+  const validated = validation.data;
+
   const { data, error } = await supabase
     .from("practice_plans")
     .insert({
-      program_id: input.program_id,
-      practice_date: input.practice_date,
-      team_level: input.team_level || null,
-      title: input.title?.trim() || "Practice",
-      notes: input.notes?.trim() || null,
-      shared_with_players: input.shared_with_players ?? false,
-      created_by: input.created_by || null,
+      program_id: validated.program_id,
+      practice_date: validated.practice_date,
+      team_level: validated.team_level || null,
+      title: validated.title?.trim() || "Practice",
+      notes: validated.notes?.trim() || null,
+      shared_with_players: validated.shared_with_players ?? false,
+      created_by: validated.created_by || null,
     })
     .select()
     .single();
@@ -120,9 +125,13 @@ export async function updatePracticePlan(
   planId: string,
   updates: Partial<Pick<PracticePlan, "practice_date" | "team_level" | "title" | "notes" | "shared_with_players">>
 ): Promise<{ data: PracticePlan | null; error: string | null }> {
+  const validation = validate(updatePracticeSchema, updates);
+  if (!validation.success) return { data: null, error: validation.error };
+  const validated = validation.data;
+
   const { data, error } = await supabase
     .from("practice_plans")
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update({ ...validated, updated_at: new Date().toISOString() })
     .eq("id", planId)
     .select()
     .single();
@@ -180,17 +189,21 @@ export async function fetchPracticeBlocks(
 export async function createPracticeBlock(
   input: CreateBlockInput
 ): Promise<{ data: PracticeBlock | null; error: string | null }> {
+  const validation = validate(createPracticeBlockSchema, input);
+  if (!validation.success) return { data: null, error: validation.error };
+  const validated = validation.data;
+
   const { data, error } = await supabase
     .from("practice_blocks")
     .insert({
-      practice_plan_id: input.practice_plan_id,
-      start_time: input.start_time,
-      end_time: input.end_time,
-      activity_name: input.activity_name.trim(),
-      player_group: input.player_group?.trim() || null,
-      assigned_coach_id: input.assigned_coach_id || null,
-      notes: input.notes?.trim() || null,
-      sort_order: input.sort_order ?? 0,
+      practice_plan_id: validated.practice_plan_id,
+      start_time: validated.start_time,
+      end_time: validated.end_time,
+      activity_name: validated.activity_name.trim(),
+      player_group: validated.player_group?.trim() || null,
+      assigned_coach_id: validated.assigned_coach_id || null,
+      notes: validated.notes?.trim() || null,
+      sort_order: validated.sort_order ?? 0,
     })
     .select()
     .single();

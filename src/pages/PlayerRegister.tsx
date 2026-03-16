@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import rostrLogo from "@/assets/rostr-logo.png";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { registerPlayerForTryouts } from "@/services/playerService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -72,7 +73,7 @@ export default function PlayerRegister() {
       return;
     }
 
-    const { error } = await supabase.from("players").insert({
+    const { error } = await registerPlayerForTryouts({
       program_id: program.id,
       first_name: form.first_name,
       last_name: form.last_name,

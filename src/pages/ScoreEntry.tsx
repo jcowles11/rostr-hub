@@ -48,6 +48,7 @@ export default function ScoreEntry() {
   const [sessionSaveCount, setSessionSaveCount] = useState(0);
 
   const [previousScores, setPreviousScores] = useState<PreviousScore[]>([]);
+  const [loadingInitial, setLoadingInitial] = useState(true);
 
   // Retry queue for network failures
   const retryCallbacks = useMemo(() => ({
@@ -76,6 +77,7 @@ export default function ScoreEntry() {
   // Fetch players and metrics on mount
   useEffect(() => {
     if (!coach) return;
+    setLoadingInitial(true);
     Promise.all([
       fetchPlayerSummaries(coach.program_id),
       fetchMetricsForScoring(coach.program_id),
@@ -83,6 +85,10 @@ export default function ScoreEntry() {
       setPlayers(pRes.data);
       setMetrics(mRes.data);
       if (mRes.data.length > 0) setSelectedMetric(mRes.data[0].id);
+    }).catch(() => {
+      toast.error("Failed to load players and metrics");
+    }).finally(() => {
+      setLoadingInitial(false);
     });
   }, [coach]);
 
@@ -93,7 +99,8 @@ export default function ScoreEntry() {
       return;
     }
     fetchSessionEvaluations(coach.program_id, selectedMetric, coach.id, selectedSession)
-      .then(({ data }) => setExistingEvals(data));
+      .then(({ data }) => setExistingEvals(data))
+      .catch(() => toast.error("Failed to load existing evaluations"));
   }, [coach, selectedMetric, selectedSession, recentScores]);
 
   const filtered = players
@@ -142,7 +149,8 @@ export default function ScoreEntry() {
       return;
     }
     fetchPreviousSessionScores(coach.program_id, resolvedActivePlayer.id, selectedMetric, selectedSession)
-      .then(({ data }) => setPreviousScores(data));
+      .then(({ data }) => setPreviousScores(data))
+      .catch(() => toast.error("Failed to load previous scores"));
   }, [coach, resolvedActivePlayer?.id, selectedMetric, selectedSession]);
 
   const showSaveFlash = useCallback((status: "saved" | "error") => {
@@ -322,6 +330,25 @@ export default function ScoreEntry() {
   }, [stationMode, filtered, existingEvals]);
 
   const sessionDisabled = !selectedSession;
+
+  if (loadingInitial) {
+    return (
+      <div className="mx-auto max-w-lg px-4 pt-4 space-y-4 animate-pulse">
+        <div className="h-8 w-48 bg-muted rounded-lg" />
+        <div className="h-4 w-32 bg-muted rounded" />
+        <div className="h-12 w-full bg-muted rounded-xl" />
+        <div className="flex gap-2">
+          <div className="h-12 flex-1 bg-muted rounded-xl" />
+          <div className="h-12 w-12 bg-muted rounded-xl" />
+        </div>
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-14 w-full bg-muted rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-lg px-4 pt-4 animate-fade-in">
@@ -599,7 +626,17 @@ export default function ScoreEntry() {
       ) : null}
 
       {/* Player list */}
-      {!resolvedActivePlayer && !sessionDisabled && (
+      {!resolvedActivePlayer && !sessionDisabled && filtered.length === 0 && (
+        <div className="rounded-xl border border-dashed bg-card/50 p-6 text-center">
+          <p className="font-bold text-sm">{players.length === 0 ? "No players on roster" : "No matching players"}</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {players.length === 0
+              ? "Add players to your roster to start scoring."
+              : "Try a different search term."}
+          </p>
+        </div>
+      )}
+      {!resolvedActivePlayer && !sessionDisabled && filtered.length > 0 && (
         <div className="space-y-2 max-h-[50vh] overflow-y-auto stagger-list">
           {filtered.map((p) => {
             const attemptDots = maxAttempts > 1 ? Array.from({ length: maxAttempts }, (_, i) => {

@@ -10,6 +10,9 @@
  * - Tryout session creation/edit
  * - Metric creation/edit
  * - Score entry (evaluation)
+ * - Game creation/update
+ * - Practice plan creation/update
+ * - Practice block creation
  */
 import { z } from "zod";
 
@@ -125,6 +128,320 @@ export const scoreEntrySchema = z.object({
 });
 
 export type ScoreEntryInput = z.infer<typeof scoreEntrySchema>;
+
+// ── Game ────────────────────────────────────────────────────────────
+
+const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+const timeRegex = /^\d{2}:\d{2}$/;
+
+export const createGameSchema = z.object({
+  program_id: z.string().uuid("Invalid program ID"),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Game name is required")
+    .max(200, "Game name must be under 200 characters"),
+  created_by: z.string().uuid("Invalid user ID"),
+  opponent: z
+    .string()
+    .trim()
+    .max(200, "Opponent must be under 200 characters")
+    .optional(),
+  team_level: z
+    .string()
+    .trim()
+    .max(100, "Team level must be under 100 characters")
+    .optional(),
+  game_date: z
+    .string()
+    .regex(dateRegex, "Date must be in YYYY-MM-DD format")
+    .optional(),
+  game_time: z
+    .string()
+    .regex(timeRegex, "Time must be in HH:MM format")
+    .optional(),
+  location: z
+    .string()
+    .trim()
+    .max(300, "Location must be under 300 characters")
+    .optional(),
+  season_id: z.string().uuid("Invalid season ID").optional(),
+  notes: z
+    .string()
+    .trim()
+    .max(2000, "Notes must be under 2000 characters")
+    .optional(),
+});
+
+export type CreateGameInput = z.infer<typeof createGameSchema>;
+
+export const updateGameSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Game name is required")
+    .max(200, "Game name must be under 200 characters")
+    .optional(),
+  opponent: z
+    .string()
+    .trim()
+    .max(200, "Opponent must be under 200 characters")
+    .nullable()
+    .optional(),
+  team_level: z
+    .string()
+    .trim()
+    .max(100, "Team level must be under 100 characters")
+    .nullable()
+    .optional(),
+  game_date: z
+    .string()
+    .regex(dateRegex, "Date must be in YYYY-MM-DD format")
+    .optional(),
+  game_time: z
+    .string()
+    .regex(timeRegex, "Time must be in HH:MM format")
+    .nullable()
+    .optional(),
+  location: z
+    .string()
+    .trim()
+    .max(300, "Location must be under 300 characters")
+    .nullable()
+    .optional(),
+  notes: z
+    .string()
+    .trim()
+    .max(2000, "Notes must be under 2000 characters")
+    .nullable()
+    .optional(),
+  status: z
+    .string()
+    .trim()
+    .min(1, "Status is required")
+    .max(50, "Status must be under 50 characters")
+    .optional(),
+});
+
+export type UpdateGameInput = z.infer<typeof updateGameSchema>;
+
+// ── Practice Plan ───────────────────────────────────────────────────
+
+export const createPracticeSchema = z.object({
+  program_id: z.string().uuid("Invalid program ID"),
+  practice_date: z
+    .string()
+    .regex(dateRegex, "Date must be in YYYY-MM-DD format"),
+  team_level: z
+    .string()
+    .trim()
+    .max(100, "Team level must be under 100 characters")
+    .nullable()
+    .optional(),
+  title: z
+    .string()
+    .trim()
+    .max(200, "Title must be under 200 characters")
+    .optional(),
+  notes: z
+    .string()
+    .trim()
+    .max(2000, "Notes must be under 2000 characters")
+    .nullable()
+    .optional(),
+  shared_with_players: z.boolean().optional(),
+  created_by: z.string().uuid("Invalid user ID").optional(),
+});
+
+export type CreatePracticeInput = z.infer<typeof createPracticeSchema>;
+
+export const updatePracticeSchema = z.object({
+  practice_date: z
+    .string()
+    .regex(dateRegex, "Date must be in YYYY-MM-DD format")
+    .optional(),
+  team_level: z
+    .string()
+    .trim()
+    .max(100, "Team level must be under 100 characters")
+    .nullable()
+    .optional(),
+  title: z
+    .string()
+    .trim()
+    .min(1, "Title is required")
+    .max(200, "Title must be under 200 characters")
+    .optional(),
+  notes: z
+    .string()
+    .trim()
+    .max(2000, "Notes must be under 2000 characters")
+    .nullable()
+    .optional(),
+  shared_with_players: z.boolean().optional(),
+});
+
+export type UpdatePracticeInput = z.infer<typeof updatePracticeSchema>;
+
+// ── Practice Block ──────────────────────────────────────────────────
+
+export const createPracticeBlockSchema = z.object({
+  practice_plan_id: z.string().uuid("Invalid practice plan ID"),
+  start_time: z
+    .string()
+    .regex(timeRegex, "Start time must be in HH:MM format"),
+  end_time: z
+    .string()
+    .regex(timeRegex, "End time must be in HH:MM format"),
+  activity_name: z
+    .string()
+    .trim()
+    .min(1, "Activity name is required")
+    .max(200, "Activity name must be under 200 characters"),
+  player_group: z
+    .string()
+    .trim()
+    .max(200, "Player group must be under 200 characters")
+    .nullable()
+    .optional(),
+  assigned_coach_id: z
+    .string()
+    .uuid("Invalid coach ID")
+    .nullable()
+    .optional(),
+  notes: z
+    .string()
+    .trim()
+    .max(2000, "Notes must be under 2000 characters")
+    .nullable()
+    .optional(),
+  sort_order: z
+    .number()
+    .int("Sort order must be a whole number")
+    .min(0, "Sort order must be non-negative")
+    .max(999, "Sort order must be under 1000")
+    .optional(),
+});
+
+export type CreatePracticeBlockInput = z.infer<typeof createPracticeBlockSchema>;
+
+// ── Player Profile Update ─────────────────────────────────────────
+
+export const updatePlayerProfileSchema = z
+  .object({
+    first_name: z
+      .string()
+      .trim()
+      .min(1, "First name is required")
+      .max(100, "First name must be under 100 characters")
+      .optional(),
+    last_name: z
+      .string()
+      .trim()
+      .min(1, "Last name is required")
+      .max(100, "Last name must be under 100 characters")
+      .optional(),
+    grade: z
+      .number()
+      .int("Grade must be a whole number")
+      .min(1, "Grade must be at least 1")
+      .max(16, "Grade must be 16 or less")
+      .nullable()
+      .optional(),
+    positions: z
+      .array(z.string().min(1).max(10))
+      .max(10, "Maximum 10 positions")
+      .optional(),
+    bats: z.enum(["R", "L", "S"]).nullable().optional(),
+    throws: z.enum(["R", "L"]).nullable().optional(),
+    photo_url: z.string().url("Invalid photo URL").nullable().optional(),
+    player_number: z
+      .number()
+      .int("Player number must be a whole number")
+      .min(0, "Player number must be non-negative")
+      .max(999, "Player number must be 999 or less")
+      .nullable()
+      .optional(),
+    graduation_year: z
+      .number()
+      .int("Graduation year must be a whole number")
+      .min(2000, "Graduation year must be 2000 or later")
+      .max(2100, "Graduation year must be 2100 or earlier")
+      .nullable()
+      .optional(),
+    height: z.string().max(20, "Height must be under 20 characters").nullable().optional(),
+    weight: z
+      .number()
+      .min(0, "Weight must be non-negative")
+      .max(1000, "Weight must be 1000 or less")
+      .nullable()
+      .optional(),
+  })
+  .strict();
+
+export type UpdatePlayerProfileInput = z.infer<typeof updatePlayerProfileSchema>;
+
+// ── Coach ─────────────────────────────────────────────────────────
+
+export const addCoachSchema = z.object({
+  programId: z.string().uuid("Invalid program ID"),
+  fullName: z
+    .string()
+    .trim()
+    .max(200, "Name must be under 200 characters")
+    .default(""),
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email is required")
+    .email("Invalid email address"),
+  color: z.string().min(1, "Color is required"),
+});
+
+export type AddCoachInput = z.infer<typeof addCoachSchema>;
+
+// ── Season ────────────────────────────────────────────────────────
+
+export const createSeasonSchema = z.object({
+  program_id: z.string().uuid("Invalid program ID"),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Season name is required")
+    .max(200, "Season name must be under 200 characters"),
+  is_active: z.boolean(),
+});
+
+export type CreateSeasonInput = z.infer<typeof createSeasonSchema>;
+
+// ── Program ───────────────────────────────────────────────────────
+
+export const createProgramSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Program name is required")
+    .max(200, "Program name must be under 200 characters"),
+  sport: z.string().min(1, "Sport is required"),
+  organizationId: z.string().uuid("Invalid organization ID"),
+  schoolName: z.string().trim().default(""),
+  createdBy: z.string().uuid("Invalid user ID"),
+});
+
+export type CreateProgramInput = z.infer<typeof createProgramSchema>;
+
+// ── Organization ──────────────────────────────────────────────────
+
+export const createOrganizationSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Organization name is required")
+    .max(200, "Organization name must be under 200 characters"),
+  createdBy: z.string().uuid("Invalid user ID"),
+});
+
+export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
 
 // ── Metric Bounds ──────────────────────────────────────────────────
 

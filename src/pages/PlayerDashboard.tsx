@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import rostrLogo from "@/assets/rostr-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { updatePlayerPhoto, joinProgramByCode } from "@/services/playerService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -66,6 +66,7 @@ export default function PlayerDashboard() {
     if (!playerInfo) return;
     const fetchData = async () => {
       const pRes = await supabase.from("players").select("id, first_name, last_name, grade, graduation_year, positions, player_number, photo_url, results_visible, high_school, city, state, bats, throws").eq("id", playerInfo.id).single();
+      if (pRes.error) { toast.error("Failed to load your profile."); }
       setPlayer(pRes.data);
 
       if (playerInfo.program_id) {
@@ -74,6 +75,7 @@ export default function PlayerDashboard() {
           supabase.from("metrics").select("id, name, unit, metric_type, aggregation, visible_to_players").eq("program_id", playerInfo.program_id).order("sort_order"),
           supabase.from("evaluations").select("metric_id, value, created_at").eq("player_id", playerInfo.id).order("created_at"),
         ]);
+        if (prRes.error || mRes.error || eRes.error) { toast.error("Some profile data failed to load."); }
         setProgram(prRes.data);
         setMetrics(mRes.data || []);
         setEvals(eRes.data || []);
@@ -85,10 +87,29 @@ export default function PlayerDashboard() {
 
   if (loading || !player) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="text-center animate-scale-in">
-          <img src={rostrLogo} alt="Rostr" className="mx-auto mb-4 h-20 w-20 rounded-3xl shadow-glow animate-pulse-soft object-cover" />
-          <p className="text-muted-foreground font-medium">Loading...</p>
+      <div className="mx-auto max-w-lg px-4 pt-4 pb-8 space-y-5">
+        {/* Hero skeleton */}
+        <div className="page-hero mb-5">
+          <div className="flex items-center gap-4">
+            <div className="h-16 w-16 rounded-full bg-white/20 animate-pulse" />
+            <div className="space-y-2 flex-1">
+              <div className="h-6 w-40 rounded-lg bg-white/20 animate-pulse" />
+              <div className="h-4 w-28 rounded-lg bg-white/15 animate-pulse" />
+              <div className="flex gap-1.5 mt-1.5">
+                <div className="h-5 w-12 rounded-lg bg-white/15 animate-pulse" />
+                <div className="h-5 w-10 rounded-lg bg-white/15 animate-pulse" />
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* Tab skeleton */}
+        <div className="h-10 w-full rounded-lg bg-muted animate-pulse" />
+        {/* Card skeleton */}
+        <div className="rounded-xl border bg-card p-5 space-y-3">
+          <div className="h-5 w-36 rounded bg-muted animate-pulse" />
+          <div className="h-14 w-full rounded-xl bg-muted/60 animate-pulse" />
+          <div className="h-14 w-full rounded-xl bg-muted/60 animate-pulse" />
+          <div className="h-14 w-full rounded-xl bg-muted/60 animate-pulse" />
         </div>
       </div>
     );
@@ -117,7 +138,8 @@ export default function PlayerDashboard() {
             playerId={player.id}
             currentUrl={player.photo_url}
             onUploaded={async (url) => {
-              await supabase.from("players").update({ photo_url: url }).eq("id", player.id);
+              const { error } = await updatePlayerPhoto(player.id, url);
+              if (error) { toast.error(error); return; }
               setPlayer({ ...player, photo_url: url });
               toast.success("Photo updated");
               refreshPlayer();
@@ -176,13 +198,16 @@ export default function PlayerDashboard() {
           {canSeeResults ? (
             <Card className="section-card">
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  <Eye className="h-5 w-5" /> My Evaluations
+                <CardTitle className="text-xs font-extrabold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <Eye className="h-4 w-4" /> My Evaluations
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {visibleMetrics.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">No metrics to display yet.</p>
+                  <div className="rounded-xl border border-dashed bg-card/50 p-6 text-center">
+                    <h4 className="text-sm font-bold mb-1">No Metrics Yet</h4>
+                    <p className="text-xs text-muted-foreground">Your evaluation metrics will appear here once your coach records them.</p>
+                  </div>
                 ) : (
                   visibleMetrics.map((m) => {
                     const vals = evalsByMetric.get(m.id) || [];
@@ -267,10 +292,7 @@ function JoinProgramCard() {
       .maybeSingle();
 
     if (playerRecord) {
-      const { error } = await supabase
-        .from("players")
-        .update({ program_id: program.id })
-        .eq("id", playerRecord.id);
+      const { error } = await joinProgramByCode(playerRecord.id, program.id);
 
       if (error) {
         toast.error("Failed to join. Check the code and try again.");

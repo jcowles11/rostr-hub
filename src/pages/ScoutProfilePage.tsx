@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { updateScoutProfile } from "@/services/scoutService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,7 +84,7 @@ export default function ScoutProfilePage() {
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from("scouts").update({
+    const result = await updateScoutProfile(profile.id, {
       full_name: profile.full_name,
       organization_name: profile.organization_name,
       title: profile.title,
@@ -95,8 +96,8 @@ export default function ScoutProfilePage() {
       positions_recruiting: profile.positions_recruiting || [],
       contact_email: profile.contact_email,
       contact_phone: profile.contact_phone,
-    }).eq("id", profile.id);
-    if (error) toast.error("Failed to save");
+    });
+    if (result.error) toast.error("Failed to save");
     else {
       toast.success("Profile saved");
       refreshScout();

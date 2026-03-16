@@ -5,7 +5,12 @@
  * Used by: Roster.tsx, Dashboard.tsx, ScoreEntry.tsx
  */
 import { supabase } from "@/integrations/supabase/client";
-import { createPlayerSchema, validate } from "@/lib/validation";
+import {
+  createPlayerSchema,
+  updatePlayerProfileSchema,
+  validate,
+  type UpdatePlayerProfileInput,
+} from "@/lib/validation";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -46,6 +51,18 @@ export interface CreatePlayerInput {
 }
 
 // ── Queries ────────────────────────────────────────────────────────
+
+/** Fetch a single player by ID (PlayerDetail). */
+export async function fetchPlayerById(playerId: string): Promise<{ data: Record<string, unknown> | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from("players")
+    .select("*")
+    .eq("id", playerId)
+    .single();
+
+  if (error) return { data: null, error: error.message };
+  return { data: data as Record<string, unknown>, error: null };
+}
 
 /** Fetch full roster for a program (used by Roster page). */
 export async function fetchRosterPlayers(programId: string): Promise<{ data: PlayerListItem[]; error: string | null }> {
@@ -103,6 +120,24 @@ export async function fetchPlayerNames(
   if (error) {
     return { data: [], error: error.message };
   }
+  return { data: data ?? [], error: null };
+}
+
+/** Lightweight player info used during data import matching. */
+export interface PlayerImportSummary {
+  id: string;
+  first_name: string;
+  last_name: string;
+}
+
+/** Fetch lightweight player list for import matching (includes id). */
+export async function fetchPlayerImportSummaries(programId: string): Promise<{ data: PlayerImportSummary[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from("players")
+    .select("id, first_name, last_name")
+    .eq("program_id", programId);
+
+  if (error) return { data: [], error: error.message };
   return { data: data ?? [], error: null };
 }
 
@@ -182,14 +217,23 @@ export async function bulkCreatePlayers(
   return { data: data ?? [], error: null };
 }
 
-/** Update a player's profile fields. */
+/** Update a player's profile fields (validates input before writing). */
 export async function updatePlayerProfile(
   playerId: string,
-  updates: Record<string, unknown>
+  updates: UpdatePlayerProfileInput
 ): Promise<{ error: string | null }> {
   if (!playerId) return { error: "Missing player ID" };
   if (Object.keys(updates).length === 0) return { error: null };
-  const { error } = await supabase.from("players").update(updates).eq("id", playerId);
+
+  const validation = validate(updatePlayerProfileSchema, updates);
+  if (!validation.success) {
+    return { error: validation.error };
+  }
+
+  const { error } = await supabase
+    .from("players")
+    .update(validation.data)
+    .eq("id", playerId);
   return { error: error?.message ?? null };
 }
 
@@ -257,4 +301,232 @@ export async function getRegistrationCode(programId: string): Promise<{ code: st
     return { code: null, error: error.message };
   }
   return { code: data?.registration_code ?? null, error: null };
+}
+
+// ── Player Profile Settings ─────────────────────────────────────────
+
+/** Fetch player profile fields for the settings page. */
+export async function fetchPlayerProfileFields(
+  playerId: string
+): Promise<{ data: Record<string, unknown> | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from("players")
+    .select("profile_public, show_contact_info, graduation_year, grade, birthday, high_school, positions, bats, throws, height, weight, gpa, social_twitter, social_instagram, highlight_video_url, profile_slug, recruiting_status, committed_school_name, committed_school_logo_url, commitment_date, city, state, email, phone, gamechanger_profile_url, maxpreps_profile_url")
+    .eq("id", playerId)
+    .single();
+
+  if (error) return { data: null, error: error.message };
+  return { data: data as unknown as Record<string, unknown>, error: null };
+}
+
+/** Save player profile settings (excluding profile_slug). */
+export async function savePlayerProfile(
+  playerId: string,
+  fields: Record<string, unknown>
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("players")
+    .update(fields as any)
+    .eq("id", playerId);
+
+  return { error: error ? "Failed to save profile settings" : null };
+}
+
+// ── Visibility ──────────────────────────────────────────────────────
+
+export interface PlayerVisibilityItem {
+  id: string;
+  first_name: string;
+  last_name: string;
+  player_number: number | null;
+  results_visible: boolean | null;
+}
+
+/** Fetch player visibility info for the visibility manager. */
+export async function fetchPlayerVisibility(
+  programId: string
+): Promise<{ data: PlayerVisibilityItem[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from("players")
+    .select("id, first_name, last_name, player_number, results_visible")
+    .eq("program_id", programId)
+    .order("last_name");
+
+  if (error) return { data: [], error: error.message };
+  return { data: (data ?? []) as PlayerVisibilityItem[], error: null };
+}
+
+/** Update a player's results_visible flag. */
+export async function updatePlayerResultsVisible(
+  playerId: string,
+  resultsVisible: boolean | null
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("players")
+    .update({ results_visible: resultsVisible })
+    .eq("id", playerId);
+
+  return { error: error?.message ?? null };
+}
+
+/** Bulk insert players (for roster upload). */
+export async function bulkInsertPlayers(
+  players: Array<{
+    program_id: string;
+    first_name: string;
+    last_name: string;
+    grade: number | null;
+    positions: string[];
+    jersey_number_preference: number | null;
+    bats: string | null;
+    throws: string | null;
+  }>
+): Promise<{ error: string | null }> {
+  const { error } = await supabase.from("players").insert(players);
+  return { error: error?.message ?? null };
+}
+
+// ── Club Teams ──────────────────────────────────────────────────────
+
+export interface ClubTeamItem {
+  id: string;
+  name: string;
+  is_current: boolean;
+}
+
+/** Fetch club teams for a player. */
+export async function fetchClubTeams(
+  playerId: string
+): Promise<{ data: ClubTeamItem[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from("player_club_teams")
+    .select("id, name, is_current")
+    .eq("player_id", playerId)
+    .order("is_current", { ascending: false });
+
+  if (error) return { data: [], error: error.message };
+  return { data: data ?? [], error: null };
+}
+
+/** Add a club team for a player. */
+export async function addPlayerClubTeam(
+  playerId: string,
+  name: string
+): Promise<{ data: ClubTeamItem | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from("player_club_teams")
+    .insert({ player_id: playerId, name, is_current: true } as any)
+    .select("id, name, is_current")
+    .single();
+
+  if (error) return { data: null, error: "Failed to add club team" };
+  return { data: data as ClubTeamItem, error: null };
+}
+
+/** Remove a club team. */
+export async function removePlayerClubTeam(
+  clubTeamId: string
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("player_club_teams")
+    .delete()
+    .eq("id", clubTeamId);
+
+  return { error: error ? error.message : null };
+}
+
+/** Toggle current status of a club team. */
+export async function togglePlayerClubTeamCurrent(
+  clubTeamId: string,
+  isCurrent: boolean
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("player_club_teams")
+    .update({ is_current: !isCurrent } as any)
+    .eq("id", clubTeamId);
+
+  return { error: error ? error.message : null };
+}
+
+// ── Player Photo ────────────────────────────────────────────────────
+
+/** Update a player's photo URL. */
+export async function updatePlayerPhoto(
+  playerId: string,
+  photoUrl: string
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("players")
+    .update({ photo_url: photoUrl })
+    .eq("id", playerId);
+  return { error: error?.message ?? null };
+}
+
+// ── Player-Facing Join / Link / Register ────────────────────────────
+
+/** Join a program by updating an existing standalone player's program_id. */
+export async function joinProgramByCode(
+  playerId: string,
+  programId: string
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("players")
+    .update({ program_id: programId })
+    .eq("id", playerId);
+  return { error: error?.message ?? null };
+}
+
+/** Link an existing unclaimed player record to a user (claim + update fields). */
+export async function linkPlayerToUser(
+  playerId: string,
+  userId: string,
+  fields: Record<string, unknown>
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("players")
+    .update({ user_id: userId, ...fields })
+    .eq("id", playerId);
+  return { error: error?.message ?? null };
+}
+
+/** Create a new player record (used by link page, register page, join page). */
+export async function insertPlayer(
+  fields: Record<string, unknown>
+): Promise<{ error: string | null }> {
+  const { error } = await supabase.from("players").insert(fields as any);
+  return { error: error?.message ?? null };
+}
+
+/** Create a program join request. */
+export async function createJoinRequest(
+  programId: string,
+  userId: string,
+  playerName: string
+): Promise<{ error: string | null }> {
+  const { error } = await supabase.from("program_join_requests").insert({
+    program_id: programId,
+    user_id: userId,
+    player_name: playerName,
+  } as any);
+  return { error: error?.message ?? null };
+}
+
+/** Register a player for tryouts (public registration form). */
+export async function registerPlayerForTryouts(input: {
+  program_id: string;
+  first_name: string;
+  last_name: string;
+  grade: number | null;
+  positions: string[];
+  jersey_number_preference: number | null;
+  travel_ball_experience: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  medical_notes: string | null;
+  photo_url: string | null;
+  bats: string | null;
+  throws: string | null;
+}): Promise<{ error: string | null }> {
+  const { error } = await supabase.from("players").insert(input);
+  return { error: error?.message ?? null };
 }

@@ -3,6 +3,7 @@ import rostrLogo from "@/assets/rostr-logo.png";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { insertPlayer, linkPlayerToUser, createJoinRequest } from "@/services/playerService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -67,12 +68,12 @@ export default function PlayerLinkPage() {
       // If player signed up via "Find my school", auto-create join request
       if (parsed.join_method === "request" && parsed.program_id) {
         setRegCode(""); // Don't pre-fill code
-        const createJoinRequest = async () => {
-          const { error } = await supabase.from("program_join_requests").insert({
-            program_id: parsed.program_id,
-            user_id: user.id,
-            player_name: parsed.full_name || "Player",
-          } as any);
+        const sendJoinRequest = async () => {
+          const { error } = await createJoinRequest(
+            parsed.program_id,
+            user.id,
+            parsed.full_name || "Player"
+          );
           if (!error) {
             toast.success(`Access request sent to ${parsed.requested_program_name || "the program"}! The coach will review it.`);
           }
@@ -80,7 +81,7 @@ export default function PlayerLinkPage() {
           const updated = { ...parsed, join_method: "request_sent" };
           localStorage.setItem(`rostr_player_reg_${user.id}`, JSON.stringify(updated));
         };
-        createJoinRequest();
+        sendJoinRequest();
       }
 
       // If reg code method, pre-fill it
@@ -145,11 +146,11 @@ export default function PlayerLinkPage() {
       return;
     }
     setSkipping(true);
-    const { error } = await supabase.from("players").insert({
+    const { error } = await insertPlayer({
       ...buildPlayerFields(),
       user_id: user.id,
       program_id: null,
-    } as any);
+    });
 
     if (error) {
       toast.error("Failed to create profile");
@@ -192,17 +193,14 @@ export default function PlayerLinkPage() {
       .maybeSingle();
 
     if (existingPlayer) {
-      const { error } = await supabase
-        .from("players")
-        .update({ user_id: user.id, ...buildPlayerFields() })
-        .eq("id", existingPlayer.id);
+      const { error } = await linkPlayerToUser(existingPlayer.id, user.id, buildPlayerFields());
       if (error) {
         toast.error("Failed to link account");
         setLoading(false);
         return;
       }
     } else {
-      const { error } = await supabase.from("players").insert({
+      const { error } = await insertPlayer({
         program_id: program.id,
         user_id: user.id,
         ...buildPlayerFields(),
@@ -562,14 +560,10 @@ function ProgramSearch({ userName, userId }: { userName: string; userId?: string
       return;
     }
     setSubmitting(program.id);
-    const { error } = await supabase.from("program_join_requests").insert({
-      program_id: program.id,
-      user_id: userId,
-      player_name: userName,
-    } as any);
+    const { error } = await createJoinRequest(program.id, userId!, userName);
 
     if (error) {
-      if (error.message.includes("duplicate") || error.code === "23505") {
+      if (error.includes("duplicate") || error.includes("23505")) {
         toast.info("You've already requested to join this program");
       } else {
         toast.error("Failed to send request");

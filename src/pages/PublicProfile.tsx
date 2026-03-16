@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { followPlayer, unfollowPlayer } from "@/services/socialService";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -479,10 +480,10 @@ export default function PublicProfile() {
     if (!user || !followPlayerId) return;
     if (isFollowed) {
       setIsFollowed(false);
-      await supabase.from("follows").delete().eq("follower_id", user.id).eq("followed_player_id", followPlayerId);
+      await unfollowPlayer(user.id, followPlayerId);
     } else {
       setIsFollowed(true);
-      await supabase.from("follows").insert({ follower_id: user.id, followed_player_id: followPlayerId });
+      await followPlayer(user.id, followPlayerId);
     }
   };
 

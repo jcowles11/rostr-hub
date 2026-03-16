@@ -1,6 +1,6 @@
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Shield, User, Eye, Search, Zap, Loader2 } from "lucide-react";
+import { Shield, User, Eye, Search, Zap, Loader2, ArrowLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
@@ -12,6 +12,7 @@ const DEMO_ROLES = [
     key: "coach",
     label: "Coach Demo",
     description: "Run baseball tryouts, manage rosters, score & rank players",
+    highlights: ["25-player roster across Varsity & JV", "Game schedule with lineups", "Tryout scoring & player rankings"],
     icon: Shield,
     path: "/",
     color: "from-blue-500 to-blue-600",
@@ -20,6 +21,7 @@ const DEMO_ROLES = [
     key: "player",
     label: "Player Demo",
     description: "Social feed, player profile, metrics & recruiting visibility",
+    highlights: ["Player profile with stats & positions", "Social feed with team activity", "Recruiting profile visibility"],
     icon: User,
     path: "/social",
     color: "from-green-500 to-green-600",
@@ -28,6 +30,7 @@ const DEMO_ROLES = [
     key: "scout",
     label: "Scout Demo",
     description: "Search, filter & discover baseball players by stats",
+    highlights: ["Filter players by position, grade & stats", "Compare player metrics side-by-side", "Export scouting reports"],
     icon: Search,
     path: "/scout",
     color: "from-purple-500 to-purple-600",
@@ -36,6 +39,7 @@ const DEMO_ROLES = [
     key: "evaluator",
     label: "Evaluator Demo",
     description: "Evaluate players & submit verified baseball metrics",
+    highlights: ["Score players on 8 baseball metrics", "Multiple tryout sessions with history", "Verified evaluation reports"],
     icon: Eye,
     path: "/evaluator",
     color: "from-amber-500 to-amber-600",
@@ -96,10 +100,14 @@ export default function DemoTour() {
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-lg space-y-8">
         <div className="text-center space-y-3">
+          <Link to="/" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-2">
+            <ArrowLeft className="h-3 w-3" />
+            Back to home
+          </Link>
           <img src={rostrLogo} alt="Rostr" className="mx-auto h-16 w-16 rounded-2xl object-cover shadow-lg" />
           <h1 className="text-2xl font-black tracking-tight">Demo Tour</h1>
           <p className="text-muted-foreground text-sm">
-            Choose a role to explore. No sign-in required.
+            Choose a role to explore. No sign-in required — we'll create a temporary account for you.
           </p>
         </div>
 
@@ -114,12 +122,20 @@ export default function DemoTour() {
                 disabled={!!loadingRole}
                 className="flex items-center gap-4 rounded-2xl border bg-card p-4 text-left transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
               >
-                <div className={`flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${role.color} text-white shadow-md`}>
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${role.color} text-white shadow-md`}>
                   {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : <Icon className="h-6 w-6" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-sm">{role.label}</p>
-                  <p className="text-xs text-muted-foreground">{role.description}</p>
+                  <p className="text-xs text-muted-foreground mb-1.5">{role.description}</p>
+                  <ul className="space-y-0.5">
+                    {role.highlights.map((h) => (
+                      <li key={h} className="text-[10px] text-muted-foreground/70 flex items-center gap-1">
+                        <ChevronRight className="h-2.5 w-2.5 shrink-0" />
+                        {h}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </button>
             );
@@ -134,10 +150,10 @@ export default function DemoTour() {
             className="w-full gap-2"
           >
             <Zap className="h-4 w-4" />
-            {seeding ? "Seeding demo data..." : "Seed Demo Data"}
+            {seeding ? "Seeding demo data..." : "Re-seed Demo Data"}
           </Button>
           <p className="text-[10px] text-center text-muted-foreground">
-            Populates the database with 150 players, posts, programs, coaches, scouts & evaluators.
+            Already in demo mode? Re-seed to refresh with 25 players, 11 games, 9 practices, 8 metrics & 3 tryout sessions.
           </p>
         </div>
       </div>

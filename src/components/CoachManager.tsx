@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  fetchCoachDetails,
+  checkCoachExists,
+  addCoach,
+  removeCoach,
+  type CoachDetail,
+} from "@/services/coachService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,17 +17,9 @@ import { toast } from "sonner";
 
 const COACH_COLORS = ["#3B82F6", "#EF4444", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#06B6D4", "#F97316"];
 
-interface Coach {
-  id: string;
-  full_name: string;
-  email: string;
-  role: string;
-  color: string;
-}
-
 export default function CoachManager() {
   const { coach } = useAuth();
-  const [coaches, setCoaches] = useState<Coach[]>([]);
+  const [coaches, setCoaches] = useState<CoachDetail[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
@@ -34,8 +32,8 @@ export default function CoachManager() {
 
   const fetchCoaches = async () => {
     if (!coach) return;
-    const { data } = await supabase.from("coaches").select("id, full_name, email, role, color").eq("program_id", coach.program_id);
-    setCoaches(data || []);
+    const { data } = await fetchCoachDetails(coach.program_id);
+    setCoaches(data);
   };
 
   useEffect(() => { fetchCoaches(); }, [coach]);
@@ -45,37 +43,36 @@ export default function CoachManager() {
     if (!coach || !inviteName.trim() || !inviteEmail.trim()) return;
     setLoading(true);
 
-    // Look up if a user with this email already has an account
-    // If so, create the coach record directly linking them
-    // Otherwise, create a placeholder that will be linked when they sign up
-    const { data: existingUser } = await supabase
-      .from("coaches")
-      .select("id")
-      .eq("program_id", coach.program_id)
-      .eq("email", inviteEmail.trim().toLowerCase())
-      .maybeSingle();
+    // Check if a coach with this email already exists in this program
+    const { exists, error: checkError } = await checkCoachExists(
+      coach.program_id,
+      inviteEmail.trim().toLowerCase()
+    );
 
-    if (existingUser) {
+    if (checkError) {
+      toast.error("Failed to check existing coaches");
+      setLoading(false);
+      return;
+    }
+
+    if (exists) {
       toast.error("A coach with this email already exists in this program.");
       setLoading(false);
       return;
     }
 
-    // Create coach record — user_id will need to be linked when they sign up.
-    // For now, use a placeholder UUID. The auth system will match by email on login.
+    // Create coach record via service
     const color = COACH_COLORS[coaches.length % COACH_COLORS.length];
-    const { error } = await supabase.from("coaches").insert({
-      user_id: crypto.randomUUID(), // Placeholder — will be updated when coach signs up
-      program_id: coach.program_id,
-      full_name: inviteName.trim(),
+    const { error } = await addCoach({
+      programId: coach.program_id,
+      fullName: inviteName.trim(),
       email: inviteEmail.trim().toLowerCase(),
-      role: "assistant_coach",
       color,
     });
 
     if (error) {
       console.error("Failed to add coach:", error);
-      toast.error(`Failed to add coach: ${error.message}`);
+      toast.error(`Failed to add coach: ${error}`);
       setLoading(false);
       return;
     }
@@ -113,7 +110,7 @@ export default function CoachManager() {
 
   const handleRemove = async (id: string) => {
     if (id === coach?.id) { toast.error("Can't remove yourself"); return; }
-    const { error } = await supabase.from("coaches").delete().eq("id", id);
+    const { error } = await removeCoach(id);
     if (error) toast.error("Failed to remove coach");
     else { toast.success("Coach removed"); fetchCoaches(); }
   };

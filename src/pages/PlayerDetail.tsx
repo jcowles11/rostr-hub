@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import rostrLogo from "@/assets/rostr-logo.png";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client"; // kept for realtime subscriptions only
 import { useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,14 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getSportPositions, sportHasBatsThrows } from "@/lib/sports";
 import { format } from "date-fns";
-import { addAdHocScore, updateScoreValue, deleteScore } from "@/services/evaluationService";
+import { addAdHocScore, updateScoreValue, deleteScore, fetchPlayerEvaluations } from "@/services/evaluationService";
+import { fetchPlayerById, updatePlayerProfile, updatePlayerPhoto } from "@/services/playerService";
+import { fetchMetricsForPlayerDetail } from "@/services/metricService";
+import { fetchCoachesWithColor } from "@/services/coachService";
+import { fetchPlayerNotes, createNote } from "@/services/noteService";
+import { fetchTryoutSessions } from "@/services/sessionService";
+import { fetchPlayerRosterAssignment } from "@/services/rosterService";
+import { fetchPlayerExternalEntries } from "@/services/evaluatorService";
 import type { MetricBounds } from "@/lib/validation";
 import { track } from "@/services/analyticsService";
 import PlayerDevelopment from "@/components/PlayerDevelopment";
@@ -137,54 +144,25 @@ export default function PlayerDetail() {
 
   const fetchAll = async () => {
     if (!coach || !id) return;
-    const [pRes, eRes, mRes, cRes, nRes, sRes] = await Promise.all([
-      supabase.from("players").select("*").eq("id", id).single(),
-      supabase.from("evaluations").select("id, value, metric_id, coach_id, created_at, session_id").eq("player_id", id),
-      supabase.from("metrics").select("id, name, unit, metric_type, category, aggregation, min_value, max_value").eq("program_id", coach.program_id).order("sort_order"),
-      supabase.from("coaches").select("id, full_name, color").eq("program_id", coach.program_id),
-      supabase.from("player_notes").select("id, content, flag, coach_id, created_at").eq("player_id", id).order("created_at", { ascending: false }),
-      supabase.from("tryout_sessions").select("id, name, session_date").eq("program_id", coach.program_id).order("session_date", { ascending: false }),
+    const [pRes, eRes, mRes, cRes, nRes, sRes, raRes, extRes] = await Promise.all([
+      fetchPlayerById(id),
+      fetchPlayerEvaluations(id),
+      fetchMetricsForPlayerDetail(coach.program_id),
+      fetchCoachesWithColor(coach.program_id),
+      fetchPlayerNotes(id),
+      fetchTryoutSessions(coach.program_id),
+      fetchPlayerRosterAssignment(id),
+      fetchPlayerExternalEntries(id),
     ]);
-    setPlayer(pRes.data);
+    setPlayer(pRes.data as Player | null);
     setEvals(eRes.data || []);
     setMetrics(mRes.data || []);
     setCoaches(cRes.data || []);
     setNotes(nRes.data || []);
     setSessionInfos(sRes.data || []);
-
-    // Fetch team level from roster_assignments
-    if (id) {
-      const { data: raData } = await supabase
-        .from("roster_assignments")
-        .select("assignment")
-        .eq("player_id", id)
-        .maybeSingle();
-      setTeamLevel(raData?.assignment && raData.assignment !== "cut" ? raData.assignment : null);
-    }
-
-    // Fetch external evaluator entries for this player
-    const { data: extData } = await supabase
-      .from("evaluator_entries")
-      .select("id, metric_name, metric_unit, metric_type, metric_value, event_name, event_date, notes, created_at, evaluator_id")
-      .eq("player_id", id)
-      .order("created_at", { ascending: false });
-
-    if (extData && extData.length > 0) {
-      const evalIds = [...new Set(extData.map((e) => e.evaluator_id))];
-      const { data: evaluators } = await supabase
-        .from("evaluators")
-        .select("id, full_name, organization_name")
-        .in("id", evalIds);
-      const evalMap = new Map(evaluators?.map((ev) => [ev.id, ev]) || []);
-      setExternalEntries(
-        extData.map((e) => ({
-          ...e,
-          evaluator: evalMap.get(e.evaluator_id) || null,
-        }))
-      );
-    } else {
-      setExternalEntries([]);
-    }
+    const raAssignment = raRes.data?.assignment;
+    setTeamLevel(raAssignment && raAssignment !== "cut" ? raAssignment : null);
+    setExternalEntries(extRes.data || []);
   };
 
   // Track profile view on mount
@@ -323,7 +301,7 @@ export default function PlayerDetail() {
   const addNote = async () => {
     if (!coach || !id || !newNote.trim()) return;
     const flagValue = newFlag as "standout" | "needs_second_look" | "concern" | undefined;
-    const { error } = await supabase.from("player_notes").insert({
+    const { error } = await createNote({
       program_id: coach.program_id,
       player_id: id,
       coach_id: coach.id,
@@ -420,23 +398,22 @@ export default function PlayerDetail() {
               playerId={player.id}
               currentUrl={player.photo_url}
               onUploaded={async (url) => {
-                await supabase.from("players").update({ photo_url: url }).eq("id", player.id);
-                setPlayer({ ...player, photo_url: url });
-                toast.success("Photo updated");
+                const { error } = await updatePlayerPhoto(player.id, url);
+                if (error) toast.error("Failed to update photo");
+                else { setPlayer({ ...player, photo_url: url }); toast.success("Photo updated"); }
               }}
               size="lg"
               className="border-2 border-white/30 rounded-full"
             />
             <button
-              onClick={() => {
+              onClick={async () => {
                 const num = prompt("Enter player number:", player.player_number?.toString() || "");
                 if (num === null) return;
                 const parsed = num.trim() === "" ? null : parseInt(num);
                 if (num.trim() !== "" && (isNaN(parsed!) || parsed! < 0)) { toast.error("Invalid number"); return; }
-                supabase.from("players").update({ player_number: parsed }).eq("id", player.id).then(({ error }) => {
-                  if (error) toast.error("Failed to update");
-                  else { setPlayer({ ...player, player_number: parsed }); toast.success("Player number updated"); }
-                });
+                const { error } = await updatePlayerProfile(player.id, { player_number: parsed });
+                if (error) toast.error("Failed to update");
+                else { setPlayer({ ...player, player_number: parsed }); toast.success("Player number updated"); }
               }}
               className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-[11px] font-extrabold text-white hover:bg-primary/80 transition-colors cursor-pointer shadow-md"
               title="Tap to edit player number"
@@ -505,7 +482,7 @@ export default function PlayerDetail() {
                     onClick={async () => {
                       const current = player.positions || [];
                       const updated = current.includes(pos) ? current.filter((p) => p !== pos) : [...current, pos];
-                      const { error } = await supabase.from("players").update({ positions: updated }).eq("id", player.id);
+                      const { error } = await updatePlayerProfile(player.id, { positions: updated });
                       if (error) toast.error("Failed to update");
                       else setPlayer({ ...player, positions: updated });
                     }}
@@ -528,7 +505,7 @@ export default function PlayerDetail() {
                   <Select
                     value={player.bats || ""}
                     onValueChange={async (v) => {
-                      const { error } = await supabase.from("players").update({ bats: v }).eq("id", player.id);
+                      const { error } = await updatePlayerProfile(player.id, { bats: v });
                       if (error) toast.error("Failed to update");
                       else setPlayer({ ...player, bats: v });
                     }}
@@ -546,7 +523,7 @@ export default function PlayerDetail() {
                   <Select
                     value={player.throws || ""}
                     onValueChange={async (v) => {
-                      const { error } = await supabase.from("players").update({ throws: v }).eq("id", player.id);
+                      const { error } = await updatePlayerProfile(player.id, { throws: v });
                       if (error) toast.error("Failed to update");
                       else setPlayer({ ...player, throws: v });
                     }}
