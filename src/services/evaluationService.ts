@@ -272,3 +272,57 @@ export async function addAdHocScore(
   });
   return { error: error?.message ?? null };
 }
+
+/**
+ * Bulk insert evaluations from import (validates values against metric bounds, inserts in chunks).
+ * Returns count of inserted evaluations and any validation warnings.
+ */
+export async function bulkInsertEvaluations(
+  evals: Array<{
+    program_id: string;
+    player_id: string;
+    metric_id: string;
+    coach_id: string;
+    value: number;
+    attempt_number: number;
+    session_id: string | null;
+  }>,
+  metricBoundsMap?: Map<string, MetricBounds>
+): Promise<{ insertedCount: number; skippedCount: number; error: string | null }> {
+  if (evals.length === 0) return { insertedCount: 0, skippedCount: 0, error: null };
+
+  // Validate each evaluation value against bounds
+  let valid = evals;
+  let skipped = 0;
+  if (metricBoundsMap && metricBoundsMap.size > 0) {
+    valid = [];
+    for (const e of evals) {
+      const bounds = metricBoundsMap.get(e.metric_id);
+      if (bounds) {
+        const err = validateScoreValue(e.value, bounds);
+        if (err) {
+          skipped++;
+          continue;
+        }
+      }
+      if (!Number.isFinite(e.value)) {
+        skipped++;
+        continue;
+      }
+      valid.push(e);
+    }
+  }
+
+  let insertedCount = 0;
+  const chunkSize = 500;
+  for (let i = 0; i < valid.length; i += chunkSize) {
+    const chunk = valid.slice(i, i + chunkSize);
+    const { error } = await supabase.from("evaluations").insert(chunk);
+    if (error) {
+      return { insertedCount, skippedCount: skipped, error: error.message };
+    }
+    insertedCount += chunk.length;
+  }
+
+  return { insertedCount, skippedCount: skipped, error: null };
+}

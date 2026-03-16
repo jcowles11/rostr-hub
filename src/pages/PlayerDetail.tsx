@@ -129,6 +129,7 @@ export default function PlayerDetail() {
   const editInputRef = useRef<HTMLInputElement>(null);
   const addInputRef = useRef<HTMLInputElement>(null);
   const [editingProfile, setEditingProfile] = useState(false);
+  const [teamLevel, setTeamLevel] = useState<string | null>(null);
 
   const sport = coach?.sport || "baseball";
   const sportPositions = getSportPositions(sport);
@@ -150,6 +151,16 @@ export default function PlayerDetail() {
     setCoaches(cRes.data || []);
     setNotes(nRes.data || []);
     setSessionInfos(sRes.data || []);
+
+    // Fetch team level from roster_assignments
+    if (id) {
+      const { data: raData } = await supabase
+        .from("roster_assignments")
+        .select("assignment")
+        .eq("player_id", id)
+        .maybeSingle();
+      setTeamLevel(raData?.assignment && raData.assignment !== "cut" ? raData.assignment : null);
+    }
 
     // Fetch external evaluator entries for this player
     const { data: extData } = await supabase
@@ -438,6 +449,16 @@ export default function PlayerDetail() {
               {player.last_name}, {player.first_name}
             </h1>
             <div className="flex flex-wrap items-center gap-1.5 mt-1">
+              {teamLevel && (() => {
+                const l = teamLevel.toLowerCase();
+                const styles: Record<string, string> = {
+                  varsity: "bg-blue-500/30 text-blue-100",
+                  jv: "bg-orange-500/30 text-orange-100",
+                  freshman: "bg-green-500/30 text-green-100",
+                };
+                const labels: Record<string, string> = { varsity: "Varsity", jv: "JV", freshman: "Freshman" };
+                return <span className={`rounded-lg px-2 py-0.5 text-xs font-extrabold ${styles[l] || "bg-white/20 text-white"}`}>{labels[l] || teamLevel}</span>;
+              })()}
               {player.grade && <span className="rounded-lg bg-white/20 px-2 py-0.5 text-xs font-semibold text-white">Grade {player.grade}</span>}
               {player.positions?.map((p) => <span key={p} className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">{p}</span>)}
               {player.jersey_number_preference && <span className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">Jersey #{player.jersey_number_preference}</span>}

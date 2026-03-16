@@ -136,6 +136,63 @@ export async function createPlayer(input: CreatePlayerInput): Promise<{ error: s
   return { error: error?.message ?? null };
 }
 
+/** Bulk-create players from import (validates names, returns IDs). */
+export async function bulkCreatePlayers(
+  players: Array<{
+    program_id: string;
+    first_name: string;
+    last_name: string;
+    positions?: string[];
+    bats?: string | null;
+    throws?: string | null;
+    grade?: number | null;
+    graduation_year?: number | null;
+    height?: string | null;
+    weight?: number | null;
+  }>
+): Promise<{ data: Array<{ id: string; first_name: string; last_name: string }> | null; error: string | null }> {
+  // Validate each player has at minimum a name
+  for (const p of players) {
+    const first = (p.first_name || "").trim();
+    const last = (p.last_name || "").trim();
+    if (!first && !last) {
+      return { data: null, error: "Each player must have a first or last name" };
+    }
+  }
+
+  const rows = players.map((p) => ({
+    program_id: p.program_id,
+    first_name: (p.first_name || "Unknown").trim(),
+    last_name: (p.last_name || "Player").trim(),
+    positions: p.positions || [],
+    bats: p.bats || null,
+    throws: p.throws || null,
+    grade: p.grade || null,
+    graduation_year: p.graduation_year || null,
+    height: p.height || null,
+    weight: p.weight || null,
+  }));
+
+  const { data, error } = await supabase
+    .from("players")
+    .insert(rows)
+    .select("id, first_name, last_name");
+
+  if (error) return { data: null, error: error.message };
+  return { data: data ?? [], error: null };
+}
+
+/** Update a player's profile fields. */
+export async function updatePlayerProfile(
+  playerId: string,
+  updates: Record<string, unknown>
+): Promise<{ error: string | null }> {
+  if (!playerId) return { error: "Missing player ID" };
+  if (Object.keys(updates).length === 0) return { error: null };
+  const { error } = await supabase.from("players").update(updates).eq("id", playerId);
+  return { error: error?.message ?? null };
+}
+
 /** Auto-assign sequential player numbers to unnumbered players. */
 export async function autoAssignPlayerNumbers(
   players: { id: string; player_number: number | null }[]

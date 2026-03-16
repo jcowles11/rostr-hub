@@ -10,6 +10,9 @@ import { Upload, AlertCircle, CheckCircle2, Database, UserPlus, Plus, CalendarDa
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
+import { bulkCreatePlayers, updatePlayerProfile } from "@/services/playerService";
+import { bulkInsertEvaluations } from "@/services/evaluationService";
+import type { MetricBounds } from "@/lib/validation";
 import { toast } from "sonner";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
@@ -43,6 +46,8 @@ interface MetricInfo {
   name: string;
   unit: string;
   metric_type: string;
+  min_value?: number | null;
+  max_value?: number | null;
 }
 
 type Step = "upload" | "identify" | "map_metrics" | "preview" | "done";
@@ -277,7 +282,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
     if (!coach || !open) return;
     Promise.all([
       supabase.from("players").select("id, first_name, last_name").eq("program_id", coach.program_id),
-      supabase.from("metrics").select("id, name, unit, metric_type").eq("program_id", coach.program_id).order("sort_order"),
+      supabase.from("metrics").select("id, name, unit, metric_type, min_value, max_value").eq("program_id", coach.program_id).order("sort_order"),
     ]).then(([pRes, mRes]) => {
       setExistingPlayers(pRes.data || []);
       setMetrics(mRes.data || []);
@@ -502,7 +507,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
 
       const newPlayers = matchedRows.filter((r) => !r.matchedPlayer && r.createNew);
       if (newPlayers.length > 0) {
-        const { data: inserted, error } = await supabase.from("players").insert(
+        const { data: inserted, error } = await bulkCreatePlayers(
           newPlayers.map((r) => ({
             program_id: coach.program_id,
             first_name: r.firstName || "Unknown",
@@ -515,9 +520,9 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
             height: r.profileData.height || null,
             weight: r.profileData.weight || null,
           }))
-        ).select("id, first_name, last_name");
+        );
 
-        if (error) { toast.error(`Failed to create players: ${error.message}`); setImporting(false); return; }
+        if (error) { toast.error(`Failed to create players: ${error}`); setImporting(false); return; }
 
         (inserted || []).forEach((p, i) => {
           playerIdMap.set(newPlayers[i].rowIndex, p.id);
@@ -529,10 +534,10 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         if (r.matchedPlayer) playerIdMap.set(r.rowIndex, r.matchedPlayer.id);
       });
 
-      // Update existing players with profile data from spreadsheet
+      // Update existing players with profile data from spreadsheet (via service layer)
       const existingWithProfile = matchedRows.filter((r) => r.matchedPlayer && Object.keys(r.profileData).length > 0);
       for (const r of existingWithProfile) {
-        const updates: Record<string, any> = {};
+        const updates: Record<string, unknown> = {};
         if (r.profileData.bats) updates.bats = r.profileData.bats;
         if (r.profileData.throws) updates.throws = r.profileData.throws;
         if (r.profileData.grade) updates.grade = r.profileData.grade;
@@ -541,7 +546,7 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
         if (r.profileData.height) updates.height = r.profileData.height;
         if (r.profileData.weight) updates.weight = r.profileData.weight;
         if (Object.keys(updates).length > 0) {
-          await supabase.from("players").update(updates).eq("id", r.matchedPlayer!.id);
+          await updatePlayerProfile(r.matchedPlayer!.id, updates);
         }
       }
 
@@ -600,11 +605,23 @@ export default function DataImport({ open, onOpenChange, onSuccess }: DataImport
       }
 
       if (evals.length > 0) {
-        for (let i = 0; i < evals.length; i += 500) {
-          const chunk = evals.slice(i, i + 500);
-          const { error } = await supabase.from("evaluations").insert(chunk);
-          if (error) { toast.error(`Failed to import evaluations: ${error.message}`); setImporting(false); return; }
-          insertedEvals += chunk.length;
+        // Build metric bounds map for validation
+        const boundsMap = new Map<string, MetricBounds>();
+        (metrics || []).forEach((m: any) => {
+          boundsMap.set(m.id, {
+            min_value: m.min_value ?? null,
+            max_value: m.max_value ?? null,
+            metric_type: m.metric_type || "measured",
+            name: m.name || "",
+            unit: m.unit || "",
+          });
+        });
+
+        const { insertedCount, skippedCount: boundsSkipped, error } = await bulkInsertEvaluations(evals, boundsMap);
+        if (error) { toast.error(`Failed to import evaluations: ${error}`); setImporting(false); return; }
+        insertedEvals = insertedCount;
+        if (boundsSkipped > 0) {
+          toast.warning(`${boundsSkipped} score(s) skipped — values outside metric bounds`);
         }
       }
 

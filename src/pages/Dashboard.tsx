@@ -39,9 +39,26 @@ interface PlayerRow {
   evalCount: number;
   metricCount: number; // how many distinct metrics this player has scores for
   flags: string[];
+  teamLevel: string | null;
 }
 
 const ALL_METRICS = "__all__";
+
+function levelBadge(level: string | null) {
+  if (!level) return null;
+  const l = level.toLowerCase();
+  const styles: Record<string, string> = {
+    varsity: "bg-primary/10 text-primary",
+    jv: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+    freshman: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+  };
+  const labels: Record<string, string> = { varsity: "V", jv: "JV", freshman: "Fr" };
+  return (
+    <span className={cn("text-[10px] px-1.5 py-0 h-4 inline-flex items-center rounded font-extrabold", styles[l] || "bg-muted text-muted-foreground")}>
+      {labels[l] || level}
+    </span>
+  );
+}
 
 export default function Dashboard() {
   const { coach } = useAuth();
@@ -66,12 +83,13 @@ export default function Dashboard() {
     const fetchData = async () => {
       const sessionFilter = selectedSessionId !== "all" ? selectedSessionId : undefined;
 
-      const [pRes, evalsRes, nRes, mRes, cRes] = await Promise.all([
+      const [pRes, evalsRes, nRes, mRes, cRes, raRes] = await Promise.all([
         fetchDashboardPlayers(coach.program_id),
         fetchAllEvaluations(coach.program_id, sessionFilter),
         fetchPlayerFlags(coach.program_id),
         fetchMetricsForDashboard(coach.program_id),
         fetchProgramCoaches(coach.program_id),
+        supabase.from("roster_assignments").select("player_id, assignment").eq("program_id", coach.program_id),
       ]);
 
       setCoaches(cRes.data);
@@ -104,6 +122,14 @@ export default function Dashboard() {
         flagsByPlayer.set(n.player_id, set);
       });
 
+      // Build team level lookup from roster_assignments
+      const levelByPlayer = new Map<string, string>();
+      (raRes.data ?? []).forEach((ra: { player_id: string; assignment: string }) => {
+        if (ra.assignment && ra.assignment !== "cut") {
+          levelByPlayer.set(ra.player_id, ra.assignment);
+        }
+      });
+
       const enriched: PlayerRow[] = pRes.data.map((p) => {
         const pMetrics = evalsByPlayerMetric.get(p.id);
         let totalEvals = 0;
@@ -126,6 +152,7 @@ export default function Dashboard() {
           evalCount: totalEvals,
           metricCount: scores.size,
           flags: Array.from(flagsByPlayer.get(p.id) || []),
+          teamLevel: levelByPlayer.get(p.id) ?? null,
         };
       });
 
@@ -587,6 +614,7 @@ export default function Dashboard() {
                       ))}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
+                      {levelBadge(p.teamLevel)}
                       {p.grade && <span className="text-[11px] text-muted-foreground">Gr. {p.grade}</span>}
                       {p.positions?.slice(0, 3).map((pos) => (
                         <Badge key={pos} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-bold">{pos}</Badge>

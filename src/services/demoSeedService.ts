@@ -218,6 +218,7 @@ export async function seedDemoData(
     insertedPlayers?.forEach((p) => {
       playerMap.set(`${p.first_name} ${p.last_name}`, p.id);
     });
+    const insertedPlayerIds = (insertedPlayers || []).map((p) => p.id);
 
     const assignmentInserts: Array<{
       program_id: string;
@@ -263,9 +264,49 @@ export async function seedDemoData(
       created_by: coachId,
     }));
 
-    const { error: gameErr } = await supabase.from("games").insert(gameInserts);
+    const { data: insertedGames, error: gameErr } = await supabase.from("games").insert(gameInserts).select("id, team_level, status");
     if (gameErr) {
       console.warn("Game insert warning:", gameErr.message);
+    }
+
+    // 3b. Seed game rosters + lineups for completed games
+    const BASEBALL_POSITIONS = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
+    if (insertedGames && insertedGames.length > 0 && insertedPlayerIds.length > 0) {
+      const lineupRand = seededRandom(99); // separate seed for lineup determinism
+      const completedGames = insertedGames.filter((g) => g.status === "completed");
+      const gameRosterInserts: Array<{ game_id: string; player_id: string; status: string }> = [];
+      const lineupInserts: Array<{ game_id: string; player_id: string; batting_order: number; position: string }> = [];
+
+      for (const game of completedGames) {
+        const level = (game.team_level || "").toLowerCase();
+        // Pick players matching this game's level
+        const pool = level === "jv"
+          ? insertedPlayerIds.slice(VARSITY_PLAYERS.length, VARSITY_PLAYERS.length + JV_PLAYERS.length)
+          : insertedPlayerIds.slice(0, VARSITY_PLAYERS.length);
+
+        // Shuffle pool deterministically then take 9
+        const shuffled = [...pool].sort(() => lineupRand() - 0.5);
+        const rosterPlayers = shuffled.slice(0, Math.min(9, shuffled.length));
+
+        rosterPlayers.forEach((pid, idx) => {
+          gameRosterInserts.push({ game_id: game.id, player_id: pid, status: "active" });
+          lineupInserts.push({
+            game_id: game.id,
+            player_id: pid,
+            batting_order: idx + 1,
+            position: BASEBALL_POSITIONS[idx % BASEBALL_POSITIONS.length],
+          });
+        });
+      }
+
+      if (gameRosterInserts.length > 0) {
+        const { error: grErr } = await supabase.from("game_rosters").upsert(gameRosterInserts, { onConflict: "game_id,player_id" });
+        if (grErr) console.warn("Game roster insert warning:", grErr.message);
+      }
+      if (lineupInserts.length > 0) {
+        const { error: liErr } = await supabase.from("lineup_entries").insert(lineupInserts);
+        if (liErr) console.warn("Lineup insert warning:", liErr.message);
+      }
     }
 
     // 4. Seed practice plans
