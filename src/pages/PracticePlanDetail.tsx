@@ -260,8 +260,14 @@ export default function PracticePlanDetail() {
 
   if (loading || !plan) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <div className="mx-auto max-w-2xl px-4 pt-6 space-y-4 animate-pulse">
+        <div className="h-7 w-56 bg-muted rounded-lg" />
+        <div className="h-4 w-40 bg-muted rounded" />
+        <div className="space-y-3 mt-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-20 bg-muted rounded-xl" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -285,7 +291,7 @@ export default function PracticePlanDetail() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-extrabold text-white truncate">{plan.title}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight text-white truncate">{plan.title}</h1>
             <p className="text-sm text-white/70">
               {formatDate(plan.practice_date)}
               {plan.team_level && ` • ${plan.team_level}`}
@@ -344,15 +350,16 @@ export default function PracticePlanDetail() {
 
       {/* Time blocks */}
       {blocks.length === 0 ? (
-        <Card className="section-card mb-4">
-          <CardContent className="py-12 text-center">
+        <div className="rounded-xl border border-dashed bg-card/50 p-6 text-center mb-4">
+          <div>
             <Clock className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground mb-3">No blocks yet. Add your first activity.</p>
+            <p className="font-bold text-sm mb-1">No blocks yet</p>
+            <p className="text-sm text-muted-foreground mb-3">Add your first activity to this practice plan.</p>
             <Button size="sm" onClick={openAddBlock}>
               <Plus className="h-4 w-4 mr-1" /> Add Block
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : (
         <div className="space-y-1 mb-4">
           {timeSlots.map(([timeKey, slotBlocks]) => {

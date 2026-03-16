@@ -394,8 +394,18 @@ export default function GameDetail() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-muted-foreground">Loading...</p>
+      <div className="mx-auto max-w-lg px-4 pt-4 space-y-4 animate-pulse">
+        <div className="h-6 w-48 bg-muted rounded-lg" />
+        <div className="h-4 w-32 bg-muted rounded" />
+        <div className="flex gap-2 mt-4">
+          <div className="h-10 flex-1 bg-muted rounded-xl" />
+          <div className="h-10 flex-1 bg-muted rounded-xl" />
+        </div>
+        <div className="space-y-2 mt-4">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-14 bg-muted rounded-xl" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -422,7 +432,7 @@ export default function GameDetail() {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-extrabold truncate">{game.name}</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight truncate">{game.name}</h1>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>{format(new Date(game.game_date + "T00:00:00"), "EEEE, MMM d, yyyy")}</span>
             {game.team_level && <Badge variant="outline" className="text-[10px]">{game.team_level}</Badge>}
@@ -554,7 +564,7 @@ export default function GameDetail() {
           {lineupEntries.length > 0 && (
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-bold text-muted-foreground uppercase">
+                <h3 className="text-xs font-extrabold uppercase tracking-widest text-muted-foreground">
                   Batting Order
                 </h3>
                 <div className="flex items-center gap-2">
@@ -649,7 +659,7 @@ export default function GameDetail() {
           {/* Add to lineup */}
           {rosterPlayers.filter((p) => !lineupPlayerIds.has(p.id)).length > 0 && (
             <div>
-              <h3 className="text-xs font-bold text-muted-foreground uppercase mb-2">
+              <h3 className="text-xs font-extrabold uppercase tracking-widest text-muted-foreground mb-2">
                 Available (on game roster)
               </h3>
               <div className="relative mb-3">
@@ -696,9 +706,10 @@ export default function GameDetail() {
 
           {/* Copy from previous game — shown when lineup is empty */}
           {lineupEntries.length === 0 && rosterPlayers.length > 0 && (
-            <div className="text-center py-6 space-y-3">
+            <div className="rounded-xl border border-dashed bg-card/50 p-6 text-center space-y-3">
+              <p className="font-bold text-sm">No lineup yet</p>
               <p className="text-sm text-muted-foreground">
-                No lineup yet. Add players above or start from a previous game.
+                Add players above or start from a previous game.
               </p>
               <Button
                 variant="outline"

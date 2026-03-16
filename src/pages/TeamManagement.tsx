@@ -315,7 +315,7 @@ export default function TeamManagement() {
       {/* ── Team Roster Section ───────────────────────────────── */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <h2 className="text-xs font-extrabold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
             <Users className="h-4 w-4" />
             {selectedLevel === "all" ? "All Players" : selectedLevel === "unassigned" ? "Unassigned" : `${selectedLevel} Roster`}
           </h2>
@@ -323,8 +323,9 @@ export default function TeamManagement() {
         </div>
 
         {filteredPlayers.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground text-sm">
-            {search ? "No players match your search." : "No players assigned to this level."}
+          <div className="rounded-xl border border-dashed bg-card/50 p-6 text-center">
+            <p className="font-bold text-sm mb-1">{search ? "No matches" : "No players"}</p>
+            <p className="text-sm text-muted-foreground">{search ? "No players match your search." : "No players assigned to this level."}</p>
           </div>
         ) : (
           <div className="space-y-1.5">
@@ -407,7 +408,7 @@ export default function TeamManagement() {
       {/* ── Games Section ─────────────────────────────────────── */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <h2 className="text-xs font-extrabold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
             <Calendar className="h-4 w-4" />
             Games
           </h2>
@@ -431,8 +432,9 @@ export default function TeamManagement() {
         </div>
 
         {filteredGames.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground text-sm">
-            {isHead ? "No games scheduled. Tap \"Add Game\" to create one." : "No games scheduled yet."}
+          <div className="rounded-xl border border-dashed bg-card/50 p-6 text-center">
+            <p className="font-bold text-sm mb-1">No games</p>
+            <p className="text-sm text-muted-foreground">{isHead ? "Tap \"Add Game\" to schedule your first game." : "No games scheduled yet."}</p>
           </div>
         ) : (
           <div className="space-y-2">

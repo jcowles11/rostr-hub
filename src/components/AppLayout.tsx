@@ -268,7 +268,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card/90 backdrop-blur-2xl shadow-nav">
         <div className="mx-auto flex max-w-lg items-center justify-around px-2 py-2">
           {navItems.map(({ path, icon: Icon, label }) => {
-            const active = location.pathname === path;
+            const active = location.pathname === path || (path === "/" && location.pathname === "/home");
             return (
               <button
                 key={path}
