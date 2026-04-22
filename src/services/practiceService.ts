@@ -80,6 +80,43 @@ export async function fetchPracticePlans(
   return { data: (data as PracticePlan[]) ?? [], error: null };
 }
 
+/**
+ * Fetch practice plans with a lightweight block count per plan.
+ * A plan with zero blocks is treated as "needs a plan" in the UI.
+ * Used by TeamHome's Needs Attention section.
+ */
+export async function fetchPracticePlansWithBlockCounts(
+  programId: string
+): Promise<{
+  data: (PracticePlan & { block_count: number })[];
+  error: string | null;
+}> {
+  const [plansRes, blocksRes] = await Promise.all([
+    supabase
+      .from("practice_plans")
+      .select("*")
+      .eq("program_id", programId)
+      .order("practice_date", { ascending: true }),
+    supabase
+      .from("practice_blocks")
+      .select("practice_plan_id"),
+  ]);
+
+  if (plansRes.error) return { data: [], error: plansRes.error.message };
+
+  const blockCounts = new Map<string, number>();
+  for (const b of (blocksRes.data as { practice_plan_id: string }[] | null) ?? []) {
+    blockCounts.set(b.practice_plan_id, (blockCounts.get(b.practice_plan_id) ?? 0) + 1);
+  }
+
+  const plans = ((plansRes.data as PracticePlan[]) ?? []).map((p) => ({
+    ...p,
+    block_count: blockCounts.get(p.id) ?? 0,
+  }));
+
+  return { data: plans, error: null };
+}
+
 /** Fetch a single practice plan by ID. */
 export async function fetchPracticePlan(
   planId: string

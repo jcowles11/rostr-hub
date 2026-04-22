@@ -1,0 +1,783 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Team Home — Design Mockups</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        colors: {
+          app: {
+            bg:        'hsl(220 20% 97%)',
+            fg:        'hsl(222 30% 12%)',
+            card:      'hsl(0 0% 100%)',
+            primary:   'hsl(222 80% 50%)',
+            secondary: 'hsl(32 95% 52%)',
+            accent:    'hsl(158 64% 42%)',
+            muted:     'hsl(220 16% 93%)',
+            'muted-fg':'hsl(220 12% 50%)',
+            border:    'hsl(220 16% 90%)',
+            destructive:'hsl(0 72% 51%)',
+          }
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; font-feature-settings: 'cv02','cv03','cv04','cv11'; }
+  .phone {
+    width: 390px; height: 780px;
+    border-radius: 44px;
+    background: hsl(220 20% 97%);
+    box-shadow: 0 10px 40px -10px rgba(0,0,0,0.18), 0 2px 8px -2px rgba(0,0,0,0.08), inset 0 0 0 8px #18181b;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  .phone::before {
+    content: ''; position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    width: 108px; height: 28px; border-radius: 14px; background: #18181b; z-index: 20;
+  }
+  .phone-scroll { flex: 1; overflow-y: auto; padding-top: 52px; }
+  .phone-scroll::-webkit-scrollbar { display: none; }
+  .bottom-nav {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 70px;
+    background: hsl(0 0% 100%); border-top: 1px solid hsl(220 16% 90%);
+    display: flex; align-items: center; justify-content: space-around;
+    padding: 8px 16px 22px; z-index: 10;
+  }
+  .nav-item { display: flex; flex-direction: column; align-items: center; gap: 2px; color: hsl(220 12% 55%); font-size: 10px; font-weight: 700; }
+  .nav-item.active { color: hsl(222 80% 50%); }
+  /* Utility: subtle segmented bar segments */
+  .seg { height: 8px; }
+</style>
+</head>
+<body class="bg-zinc-100 text-app-fg antialiased">
+
+<header class="max-w-7xl mx-auto px-6 pt-10 pb-6">
+  <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">Rostr · Design Exploration</p>
+  <h1 class="text-3xl font-extrabold tracking-tight mt-1">Team Home — Three Directions</h1>
+  <p class="text-sm text-zinc-600 mt-2 max-w-2xl">
+    Each mock solves the same brief with a different design philosophy. Viewed at 390px (iPhone) scale.
+    Real data: 25 players (12V · 10JV · 3 unassigned), next game Sat Apr 26 vs North Ridgeview HS, 2 practices this week.
+  </p>
+</header>
+
+<div class="max-w-7xl mx-auto px-6 pb-20">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- DIRECTION A — DISCIPLINED                                           -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <div>
+      <div class="mb-4">
+        <div class="flex items-baseline gap-2">
+          <span class="text-[11px] font-bold uppercase tracking-widest text-zinc-500">Direction A</span>
+          <span class="text-xs text-zinc-400">Linear / Height-inspired</span>
+        </div>
+        <h2 class="text-xl font-extrabold mt-0.5">Disciplined</h2>
+        <p class="text-sm text-zinc-600 mt-1">Remove decoration. Lean on type and whitespace. One primary action, everything else recedes.</p>
+      </div>
+
+      <div class="phone">
+        <div class="phone-scroll px-4 pb-24">
+
+          <!-- Header -->
+          <div class="flex items-baseline justify-between pt-2 pb-6">
+            <div>
+              <p class="text-[11px] font-bold uppercase tracking-wider text-app-muted-fg">Sat · Apr 19</p>
+              <h1 class="text-[22px] font-extrabold tracking-tight leading-tight">Eagles Baseball</h1>
+            </div>
+            <span class="text-[11px] font-bold text-app-muted-fg">25 players</span>
+          </div>
+
+          <!-- Next event block (clean, no gradient) -->
+          <div class="mb-8">
+            <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-app-primary mb-2">▸ Next game · in 7 days</p>
+            <div class="flex items-end justify-between">
+              <div>
+                <p class="text-[28px] font-extrabold leading-none tracking-tight">vs North Ridgeview</p>
+                <p class="text-sm text-app-muted-fg mt-1.5">Sat, Apr 26 · 4:30 PM</p>
+                <p class="text-[13px] text-app-muted-fg">Cherry Creek HS · Field 3</p>
+              </div>
+              <div class="text-right shrink-0 ml-3">
+                <p class="text-[10px] font-bold uppercase text-app-muted-fg">Varsity</p>
+              </div>
+            </div>
+            <button class="mt-4 w-full bg-app-fg text-white rounded-xl h-11 text-[14px] font-bold tracking-tight">
+              Open Game Day →
+            </button>
+            <div class="flex gap-4 mt-3 text-[12px]">
+              <button class="font-semibold text-app-primary">Lineup</button>
+              <span class="text-zinc-300">·</span>
+              <button class="font-semibold text-app-muted-fg">Print card</button>
+              <span class="text-zinc-300">·</span>
+              <button class="font-semibold text-app-muted-fg">Directions</button>
+            </div>
+          </div>
+
+          <!-- Roster health as a single segmented bar, not tiles -->
+          <div class="mb-8">
+            <div class="flex items-baseline justify-between mb-2">
+              <p class="text-[11px] font-bold uppercase tracking-widest text-app-muted-fg">Roster</p>
+              <button class="text-[11px] font-bold text-app-primary">Manage →</button>
+            </div>
+            <div class="flex rounded-lg overflow-hidden">
+              <div class="seg bg-app-primary" style="width:48%"></div>
+              <div class="seg bg-app-secondary" style="width:40%"></div>
+              <div class="seg bg-zinc-300" style="width:12%"></div>
+            </div>
+            <div class="flex items-center gap-4 mt-2 text-[12px] text-app-muted-fg">
+              <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-app-primary"></span><strong class="text-app-fg font-bold">12</strong> Varsity</span>
+              <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-app-secondary"></span><strong class="text-app-fg font-bold">10</strong> JV</span>
+              <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-zinc-300"></span><strong class="text-app-fg font-bold">3</strong> Unassigned</span>
+            </div>
+          </div>
+
+          <!-- Unified schedule timeline -->
+          <div class="mb-8">
+            <div class="flex items-baseline justify-between mb-3">
+              <p class="text-[11px] font-bold uppercase tracking-widest text-app-muted-fg">This Week</p>
+              <button class="text-[11px] font-bold text-app-primary">Schedule →</button>
+            </div>
+            <div class="space-y-0">
+              <!-- Event row with left date spine -->
+              <div class="flex gap-4 pb-3.5">
+                <div class="w-10 shrink-0 text-center">
+                  <p class="text-[10px] font-bold text-app-muted-fg uppercase leading-none">Mon</p>
+                  <p class="text-lg font-extrabold leading-tight mt-0.5">21</p>
+                </div>
+                <div class="flex-1 border-l border-app-border pl-4 pb-0.5">
+                  <p class="text-[10px] font-bold uppercase tracking-wider text-app-accent">Practice · 4:00 PM</p>
+                  <p class="font-bold text-[14px] leading-tight mt-0.5">Pitcher Bullpens</p>
+                  <p class="text-[12px] text-app-muted-fg">Varsity · 6 pitchers</p>
+                </div>
+              </div>
+              <div class="flex gap-4 pb-3.5">
+                <div class="w-10 shrink-0 text-center">
+                  <p class="text-[10px] font-bold text-app-muted-fg uppercase leading-none">Wed</p>
+                  <p class="text-lg font-extrabold leading-tight mt-0.5">23</p>
+                </div>
+                <div class="flex-1 border-l border-app-border pl-4">
+                  <p class="text-[10px] font-bold uppercase tracking-wider text-app-accent">Practice · 3:30 PM</p>
+                  <p class="font-bold text-[14px] leading-tight mt-0.5">Team Defense</p>
+                  <p class="text-[12px] text-app-muted-fg">All levels</p>
+                </div>
+              </div>
+              <div class="flex gap-4">
+                <div class="w-10 shrink-0 text-center">
+                  <p class="text-[10px] font-bold text-app-muted-fg uppercase leading-none">Sat</p>
+                  <p class="text-lg font-extrabold leading-tight mt-0.5">26</p>
+                </div>
+                <div class="flex-1 border-l border-app-border pl-4">
+                  <p class="text-[10px] font-bold uppercase tracking-wider" style="color: hsl(12 90% 52%)">Game · 4:30 PM</p>
+                  <p class="font-bold text-[14px] leading-tight mt-0.5">vs North Ridgeview HS</p>
+                  <p class="text-[12px] text-app-muted-fg">Cherry Creek HS · Field 3</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Secondary actions as text links -->
+          <div class="pb-4 border-t border-app-border pt-5">
+            <p class="text-[11px] font-bold uppercase tracking-widest text-app-muted-fg mb-3">Shortcuts</p>
+            <div class="grid grid-cols-2 gap-y-3 text-[13px]">
+              <button class="text-left font-semibold flex items-center justify-between pr-2">Score Entry <span class="text-zinc-400">→</span></button>
+              <button class="text-left font-semibold flex items-center justify-between pr-2">Rankings <span class="text-zinc-400">→</span></button>
+              <button class="text-left font-semibold flex items-center justify-between pr-2">Add Player <span class="text-zinc-400">→</span></button>
+              <button class="text-left font-semibold flex items-center justify-between pr-2">Plan Practice <span class="text-zinc-400">→</span></button>
+            </div>
+          </div>
+        </div>
+        <!-- Bottom nav -->
+        <div class="bottom-nav">
+          <div class="nav-item active"><div class="w-5 h-5 rounded bg-app-primary/20 flex items-center justify-center"><div class="w-2.5 h-2.5 rounded-sm bg-app-primary"></div></div>Home</div>
+          <div class="nav-item"><div class="w-5 h-5">👥</div>Roster</div>
+          <div class="nav-item"><div class="w-5 h-5">📅</div>Schedule</div>
+          <div class="nav-item"><div class="w-5 h-5">📋</div>Score</div>
+          <div class="nav-item"><div class="w-5 h-5">···</div>More</div>
+        </div>
+      </div>
+
+      <div class="mt-5 text-[13px] text-zinc-700 space-y-1.5">
+        <p class="font-bold text-zinc-900">Design decisions</p>
+        <ul class="list-disc pl-5 space-y-1 marker:text-zinc-400">
+          <li>No gradient hero — typography carries hierarchy.</li>
+          <li>Roster as a segmented bar tells the depth story at a glance.</li>
+          <li>Merged "This Week" + "Upcoming Games" into one spine-aligned timeline.</li>
+          <li>One primary CTA (Open Game Day). Others demoted to text links.</li>
+          <li>Quick Actions demoted to a small "Shortcuts" list — they're not the reason coaches open this page.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- DIRECTION B — COMMAND                                               -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <div>
+      <div class="mb-4">
+        <div class="flex items-baseline gap-2">
+          <span class="text-[11px] font-bold uppercase tracking-widest text-zinc-500">Direction B</span>
+          <span class="text-xs text-zinc-400">Superhuman / cockpit-inspired</span>
+        </div>
+        <h2 class="text-xl font-extrabold mt-0.5">Command Center</h2>
+        <p class="text-sm text-zinc-600 mt-1">Status-forward. Every section answers "are we ready?" with a colored signal. Data-dense but legible.</p>
+      </div>
+
+      <div class="phone">
+        <div class="phone-scroll px-4 pb-24">
+
+          <!-- Compact header -->
+          <div class="flex items-center justify-between pt-2 pb-4">
+            <div>
+              <h1 class="text-lg font-extrabold tracking-tight leading-tight">Eagles Baseball</h1>
+              <p class="text-[11px] text-app-muted-fg">Saturday, April 19</p>
+            </div>
+            <div class="flex items-center gap-1.5 px-2 py-1 rounded-full bg-app-accent/10">
+              <span class="w-1.5 h-1.5 rounded-full bg-app-accent"></span>
+              <span class="text-[10px] font-bold text-app-accent uppercase tracking-wider">On track</span>
+            </div>
+          </div>
+
+          <!-- Countdown banner -->
+          <div class="rounded-2xl p-4 mb-4 text-white relative overflow-hidden" style="background: linear-gradient(135deg, hsl(222 80% 30%), hsl(222 80% 18%))">
+            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 mb-1">Next Game</p>
+            <div class="flex items-end justify-between">
+              <div>
+                <p class="text-2xl font-extrabold leading-tight">vs North Ridgeview</p>
+                <p class="text-white/70 text-[13px] mt-0.5">Sat Apr 26 · 4:30 PM</p>
+              </div>
+              <div class="text-right">
+                <p class="text-4xl font-extrabold leading-none tracking-tighter">7<span class="text-xl text-white/60">d</span></p>
+                <p class="text-[10px] uppercase font-bold tracking-wider text-white/60 mt-1">to go</p>
+              </div>
+            </div>
+            <div class="flex gap-2 mt-4">
+              <button class="flex-1 bg-white/15 hover:bg-white/25 rounded-lg h-9 text-[12px] font-bold">Roster</button>
+              <button class="flex-1 bg-white/15 rounded-lg h-9 text-[12px] font-bold">Lineup</button>
+              <button class="bg-white/15 rounded-lg h-9 w-9 text-[14px] font-bold">↗</button>
+            </div>
+          </div>
+
+          <!-- Status cards with colored borders -->
+          <div class="space-y-2 mb-5">
+            <p class="text-[11px] font-bold uppercase tracking-widest text-app-muted-fg">Readiness</p>
+
+            <!-- Lineup: attention (amber) -->
+            <div class="rounded-xl bg-white border border-app-border pl-4 pr-3 py-3 flex items-center gap-3" style="border-left: 3px solid hsl(32 95% 52%)">
+              <div class="flex-1">
+                <p class="text-[13px] font-bold">Lineup not built</p>
+                <p class="text-[11px] text-app-muted-fg">9 positions remaining · last updated never</p>
+              </div>
+              <button class="text-[11px] font-bold text-app-fg bg-app-muted rounded-lg px-2.5 py-1.5">Build →</button>
+            </div>
+
+            <!-- Roster: healthy (green) -->
+            <div class="rounded-xl bg-white border border-app-border pl-4 pr-3 py-3 flex items-center gap-3" style="border-left: 3px solid hsl(158 64% 42%)">
+              <div class="flex-1">
+                <p class="text-[13px] font-bold">Roster set</p>
+                <p class="text-[11px] text-app-muted-fg">25 players · 22 assigned · 3 unassigned</p>
+              </div>
+              <div class="text-[11px] font-bold text-app-accent">✓</div>
+            </div>
+
+            <!-- Evaluations: attention (amber) -->
+            <div class="rounded-xl bg-white border border-app-border pl-4 pr-3 py-3" style="border-left: 3px solid hsl(32 95% 52%)">
+              <div class="flex items-center gap-3">
+                <div class="flex-1">
+                  <p class="text-[13px] font-bold">Evaluation coverage</p>
+                  <p class="text-[11px] text-app-muted-fg">21 of 25 players scored on core metrics</p>
+                </div>
+                <p class="text-[13px] font-extrabold">84%</p>
+              </div>
+              <div class="mt-2 h-1.5 w-full bg-app-muted rounded-full overflow-hidden">
+                <div class="h-full bg-app-secondary rounded-full" style="width:84%"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- This week summary — dense -->
+          <div class="mb-5">
+            <div class="flex items-baseline justify-between mb-2">
+              <p class="text-[11px] font-bold uppercase tracking-widest text-app-muted-fg">This Week</p>
+              <button class="text-[11px] font-bold text-app-primary">All →</button>
+            </div>
+            <div class="rounded-xl bg-white border border-app-border divide-y divide-app-border overflow-hidden">
+              <div class="flex items-center gap-3 px-3 py-2.5">
+                <div class="text-center w-8 shrink-0">
+                  <p class="text-[9px] font-bold text-app-muted-fg">MON</p>
+                  <p class="text-[13px] font-extrabold leading-none">21</p>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-[12px] font-bold truncate">Pitcher Bullpens</p>
+                  <p class="text-[10px] text-app-muted-fg">Practice · 4:00 PM · V</p>
+                </div>
+                <span class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-app-accent/10 text-app-accent">Practice</span>
+              </div>
+              <div class="flex items-center gap-3 px-3 py-2.5">
+                <div class="text-center w-8 shrink-0">
+                  <p class="text-[9px] font-bold text-app-muted-fg">WED</p>
+                  <p class="text-[13px] font-extrabold leading-none">23</p>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-[12px] font-bold truncate">Team Defense</p>
+                  <p class="text-[10px] text-app-muted-fg">Practice · 3:30 PM · All</p>
+                </div>
+                <span class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-app-accent/10 text-app-accent">Practice</span>
+              </div>
+              <div class="flex items-center gap-3 px-3 py-2.5 bg-app-primary/5">
+                <div class="text-center w-8 shrink-0">
+                  <p class="text-[9px] font-bold text-app-primary">SAT</p>
+                  <p class="text-[13px] font-extrabold leading-none text-app-primary">26</p>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-[12px] font-bold truncate">vs North Ridgeview</p>
+                  <p class="text-[10px] text-app-muted-fg">Game · 4:30 PM · V</p>
+                </div>
+                <span class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded" style="background:hsl(12 90% 95%); color:hsl(12 90% 42%)">Game</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick access chips -->
+          <div>
+            <p class="text-[11px] font-bold uppercase tracking-widest text-app-muted-fg mb-2">Jump to</p>
+            <div class="flex flex-wrap gap-1.5">
+              <button class="text-[12px] font-bold px-3 py-1.5 rounded-full bg-app-muted">Score Entry</button>
+              <button class="text-[12px] font-bold px-3 py-1.5 rounded-full bg-app-muted">Rankings</button>
+              <button class="text-[12px] font-bold px-3 py-1.5 rounded-full bg-app-muted">Add Player</button>
+              <button class="text-[12px] font-bold px-3 py-1.5 rounded-full bg-app-muted">Practices</button>
+            </div>
+          </div>
+
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item active"><div class="w-5 h-5 rounded bg-app-primary/20 flex items-center justify-center"><div class="w-2.5 h-2.5 rounded-sm bg-app-primary"></div></div>Home</div>
+          <div class="nav-item"><div class="w-5 h-5">👥</div>Roster</div>
+          <div class="nav-item"><div class="w-5 h-5">📅</div>Schedule</div>
+          <div class="nav-item"><div class="w-5 h-5">📋</div>Score</div>
+          <div class="nav-item"><div class="w-5 h-5">···</div>More</div>
+        </div>
+      </div>
+
+      <div class="mt-5 text-[13px] text-zinc-700 space-y-1.5">
+        <p class="font-bold text-zinc-900">Design decisions</p>
+        <ul class="list-disc pl-5 space-y-1 marker:text-zinc-400">
+          <li>Global "on track / needs attention" signal in header — the coach's answer to "are we good?"</li>
+          <li>Countdown explicitly shows days-to-next-game; replaces vague "Next Game".</li>
+          <li>Readiness cards with colored left borders turn abstract tasks ("build lineup") into status signals.</li>
+          <li>Evaluation coverage visible here for the first time — a leading indicator of team readiness.</li>
+          <li>Denser than Direction A. More screen-per-screen, less scrolling.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- DIRECTION C — FOCUS                                                 -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <div>
+      <div class="mb-4">
+        <div class="flex items-baseline gap-2">
+          <span class="text-[11px] font-bold uppercase tracking-widest text-zinc-500">Direction C</span>
+          <span class="text-xs text-zinc-400">Apple / Things 3-inspired</span>
+        </div>
+        <h2 class="text-xl font-extrabold mt-0.5">Focus</h2>
+        <p class="text-sm text-zinc-600 mt-1">Remove until only the essential remains. Above the fold: the next event and a prioritized "what to do today" list. Everything else recedes.</p>
+      </div>
+
+      <div class="phone">
+        <div class="phone-scroll px-5 pb-24">
+
+          <!-- Quiet header -->
+          <div class="pt-3 pb-5">
+            <p class="text-[12px] text-app-muted-fg">Saturday, April 19</p>
+            <h1 class="text-[17px] font-bold tracking-tight">Eagles Baseball</h1>
+          </div>
+
+          <!-- Giant hero event -->
+          <div class="mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-app-muted-fg mb-3">In 7 days</p>
+            <p class="text-[34px] font-extrabold leading-[1.05] tracking-tight">
+              vs North<br/>Ridgeview
+            </p>
+            <p class="text-[15px] text-app-muted-fg mt-3">Saturday · 4:30 PM</p>
+            <p class="text-[13px] text-app-muted-fg">Cherry Creek HS, Field 3</p>
+            <button class="mt-5 inline-flex items-center gap-2 text-[14px] font-bold text-app-primary">
+              Open Game Day <span class="text-base">→</span>
+            </button>
+          </div>
+
+          <!-- What to do today — prioritized task list -->
+          <div class="mb-10">
+            <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-app-muted-fg mb-3">Today</p>
+            <div class="space-y-3">
+              <button class="w-full flex items-center gap-3 text-left">
+                <span class="w-6 h-6 rounded-full border-2 border-app-primary bg-app-primary/5 shrink-0 flex items-center justify-center">
+                  <span class="w-2 h-2 rounded-full bg-app-primary"></span>
+                </span>
+                <div class="flex-1">
+                  <p class="text-[15px] font-bold leading-tight">Finish evaluations</p>
+                  <p class="text-[12px] text-app-muted-fg">4 players remaining</p>
+                </div>
+                <span class="text-app-muted-fg text-lg">›</span>
+              </button>
+              <button class="w-full flex items-center gap-3 text-left">
+                <span class="w-6 h-6 rounded-full border-2 border-app-border shrink-0"></span>
+                <div class="flex-1">
+                  <p class="text-[15px] font-bold leading-tight">Build Saturday lineup</p>
+                  <p class="text-[12px] text-app-muted-fg">Due Fri evening</p>
+                </div>
+                <span class="text-app-muted-fg text-lg">›</span>
+              </button>
+              <button class="w-full flex items-center gap-3 text-left">
+                <span class="w-6 h-6 rounded-full border-2 border-app-border shrink-0"></span>
+                <div class="flex-1">
+                  <p class="text-[15px] font-bold leading-tight">Assign 3 unassigned players</p>
+                  <p class="text-[12px] text-app-muted-fg">V / JV / Fr decisions</p>
+                </div>
+                <span class="text-app-muted-fg text-lg">›</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Quiet summary row -->
+          <div class="border-t border-app-border pt-5">
+            <div class="flex items-baseline justify-between mb-3">
+              <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-app-muted-fg">This week</p>
+              <button class="text-[11px] font-bold text-app-primary">View all</button>
+            </div>
+            <div class="space-y-2.5 text-[13px]">
+              <div class="flex items-baseline gap-3">
+                <span class="text-app-muted-fg font-semibold w-10 shrink-0">Mon</span>
+                <span class="font-semibold">Pitcher Bullpens</span>
+                <span class="text-app-muted-fg ml-auto">4:00</span>
+              </div>
+              <div class="flex items-baseline gap-3">
+                <span class="text-app-muted-fg font-semibold w-10 shrink-0">Wed</span>
+                <span class="font-semibold">Team Defense</span>
+                <span class="text-app-muted-fg ml-auto">3:30</span>
+              </div>
+              <div class="flex items-baseline gap-3">
+                <span class="text-app-primary font-bold w-10 shrink-0">Sat</span>
+                <span class="font-bold">vs North Ridgeview</span>
+                <span class="text-app-muted-fg ml-auto">4:30</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Roster footer chips, very quiet -->
+          <div class="mt-8 pt-5 border-t border-app-border flex items-center gap-4 text-[12px]">
+            <span class="text-app-muted-fg">Roster</span>
+            <span class="font-bold">25</span>
+            <span class="text-zinc-300">·</span>
+            <span><strong>12</strong><span class="text-app-muted-fg"> V</span></span>
+            <span><strong>10</strong><span class="text-app-muted-fg"> JV</span></span>
+            <span><strong>3</strong><span class="text-app-muted-fg"> open</span></span>
+          </div>
+
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item active"><div class="w-5 h-5 rounded bg-app-primary/20 flex items-center justify-center"><div class="w-2.5 h-2.5 rounded-sm bg-app-primary"></div></div>Home</div>
+          <div class="nav-item"><div class="w-5 h-5">👥</div>Roster</div>
+          <div class="nav-item"><div class="w-5 h-5">📅</div>Schedule</div>
+          <div class="nav-item"><div class="w-5 h-5">📋</div>Score</div>
+          <div class="nav-item"><div class="w-5 h-5">···</div>More</div>
+        </div>
+      </div>
+
+      <div class="mt-5 text-[13px] text-zinc-700 space-y-1.5">
+        <p class="font-bold text-zinc-900">Design decisions</p>
+        <ul class="list-disc pl-5 space-y-1 marker:text-zinc-400">
+          <li>Next event is the single focal point — oversized type, generous whitespace.</li>
+          <li>"Today" task list is new — derived from program state, tells the coach what to act on.</li>
+          <li>This Week is quiet, text-only — not a card grid.</li>
+          <li>Roster shown as one-line footer summary. It's context, not a decision point.</li>
+          <li>Lowest info density of the three — one-screen answer to "what should I do right now?"</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- DIRECTION D — SYNTHESIS (recommended)                               -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <div class="lg:col-span-3">
+      <div class="mb-4 mt-6 flex items-start justify-between">
+        <div>
+          <div class="flex items-baseline gap-2">
+            <span class="text-[11px] font-bold uppercase tracking-widest text-app-primary">Direction D — Recommended</span>
+          </div>
+          <h2 class="text-2xl font-extrabold mt-0.5">A + B Synthesis, daily-use priorities</h2>
+          <p class="text-sm text-zinc-600 mt-1 max-w-2xl">
+            Clean typography from A, readiness signals from B — reweighted for daily coaching, not seasonal tryouts.
+            Score Entry demoted. Game Day flow promoted. Readiness cards reflect daily decisions, not annual ones.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-[auto_1fr] gap-8">
+        <div class="phone">
+          <div class="phone-scroll px-4 pb-24">
+
+            <!-- Header: program name + global readiness pill -->
+            <div class="flex items-center justify-between pt-2 pb-5">
+              <div>
+                <h1 class="text-[20px] font-extrabold tracking-tight leading-tight">Eagles Baseball</h1>
+                <p class="text-[11px] text-app-muted-fg">Saturday, April 19 · 25 players</p>
+              </div>
+              <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-app-secondary/10">
+                <span class="w-1.5 h-1.5 rounded-full bg-app-secondary"></span>
+                <span class="text-[10px] font-bold text-app-secondary uppercase tracking-wider">2 to do</span>
+              </div>
+            </div>
+
+            <!-- Next Game — clean hero, no gradient, game day-focused -->
+            <div class="mb-6">
+              <div class="flex items-baseline justify-between mb-1.5">
+                <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-app-muted-fg">Next game · in 7 days</p>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-app-primary">Varsity</p>
+              </div>
+              <p class="text-[26px] font-extrabold leading-none tracking-tight">vs North Ridgeview</p>
+              <p class="text-[13px] text-app-muted-fg mt-2">Sat, Apr 26 · 4:30 PM · Cherry Creek HS, Field 3</p>
+
+              <!-- Game-day workflow progress -->
+              <div class="mt-4 rounded-xl border border-app-border bg-white p-3">
+                <p class="text-[10px] font-bold uppercase tracking-widest text-app-muted-fg mb-2">Game Day Checklist</p>
+                <div class="space-y-2">
+                  <div class="flex items-center gap-2.5 text-[13px]">
+                    <span class="w-5 h-5 rounded-full bg-app-accent/15 flex items-center justify-center shrink-0">
+                      <span class="w-2 h-2 rounded-full bg-app-accent"></span>
+                    </span>
+                    <span class="flex-1 font-semibold text-app-muted-fg line-through">Roster set · 18 players</span>
+                  </div>
+                  <div class="flex items-center gap-2.5 text-[13px]">
+                    <span class="w-5 h-5 rounded-full border-2 border-app-secondary shrink-0"></span>
+                    <span class="flex-1 font-bold">Build lineup</span>
+                    <span class="text-[11px] font-bold text-app-primary">Open →</span>
+                  </div>
+                  <div class="flex items-center gap-2.5 text-[13px]">
+                    <span class="w-5 h-5 rounded-full border-2 border-app-border shrink-0"></span>
+                    <span class="flex-1 font-semibold text-app-muted-fg">Print lineup card</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Daily attention: what needs action today -->
+            <div class="mb-6">
+              <p class="text-[11px] font-bold uppercase tracking-widest text-app-muted-fg mb-2">Needs Attention</p>
+              <div class="space-y-2">
+                <div class="rounded-xl bg-white border border-app-border pl-4 pr-3 py-3 flex items-center gap-3" style="border-left: 3px solid hsl(32 95% 52%)">
+                  <div class="flex-1">
+                    <p class="text-[13px] font-bold">3 players unassigned</p>
+                    <p class="text-[11px] text-app-muted-fg">Assign to V · JV · Fr before Saturday</p>
+                  </div>
+                  <button class="text-[11px] font-bold text-app-fg bg-app-muted rounded-lg px-2.5 py-1.5">Assign →</button>
+                </div>
+                <div class="rounded-xl bg-white border border-app-border pl-4 pr-3 py-3 flex items-center gap-3" style="border-left: 3px solid hsl(32 95% 52%)">
+                  <div class="flex-1">
+                    <p class="text-[13px] font-bold">Wednesday practice has no plan</p>
+                    <p class="text-[11px] text-app-muted-fg">Team Defense · 3:30 PM</p>
+                  </div>
+                  <button class="text-[11px] font-bold text-app-fg bg-app-muted rounded-lg px-2.5 py-1.5">Plan →</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Roster as segmented bar (from A), tappable -->
+            <div class="mb-6">
+              <div class="flex items-baseline justify-between mb-2">
+                <p class="text-[11px] font-bold uppercase tracking-widest text-app-muted-fg">Roster</p>
+                <button class="text-[11px] font-bold text-app-primary">Manage →</button>
+              </div>
+              <button class="w-full text-left">
+                <div class="flex rounded-lg overflow-hidden">
+                  <div class="seg bg-app-primary" style="width:48%"></div>
+                  <div class="seg bg-app-secondary" style="width:40%"></div>
+                  <div class="seg bg-zinc-300" style="width:12%"></div>
+                </div>
+                <div class="flex items-center gap-4 mt-2 text-[12px] text-app-muted-fg">
+                  <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-app-primary"></span><strong class="text-app-fg font-bold">12</strong> Varsity</span>
+                  <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-app-secondary"></span><strong class="text-app-fg font-bold">10</strong> JV</span>
+                  <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-zinc-300"></span><strong class="text-app-fg font-bold">3</strong> Open</span>
+                </div>
+              </button>
+            </div>
+
+            <!-- Week timeline (from A) -->
+            <div class="mb-6">
+              <div class="flex items-baseline justify-between mb-3">
+                <p class="text-[11px] font-bold uppercase tracking-widest text-app-muted-fg">This Week</p>
+                <button class="text-[11px] font-bold text-app-primary">Schedule →</button>
+              </div>
+              <div class="space-y-0">
+                <div class="flex gap-4 pb-3">
+                  <div class="w-10 shrink-0 text-center">
+                    <p class="text-[10px] font-bold text-app-muted-fg uppercase leading-none">Mon</p>
+                    <p class="text-lg font-extrabold leading-tight mt-0.5">21</p>
+                  </div>
+                  <div class="flex-1 border-l border-app-border pl-4">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-app-accent">Practice · 4:00 PM</p>
+                    <p class="font-bold text-[14px] leading-tight mt-0.5">Pitcher Bullpens</p>
+                    <p class="text-[12px] text-app-muted-fg">Varsity · 6 pitchers</p>
+                  </div>
+                </div>
+                <div class="flex gap-4 pb-3">
+                  <div class="w-10 shrink-0 text-center">
+                    <p class="text-[10px] font-bold text-app-muted-fg uppercase leading-none">Wed</p>
+                    <p class="text-lg font-extrabold leading-tight mt-0.5">23</p>
+                  </div>
+                  <div class="flex-1 border-l border-app-border pl-4">
+                    <p class="text-[10px] font-bold uppercase tracking-wider" style="color:hsl(32 95% 42%)">Practice · 3:30 PM · No plan</p>
+                    <p class="font-bold text-[14px] leading-tight mt-0.5">Team Defense</p>
+                    <p class="text-[12px] text-app-muted-fg">All levels</p>
+                  </div>
+                </div>
+                <div class="flex gap-4">
+                  <div class="w-10 shrink-0 text-center">
+                    <p class="text-[10px] font-bold text-app-primary uppercase leading-none">Sat</p>
+                    <p class="text-lg font-extrabold leading-tight mt-0.5 text-app-primary">26</p>
+                  </div>
+                  <div class="flex-1 border-l border-app-primary pl-4">
+                    <p class="text-[10px] font-bold uppercase tracking-wider" style="color: hsl(12 90% 52%)">Game · 4:30 PM</p>
+                    <p class="font-bold text-[14px] leading-tight mt-0.5">vs North Ridgeview HS</p>
+                    <p class="text-[12px] text-app-muted-fg">Cherry Creek HS, Field 3</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Your workspaces — data-aware vertical list (no grid) -->
+            <div class="border-t border-app-border pt-4">
+              <p class="text-[11px] font-bold uppercase tracking-widest text-app-muted-fg mb-2.5">Your Workspaces</p>
+              <div class="rounded-xl border border-app-border bg-white divide-y divide-app-border overflow-hidden">
+                <button class="w-full flex items-center gap-3 px-3 py-3 text-left hover:bg-app-muted/30 transition-colors">
+                  <div class="w-9 h-9 rounded-lg bg-app-primary/10 flex items-center justify-center text-app-primary shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/></svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[14px] font-bold leading-tight">Game Day</p>
+                    <p class="text-[11px] text-app-muted-fg">Saturday · vs North Ridgeview</p>
+                  </div>
+                  <span class="text-[18px] text-app-muted-fg">›</span>
+                </button>
+                <button class="w-full flex items-center gap-3 px-3 py-3 text-left hover:bg-app-muted/30 transition-colors">
+                  <div class="w-9 h-9 rounded-lg bg-app-accent/10 flex items-center justify-center text-app-accent shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 6.5h3v3"/><path d="m19 5-6 6"/><path d="M20.5 17.5v3h-3"/><path d="m19 19-6-6"/><path d="M6.5 17.5h-3v-3"/><path d="m5 19 6-6"/><path d="M6.5 6.5h-3v3"/><path d="m5 5 6 6"/></svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[14px] font-bold leading-tight">Practice Planning</p>
+                    <p class="text-[11px] text-app-muted-fg">2 this week · 1 needs a plan</p>
+                  </div>
+                  <span class="text-[18px] text-app-muted-fg">›</span>
+                </button>
+                <button class="w-full flex items-center gap-3 px-3 py-3 text-left hover:bg-app-muted/30 transition-colors">
+                  <div class="w-9 h-9 rounded-lg bg-app-secondary/10 flex items-center justify-center text-app-secondary shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[14px] font-bold leading-tight">Team Management</p>
+                    <p class="text-[11px] text-app-muted-fg">22 / 25 assigned · 3 open</p>
+                  </div>
+                  <span class="text-[18px] text-app-muted-fg">›</span>
+                </button>
+                <button class="w-full flex items-center gap-3 px-3 py-3 text-left hover:bg-app-muted/30 transition-colors">
+                  <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:hsl(280 60% 96%); color:hsl(280 60% 48%)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[14px] font-bold leading-tight">Player Development</p>
+                    <p class="text-[11px] text-app-muted-fg">8 players trending · career history</p>
+                  </div>
+                  <span class="text-[18px] text-app-muted-fg">›</span>
+                </button>
+              </div>
+
+              <!-- Seasonal tools: very quiet, only surfaces when relevant -->
+              <div class="mt-3 flex items-center gap-2">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-app-muted-fg/70">Seasonal</span>
+                <span class="text-zinc-300">·</span>
+                <button class="text-[12px] font-semibold text-app-muted-fg hover:text-app-fg">Score Entry</button>
+                <span class="text-zinc-300">·</span>
+                <button class="text-[12px] font-semibold text-app-muted-fg hover:text-app-fg">Rankings</button>
+              </div>
+            </div>
+
+          </div>
+          <div class="bottom-nav">
+            <div class="nav-item active"><div class="w-5 h-5 rounded bg-app-primary/20 flex items-center justify-center"><div class="w-2.5 h-2.5 rounded-sm bg-app-primary"></div></div>Home</div>
+            <div class="nav-item"><div class="w-5 h-5">👥</div>Roster</div>
+            <div class="nav-item"><div class="w-5 h-5">📅</div>Schedule</div>
+            <div class="nav-item"><div class="w-5 h-5">📋</div>Score</div>
+            <div class="nav-item"><div class="w-5 h-5">···</div>More</div>
+          </div>
+        </div>
+
+        <div class="text-[14px] text-zinc-800 space-y-4 lg:pt-4">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-1">What moved where</p>
+            <ul class="list-disc pl-5 space-y-1.5 marker:text-zinc-400">
+              <li><strong>Next game</strong> keeps the focal position, with a visible <strong>Game Day Checklist</strong> (roster → lineup → print) — the daily-use workflow is literally on the screen.</li>
+              <li><strong>"Needs Attention"</strong> replaces B's evaluation coverage. Cards reflect <em>daily</em> decisions: unassigned players, practices missing plans, lineups not built. These are always present in normal coaching.</li>
+              <li><strong>Header pill</strong> becomes "2 to do" — a scannable count of Needs-Attention items. Amber if anything to do, green if clean.</li>
+              <li><strong>Shortcuts</strong> reweighted: Game Day · Practices · Teams · Add Player are the primary 2×2. Score Entry + Rankings drop to a "seasonal" chip row.</li>
+              <li><strong>Roster bar</strong> stays — it's context, always relevant.</li>
+              <li>When a <strong>tryout session is active</strong>, a thin banner could appear above Needs Attention: "Tryouts in progress → Score Entry" — surfacing Score Entry temporarily without making it a default fixture.</li>
+            </ul>
+          </div>
+          <div>
+            <p class="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-1">Why this works</p>
+            <ul class="list-disc pl-5 space-y-1.5 marker:text-zinc-400">
+              <li>A coach opening the app in March sees Game Day Checklist + This Week + Needs Attention — all relevant.</li>
+              <li>A coach opening the app in August pre-tryouts sees a "Tryouts in progress" banner + Score Entry surfaced temporarily.</li>
+              <li>No wasted pixels on evaluation UI during the 85% of the year it's unused.</li>
+              <li>The "what should I do right now" question is answered twice: globally (header pill), concretely (Needs Attention cards).</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison table -->
+  <section class="mt-16 max-w-5xl">
+    <h2 class="text-xl font-extrabold tracking-tight mb-4">At a glance</h2>
+    <div class="rounded-2xl border border-zinc-200 bg-white overflow-hidden text-[13px]">
+      <table class="w-full">
+        <thead class="bg-zinc-50 text-left text-[11px] uppercase tracking-wider text-zinc-500 font-bold">
+          <tr>
+            <th class="px-4 py-3">Dimension</th>
+            <th class="px-4 py-3">A — Disciplined</th>
+            <th class="px-4 py-3">B — Command</th>
+            <th class="px-4 py-3">C — Focus</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100">
+          <tr><td class="px-4 py-3 font-bold">Info density</td><td class="px-4 py-3">Medium</td><td class="px-4 py-3">High</td><td class="px-4 py-3">Low</td></tr>
+          <tr><td class="px-4 py-3 font-bold">Primary CTA</td><td class="px-4 py-3">Open Game Day</td><td class="px-4 py-3">Build Lineup (status-driven)</td><td class="px-4 py-3">Finish Evaluations (task list)</td></tr>
+          <tr><td class="px-4 py-3 font-bold">Scroll to see all</td><td class="px-4 py-3">~1.2 screens</td><td class="px-4 py-3">~1.3 screens</td><td class="px-4 py-3">~1.0 screen</td></tr>
+          <tr><td class="px-4 py-3 font-bold">"Are we ready?" signal</td><td class="px-4 py-3">Implicit</td><td class="px-4 py-3">Explicit global pill + status cards</td><td class="px-4 py-3">Implicit via task count</td></tr>
+          <tr><td class="px-4 py-3 font-bold">Feels like</td><td class="px-4 py-3">Linear, Height</td><td class="px-4 py-3">Superhuman, Pilot, Stripe</td><td class="px-4 py-3">Things 3, Apple Fitness</td></tr>
+          <tr><td class="px-4 py-3 font-bold">Risk</td><td class="px-4 py-3">Could feel underwhelming at first glance</td><td class="px-4 py-3">More complex to build + keep coherent</td><td class="px-4 py-3">Requires a "next action" engine we don't have yet</td></tr>
+          <tr><td class="px-4 py-3 font-bold">Build effort from today</td><td class="px-4 py-3">~1 day</td><td class="px-4 py-3">~2–3 days (new readiness calcs)</td><td class="px-4 py-3">~2 days (task logic + layout)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="mt-10 max-w-3xl text-[14px] text-zinc-700 space-y-3">
+    <p><strong class="text-zinc-900">My honest take.</strong> Direction A is the safest and highest-reward-per-effort bet — it makes the product feel intentional without inventing new backend concepts. Direction B is the most differentiated but only if you're willing to invest in real readiness logic (evaluation coverage %, lineup-built status, etc). Direction C is the most opinionated — it assumes the coach wants a prioritized to-do list, which is a product claim worth testing with a real user before committing.</p>
+    <p>If you don't want to pick yet, we can mix: A's clean hero + B's readiness cards + C's "Today" list is actually coherent, and probably the strongest single direction.</p>
+  </section>
+</div>
+
+</body>
+</html>

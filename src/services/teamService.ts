@@ -169,6 +169,38 @@ export async function fetchGameRoster(gameId: string): Promise<{ data: GameRoste
   return { data: data ?? [], error: null };
 }
 
+/**
+ * Lightweight readiness snapshot for a single game: counts only.
+ * Used by TeamHome's Game Day Checklist to decide whether roster is set
+ * and lineup is built without pulling full row data.
+ */
+export async function fetchGameReadiness(
+  gameId: string
+): Promise<{ data: { rosterCount: number; lineupCount: number }; error: string | null }> {
+  const [rosterRes, lineupRes] = await Promise.all([
+    supabase
+      .from("game_rosters")
+      .select("player_id", { count: "exact", head: true })
+      .eq("game_id", gameId),
+    supabase
+      .from("lineup_entries")
+      .select("id", { count: "exact", head: true })
+      .eq("game_id", gameId),
+  ]);
+
+  if (rosterRes.error || lineupRes.error) {
+    return {
+      data: { rosterCount: 0, lineupCount: 0 },
+      error: rosterRes.error?.message || lineupRes.error?.message || "Failed to fetch readiness",
+    };
+  }
+
+  return {
+    data: { rosterCount: rosterRes.count ?? 0, lineupCount: lineupRes.count ?? 0 },
+    error: null,
+  };
+}
+
 /** Set game roster: upserts player entries, removes unlisted players. */
 export async function setGameRoster(
   gameId: string,
