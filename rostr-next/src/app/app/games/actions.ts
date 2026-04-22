@@ -48,3 +48,19 @@ export async function createGameAction(
   revalidatePath("/app/schedule");
   return { error: null, gameId: data.id };
 }
+
+export async function deleteGameAction(gameId: string): Promise<{ error: string | null }> {
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program." };
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase
+    .from("games")
+    .delete()
+    .eq("id", gameId)
+    .eq("program_id", coach.program_id);
+  if (error) return { error: error.message };
+  revalidatePath("/app");
+  revalidatePath("/app/games");
+  revalidatePath("/app/schedule");
+  return { error: null };
+}

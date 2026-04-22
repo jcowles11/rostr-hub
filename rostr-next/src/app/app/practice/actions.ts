@@ -42,3 +42,19 @@ export async function createPracticeAction(
   revalidatePath("/app/schedule");
   return { error: null, practiceId: data.id };
 }
+
+export async function deletePracticeAction(practiceId: string): Promise<{ error: string | null }> {
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program." };
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase
+    .from("practice_plans")
+    .delete()
+    .eq("id", practiceId)
+    .eq("program_id", coach.program_id);
+  if (error) return { error: error.message };
+  revalidatePath("/app");
+  revalidatePath("/app/practice");
+  revalidatePath("/app/schedule");
+  return { error: null };
+}

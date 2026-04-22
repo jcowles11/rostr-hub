@@ -2,11 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Swords, Plus, Bell, MapPin, Clock, ChevronRight } from "lucide-react";
+import { Swords, Plus, Bell, MapPin, Clock, ChevronRight, Trash2, Pencil } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { TopBar } from "@/components/organisms/top-bar";
 import { cn } from "@/lib/utils";
 import { comingSoon } from "@/lib/coming-soon";
 import { AddEventModal } from "@/components/organisms/add-event-modal";
+import { RowActions } from "@/components/molecules/row-actions";
+import { deleteGameAction } from "./actions";
 
 export interface Game {
   id: string;
@@ -100,6 +104,7 @@ export function GamesView({ games: GAMES }: { games: Game[] }) {
 }
 
 function GameRow({ game }: { game: Game }) {
+  const router = useRouter();
   const isFinal = game.status === "final";
   const won = isFinal && game.result && game.result.us > game.result.them;
   const lost = isFinal && game.result && game.result.us < game.result.them;
@@ -153,6 +158,31 @@ function GameRow({ game }: { game: Game }) {
           {game.result.us}-{game.result.them}
         </div>
       )}
+      <div onClick={(e) => e.stopPropagation()}>
+        <RowActions
+          items={[
+            {
+              label: "Edit game",
+              icon: <Pencil className="w-3.5 h-3.5" />,
+              onSelect: () => comingSoon("Edit game", "Inline edit modal ships with dugout console."),
+            },
+            {
+              label: "Delete game",
+              icon: <Trash2 className="w-3.5 h-3.5" />,
+              danger: true,
+              onSelect: async () => {
+                if (!confirm(`Delete ${game.home ? "vs" : "@"} ${game.opponent}?`)) return;
+                const r = await deleteGameAction(game.id);
+                if (r.error) toast.error("Couldn't delete", { description: r.error });
+                else {
+                  toast.success("Game deleted");
+                  router.refresh();
+                }
+              },
+            },
+          ]}
+        />
+      </div>
       <ChevronRight className="w-4 h-4 text-ink-4 shrink-0" />
     </Link>
   );
