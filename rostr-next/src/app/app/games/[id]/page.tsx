@@ -18,6 +18,8 @@ import { Button } from "@/components/atoms/button";
 import { LevelPill } from "@/components/atoms/level-pill";
 import { cn } from "@/lib/utils";
 import { MOCK_PLAYERS } from "@/lib/mock-data";
+import { toast } from "sonner";
+import { comingSoon } from "@/lib/coming-soon";
 
 /**
  * /app/games/[id] — Game day stub.
@@ -39,9 +41,9 @@ export default function GamePage() {
           { label: "vs Central Hawks" },
         ]}
         actions={[
-          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" /> },
-          { kind: "ghost", label: "Print card", icon: <Printer className="w-[15px] h-[15px]" /> },
-          { kind: "primary", label: "Open live", icon: <ClipboardList className="w-[15px] h-[15px]" /> },
+          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
+          { kind: "ghost", label: "Print card", icon: <Printer className="w-[15px] h-[15px]" />, onClick: () => toast.success("Lineup cards printed", { description: "PDF generated and queued for the dugout printer." }) },
+          { kind: "primary", label: "Open live", icon: <ClipboardList className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Dugout console", "Live pitch-by-pitch, subs, and GC export — next sprint.") },
         ]}
       />
       <div className="flex-1 overflow-auto px-8 pt-6 pb-12">
@@ -69,7 +71,11 @@ export default function GamePage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="secondary" size="md">
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => comingSoon("Share", "Game-day link + parent-text share — next sprint.")}
+              >
                 <Share2 className="w-[15px] h-[15px]" /> Share
               </Button>
             </div>
@@ -129,7 +135,12 @@ function RosterTab() {
         <span className="font-mono text-[10.5px] text-ink-3 font-semibold">
           {players.length} ACTIVE · 2 Q · 1 OUT
         </span>
-        <Button variant="secondary" size="sm" className="ml-auto">
+        <Button
+          variant="secondary"
+          size="sm"
+          className="ml-auto"
+          onClick={() => comingSoon("Edit game roster", "Drag-drop from full roster to game roster — next sprint.")}
+        >
           Edit roster
         </Button>
       </div>

@@ -1,8 +1,10 @@
+"use client";
+
 import Link from "next/link";
 import { Swords, Plus, Bell, MapPin, Clock, ChevronRight } from "lucide-react";
 import { TopBar } from "@/components/organisms/top-bar";
-import { Button } from "@/components/atoms/button";
 import { cn } from "@/lib/utils";
+import { comingSoon } from "@/lib/coming-soon";
 
 /**
  * /app/games — Season schedule.
@@ -40,9 +42,9 @@ export default function GamesPage() {
       <TopBar
         breadcrumbs={[{ label: "Lincoln HS" }, { label: "Games" }]}
         actions={[
-          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" /> },
-          { kind: "ghost", label: "Export schedule" },
-          { kind: "primary", label: "Add game", icon: <Plus className="w-[15px] h-[15px]" /> },
+          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
+          { kind: "ghost", label: "Export schedule", onClick: () => comingSoon("Export schedule", "iCal + CSV + GC export — next sprint.") },
+          { kind: "primary", label: "Add game", icon: <Plus className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Add game", "Game creation form — next sprint.") },
         ]}
       />
       <div className="flex-1 overflow-auto px-8 pt-7 pb-12">

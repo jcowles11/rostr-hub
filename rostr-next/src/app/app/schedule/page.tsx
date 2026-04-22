@@ -1,7 +1,10 @@
+"use client";
+
 import Link from "next/link";
 import { CalendarDays, Plus, Bell, MapPin, Swords, Dumbbell } from "lucide-react";
 import { TopBar } from "@/components/organisms/top-bar";
 import { cn } from "@/lib/utils";
+import { comingSoon } from "@/lib/coming-soon";
 
 /**
  * /app/schedule — Unified games + practices calendar.
@@ -36,9 +39,9 @@ export default function SchedulePage() {
       <TopBar
         breadcrumbs={[{ label: "Lincoln HS" }, { label: "Schedule" }]}
         actions={[
-          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" /> },
-          { kind: "ghost", label: "Export week" },
-          { kind: "primary", label: "Add event", icon: <Plus className="w-[15px] h-[15px]" /> },
+          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
+          { kind: "ghost", label: "Export week", onClick: () => comingSoon("Export week", "iCal + PDF + parent-text digest — next sprint.") },
+          { kind: "primary", label: "Add event", icon: <Plus className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Add event", "Create game or practice — next sprint.") },
         ]}
       />
       <div className="flex-1 overflow-auto px-8 pt-7 pb-12">

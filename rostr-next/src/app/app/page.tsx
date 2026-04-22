@@ -8,9 +8,13 @@ import {
   Download,
   MoreHorizontal,
 } from "lucide-react";
+"use client";
+
 import Link from "next/link";
+import { toast } from "sonner";
 import { Button } from "@/components/atoms/button";
 import { TopBar } from "@/components/organisms/top-bar";
+import { comingSoon } from "@/lib/coming-soon";
 import { Panel, PanelHead, PanelTab } from "@/components/molecules/panel";
 import { StatTile } from "@/components/molecules/stat-tile";
 import { FeedItem } from "@/components/molecules/feed-item";
@@ -36,8 +40,18 @@ export default function HubPage() {
       <TopBar
         breadcrumbs={[{ label: "Lincoln HS" }, { label: "Today" }]}
         actions={[
-          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, notification: true },
-          { kind: "ghost", label: "Quick add", icon: <Plus className="w-[15px] h-[15px]" /> },
+          {
+            kind: "icon",
+            icon: <Bell className="w-[15px] h-[15px]" />,
+            notification: true,
+            onClick: () => comingSoon("Notifications", "Activity-based in-app notifications come with messaging v2."),
+          },
+          {
+            kind: "ghost",
+            label: "Quick add",
+            icon: <Plus className="w-[15px] h-[15px]" />,
+            onClick: () => comingSoon("Quick add", "Command-K for players, games, practices, drills is next."),
+          },
           { kind: "primary", label: "Start practice", href: "/app/practice" },
         ]}
       />
@@ -56,11 +70,19 @@ export default function HubPage() {
               </p>
             </div>
             <div className="flex gap-2 shrink-0">
-              <Button variant="secondary" size="md">
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => toast.success("Synced", { description: "All GameChanger + MaxPreps sources up to date." })}
+              >
                 <RefreshCw className="w-[15px] h-[15px]" />
                 Sync
               </Button>
-              <Button variant="secondary" size="md">
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => comingSoon("Export week", "Weekly PDF + CSV digest — next sprint.")}
+              >
                 <Download className="w-[15px] h-[15px]" />
                 Export week
               </Button>
@@ -231,9 +253,9 @@ function ThisWeekPanel() {
       <PanelHead
         title="This week"
         actions={
-          <button className="text-[13px] text-ink-3 hover:text-ink px-1.5 py-1">
+          <Link href="/app/schedule" className="text-[13px] text-ink-3 hover:text-ink px-1.5 py-1">
             View all →
-          </button>
+          </Link>
         }
       />
       <div>
@@ -277,9 +299,9 @@ function TodayPlanPanel() {
       <PanelHead
         title="Today’s plan"
         actions={
-          <button className="text-[13px] text-ink-3 hover:text-ink px-1.5 py-1">
+          <Link href="/app/practice" className="text-[13px] text-ink-3 hover:text-ink px-1.5 py-1">
             Open editor →
-          </button>
+          </Link>
         }
       />
       <div className="p-[18px] space-y-2.5">
@@ -367,6 +389,7 @@ function AICoachCard() {
           {MOCK_AI_SUGGESTIONS.map((s, i) => (
             <button
               key={i}
+              onClick={() => comingSoon(`AI: ${s.label}`, "Live AI co-coach wires to Claude in the next sprint.")}
               className="flex items-center justify-between gap-2 px-2.5 py-2.5 bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] rounded-sm text-left text-[12px] transition-colors"
             >
               <span>{s.label}</span>
@@ -382,24 +405,26 @@ function AICoachCard() {
 }
 
 function QuickActionsPanel() {
+  const actions = [
+    { ic: "+", t: "Add player", s: "Manual entry", href: "/app/roster" },
+    { ic: "↑", t: "Import CSV", s: "GC / MaxPreps", href: "/app/roster?import=1" },
+    { ic: "◼", t: "New tryout", s: "Spring '26", href: "/app/tryouts" },
+    { ic: "✎", t: "Post update", s: "Team · Parents", href: "/app/messages" },
+  ];
   return (
     <Panel>
       <PanelHead title="Quick actions" />
       <div className="grid grid-cols-2 gap-2 p-[14px]">
-        {[
-          { ic: "+", t: "Add player", s: "Manual entry" },
-          { ic: "↑", t: "Import CSV", s: "GC / MaxPreps" },
-          { ic: "◼", t: "New tryout", s: "Spring '26" },
-          { ic: "✎", t: "Post update", s: "Team · Parents" },
-        ].map((q, i) => (
-          <button
+        {actions.map((q, i) => (
+          <Link
             key={i}
+            href={q.href}
             className="flex flex-col gap-1 p-[14px_12px] border border-hair rounded-md bg-card text-left hover:border-ink hover:-translate-y-px transition-all"
           >
             <span className="font-display text-[18px] font-bold text-red leading-none">{q.ic}</span>
             <span className="mt-1 text-[12.5px] font-semibold">{q.t}</span>
             <span className="text-[10.5px] text-ink-3">{q.s}</span>
-          </button>
+          </Link>
         ))}
       </div>
     </Panel>
@@ -412,9 +437,9 @@ function MessagesPanel() {
       <PanelHead
         title="Messages"
         actions={
-          <button className="text-[13px] text-ink-3 hover:text-ink px-1.5 py-1">
+          <Link href="/app/messages" className="text-[13px] text-ink-3 hover:text-ink px-1.5 py-1">
             Inbox →
-          </button>
+          </Link>
         }
       />
       <div>
@@ -452,7 +477,7 @@ function PlayerSpotlightPanel() {
         }
       />
       <div className="p-[18px]">
-        <div className="flex items-center gap-3 mb-3.5">
+        <Link href="/p/jkim_ss12" className="flex items-center gap-3 mb-3.5 hover:opacity-90">
           <Avatar size="lg" color="ink" initials={MOCK_SPOTLIGHT.initials} />
           <div className="min-w-0">
             <div className="font-display text-[16px] font-semibold tracking-tight">
@@ -462,7 +487,7 @@ function PlayerSpotlightPanel() {
               {MOCK_SPOTLIGHT.meta}
             </div>
           </div>
-        </div>
+        </Link>
         <div className="text-[12.5px] text-ink-2 px-3 py-2.5 bg-paper rounded-md border-l-[3px] border-l-red leading-relaxed">
           {MOCK_SPOTLIGHT.reason}
         </div>

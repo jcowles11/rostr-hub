@@ -1,7 +1,11 @@
+"use client";
+
+import Link from "next/link";
 import { MessageSquare, Plus, Bell } from "lucide-react";
 import { TopBar } from "@/components/organisms/top-bar";
 import { Avatar } from "@/components/atoms/avatar";
 import { cn } from "@/lib/utils";
+import { comingSoon } from "@/lib/coming-soon";
 
 /**
  * /app/messages — Inbox stub. Threaded view comes later.
@@ -22,7 +26,12 @@ export default function MessagesPage() {
         breadcrumbs={[{ label: "Lincoln HS" }, { label: "Messages" }]}
         actions={[
           { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" /> },
-          { kind: "primary", label: "New message", icon: <Plus className="w-[15px] h-[15px]" /> },
+          {
+            kind: "primary",
+            label: "New message",
+            icon: <Plus className="w-[15px] h-[15px]" />,
+            onClick: () => comingSoon("New message", "Compose + broadcast to team / parents / recruiter lands next."),
+          },
         ]}
       />
       <div className="flex-1 overflow-auto">
@@ -45,8 +54,9 @@ export default function MessagesPage() {
               </div>
             </div>
             {THREADS.map((t) => (
-              <div
+              <Link
                 key={t.id}
+                href={`/app/messages/${t.id}`}
                 className={cn(
                   "flex gap-3 px-4 py-3.5 border-b border-hair-2 cursor-pointer",
                   t.id === "t1" ? "bg-paper" : "hover:bg-paper",
@@ -64,7 +74,7 @@ export default function MessagesPage() {
                   <div className="text-[12.5px] text-ink-2 mt-1 line-clamp-2">{t.preview}</div>
                 </div>
                 {t.unread && <span className="w-1.5 h-1.5 rounded-full bg-red mt-2 shrink-0" />}
-              </div>
+              </Link>
             ))}
           </div>
           <div className="p-10 flex items-center justify-center text-center">

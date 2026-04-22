@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import { PublicNav } from "@/components/organisms/public-nav";
-import { Button } from "@/components/atoms/button";
 import { cn } from "@/lib/utils";
 
 /**
@@ -516,13 +515,14 @@ function AI() {
                 "Scout opponent · last 5 games",
                 "Draft parent email · tournament",
               ].map((p) => (
-                <button
+                <Link
                   key={p}
+                  href="/signup"
                   className="flex items-center justify-between px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-sm text-left text-[13.5px] transition-colors"
                 >
                   <span>{p}</span>
                   <span className="text-red text-[11px] font-semibold font-mono">2 min</span>
-                </button>
+                </Link>
               ))}
             </div>
           </div>
@@ -644,16 +644,23 @@ function Pricing() {
                   </li>
                 ))}
               </ul>
-              <button
+              <Link
+                href={
+                  t.name === "Coach"
+                    ? "/signup?role=coach"
+                    : t.name === "Athlete"
+                      ? "/signup?role=player"
+                      : "/signup?role=recruiter"
+                }
                 className={cn(
-                  "mt-7 w-full rounded-sm h-[42px] text-[13.5px] font-semibold",
+                  "mt-7 w-full inline-flex items-center justify-center rounded-sm h-[42px] text-[13.5px] font-semibold",
                   t.emphasis
                     ? "bg-red text-white hover:bg-red/90"
                     : "bg-ink text-white hover:bg-red",
                 )}
               >
                 {t.cta}
-              </button>
+              </Link>
             </div>
           ))}
         </div>
@@ -677,12 +684,18 @@ function FinalCTA() {
           Start free during preseason. Have your full roster in by week one.
         </p>
         <div className="flex gap-3 justify-center flex-wrap">
-          <Button variant="red" size="lg">
-            <span className="text-[15px] px-2">Start free trial</span>
-          </Button>
-          <Button variant="secondary" size="lg">
-            <span className="text-[15px] px-2">Book a demo</span>
-          </Button>
+          <Link
+            href="/signup"
+            className="inline-flex items-center gap-2 px-[22px] py-3.5 bg-red hover:bg-red/90 text-white rounded-sm text-[15px] font-semibold transition-colors"
+          >
+            Start free trial <ArrowRight className="w-4 h-4" />
+          </Link>
+          <a
+            href="mailto:hello@rostr.app?subject=Rostr%20demo%20request"
+            className="inline-flex items-center gap-2 px-[22px] py-3.5 bg-card border border-hair hover:border-ink text-ink rounded-sm text-[15px] font-semibold transition-colors"
+          >
+            Book a demo
+          </a>
         </div>
       </div>
     </section>
@@ -709,9 +722,25 @@ function Footer() {
             </p>
           </div>
           {[
-            { heading: "Product", links: ["Coach Hub", "Roster", "Practice planner", "Tryouts", "Profiles"] },
-            { heading: "Company", links: ["About", "Built by a coach", "Careers", "Contact"] },
-            { heading: "Resources", links: ["Pilot program", "Help center", "Privacy", "Terms"] },
+            { heading: "Product", links: [
+              { label: "Coach Hub", href: "/app" },
+              { label: "Roster", href: "/app/roster" },
+              { label: "Practice planner", href: "/app/practice" },
+              { label: "Tryouts", href: "/app/tryouts" },
+              { label: "Profiles", href: "/p/marcusjohnson21" },
+            ] },
+            { heading: "Company", links: [
+              { label: "About", href: "/#audiences" },
+              { label: "Built by a coach", href: "/#flywheel" },
+              { label: "Careers", href: "mailto:careers@rostr.app" },
+              { label: "Contact", href: "mailto:hello@rostr.app" },
+            ] },
+            { heading: "Resources", links: [
+              { label: "Pilot program", href: "mailto:hello@rostr.app?subject=Pilot%20program" },
+              { label: "Help center", href: "mailto:support@rostr.app" },
+              { label: "Privacy", href: "/legal/privacy" },
+              { label: "Terms", href: "/legal/terms" },
+            ] },
           ].map((col) => (
             <div key={col.heading}>
               <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-white/50">
@@ -719,9 +748,9 @@ function Footer() {
               </div>
               <ul className="mt-4 space-y-2 text-[13px] text-white/75">
                 {col.links.map((l) => (
-                  <li key={l}>
-                    <Link href="#" className="hover:text-white">
-                      {l}
+                  <li key={l.label}>
+                    <Link href={l.href} className="hover:text-white">
+                      {l.label}
                     </Link>
                   </li>
                 ))}

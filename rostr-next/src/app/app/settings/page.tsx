@@ -6,6 +6,7 @@ import { TopBar } from "@/components/organisms/top-bar";
 import { Avatar } from "@/components/atoms/avatar";
 import { Toggle } from "@/components/atoms/toggle";
 import { cn } from "@/lib/utils";
+import { comingSoon } from "@/lib/coming-soon";
 
 /**
  * /app/settings — Coach settings stub.
@@ -28,23 +29,30 @@ export default function SettingsPage() {
     push: false,
     recruiter: true,
   });
+  const [activeSection, setActiveSection] = useState("Program");
 
   return (
     <>
       <TopBar
         breadcrumbs={[{ label: "Lincoln HS" }, { label: "Settings" }]}
-        actions={[{ kind: "icon", icon: <Bell className="w-[15px] h-[15px]" /> }]}
+        actions={[{ kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") }]}
       />
       <div className="flex-1 overflow-auto">
         <div className="grid grid-cols-[240px_1fr] max-w-layout-hub mx-auto">
           <nav className="border-r border-hair py-8 px-4 space-y-0.5">
             <div className="type-label mb-3 px-2">Settings</div>
-            {SECTIONS.map((s, i) => (
+            {SECTIONS.map((s) => (
               <button
                 key={s.label}
+                onClick={() => {
+                  setActiveSection(s.label);
+                  if (s.label !== "Program") {
+                    comingSoon(`Settings · ${s.label}`, "Section lands in the next sprint.");
+                  }
+                }}
                 className={cn(
-                  "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-sm text-[13px] font-medium transition-colors",
-                  i === 0 ? "bg-paper-deep text-ink" : "text-ink-2 hover:text-ink hover:bg-paper",
+                  "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-sm text-[13px] font-medium transition-colors text-left",
+                  activeSection === s.label ? "bg-paper-deep text-ink" : "text-ink-2 hover:text-ink hover:bg-paper",
                 )}
               >
                 <span className="text-ink-3">{s.icon}</span>
@@ -68,7 +76,10 @@ export default function SettingsPage() {
                 <div className="type-label mb-2">Team logo</div>
                 <div className="flex items-center gap-4">
                   <Avatar size="lg" color="red" initials="LH" />
-                  <button className="px-3 py-2 bg-card border border-hair rounded-sm text-[13px] font-semibold hover:border-ink">
+                  <button
+                    onClick={() => comingSoon("Upload logo", "Image upload + crop — next sprint.")}
+                    className="px-3 py-2 bg-card border border-hair rounded-sm text-[13px] font-semibold hover:border-ink"
+                  >
                     Upload logo
                   </button>
                 </div>
@@ -121,7 +132,12 @@ function Field({ label, value }: { label: string; value: string }) {
         <div className="type-label">{label}</div>
         <div className="text-[14px] font-semibold mt-0.5">{value}</div>
       </div>
-      <button className="text-[12px] text-ink-3 hover:text-ink font-semibold">Edit</button>
+      <button
+        onClick={() => comingSoon(`Edit ${label.toLowerCase()}`, "Inline editors land with real data wiring.")}
+        className="text-[12px] text-ink-3 hover:text-ink font-semibold"
+      >
+        Edit
+      </button>
     </div>
   );
 }

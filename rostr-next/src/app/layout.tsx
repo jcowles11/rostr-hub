@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 import { QueryProvider } from "@/components/providers/query-provider";
 
@@ -37,6 +38,19 @@ export default function RootLayout({
     >
       <body className="bg-paper text-ink antialiased">
         <QueryProvider>{children}</QueryProvider>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            style: {
+              background: "hsl(var(--card, 0 0% 100%))",
+              border: "1px solid var(--hair)",
+              color: "var(--ink)",
+              borderRadius: "8px",
+              fontFamily: "var(--font-sans)",
+              fontSize: "13px",
+            },
+          }}
+        />
       </body>
     </html>
   );

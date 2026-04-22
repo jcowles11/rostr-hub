@@ -15,6 +15,8 @@ import { TopBar } from "@/components/organisms/top-bar";
 import { Avatar } from "@/components/atoms/avatar";
 import { Button } from "@/components/atoms/button";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { comingSoon } from "@/lib/coming-soon";
 
 /**
  * /app/tryouts/[id] — Live rankings view.
@@ -34,10 +36,10 @@ export default function TryoutPage() {
           { label: "Day 2 of 3" },
         ]}
         actions={[
-          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" /> },
-          { kind: "ghost", label: "Settings" },
-          { kind: "ghost", label: "Add player" },
-          { kind: "primary", label: "End tryout" },
+          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
+          { kind: "ghost", label: "Settings", onClick: () => comingSoon("Tryout settings", "Station config + cutoff + attendee list — next sprint.") },
+          { kind: "ghost", label: "Add player", onClick: () => comingSoon("Add tryout attendee", "Walk-up registration — next sprint.") },
+          { kind: "primary", label: "End tryout", onClick: () => comingSoon("End tryout", "Locks scoring + routes you to the Decide tab.") },
         ]}
       />
       <ViewTabs />
@@ -75,6 +77,9 @@ function ViewTabs() {
       {tabs.map((t) => (
         <button
           key={t.label}
+          onClick={() => {
+            if (!t.active) comingSoon(`${t.label} tab`, "Tab content wires up as each section's data model lands.");
+          }}
           className={cn(
             "px-[18px] py-2.5 -mb-px text-[13px] font-semibold flex items-center gap-2 border-b-2 whitespace-nowrap",
             t.active ? "text-ink border-red" : "text-ink-3 border-transparent hover:text-ink",
@@ -118,13 +123,13 @@ function PageHead() {
         </div>
       </div>
       <div className="flex gap-2">
-        <Button variant="secondary" size="md">
+        <Button variant="secondary" size="md" onClick={() => comingSoon("Filter rankings", "Position, class, station-filter — next sprint.")}>
           <Filter className="w-[15px] h-[15px]" /> Filter
         </Button>
-        <Button variant="secondary" size="md">
+        <Button variant="secondary" size="md" onClick={() => comingSoon("Export", "CSV of full rankings + verdicts — next sprint.")}>
           <Download className="w-[15px] h-[15px]" /> Export
         </Button>
-        <Button variant="primary" size="md">
+        <Button variant="primary" size="md" onClick={() => toast.success("Tryout cards printed", { description: "Station scoring cards queued for the coach printer." })}>
           <Printer className="w-[15px] h-[15px]" /> Print cards
         </Button>
       </div>

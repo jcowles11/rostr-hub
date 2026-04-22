@@ -1,6 +1,9 @@
-import { TrendingUp, BarChart3, Bell } from "lucide-react";
+"use client";
+
+import { BarChart3, Bell } from "lucide-react";
 import { TopBar } from "@/components/organisms/top-bar";
 import { StatTile } from "@/components/molecules/stat-tile";
+import { comingSoon } from "@/lib/coming-soon";
 
 /**
  * /app/analytics — Season trends stub. Full charts come later.
@@ -11,9 +14,9 @@ export default function AnalyticsPage() {
       <TopBar
         breadcrumbs={[{ label: "Lincoln HS" }, { label: "Analytics" }]}
         actions={[
-          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" /> },
-          { kind: "ghost", label: "Export" },
-          { kind: "primary", label: "Share report" },
+          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
+          { kind: "ghost", label: "Export", onClick: () => comingSoon("Export analytics", "PDF + CSV season report — next sprint.") },
+          { kind: "primary", label: "Share report", onClick: () => comingSoon("Share report", "Public read-only link for parents/AD — next sprint.") },
         ]}
       />
       <div className="flex-1 overflow-auto px-8 pt-7 pb-12">

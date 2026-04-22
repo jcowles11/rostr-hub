@@ -1,8 +1,5 @@
 import { notFound } from "next/navigation";
 import {
-  UserPlus,
-  MessageSquare,
-  Share2,
   Link2,
   Trophy,
   Star,
@@ -10,10 +7,10 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { PublicNav } from "@/components/organisms/public-nav";
-import { Button } from "@/components/atoms/button";
 import { Avatar } from "@/components/atoms/avatar";
 import { cn } from "@/lib/utils";
 import { MOCK_PLAYERS } from "@/lib/mock-data";
+import { PlayerProfileTabs, PlayerProfileActions } from "./interactive";
 
 /**
  * /p/[handle] — Public player profile.
@@ -39,7 +36,7 @@ export default function PlayerProfilePage({
       <div className="max-w-layout-marketing mx-auto px-7">
         <Hero player={player} />
         <Identity player={player} />
-        <Tabs />
+        <PlayerProfileTabs />
         <Layout player={player} />
       </div>
     </div>
@@ -142,49 +139,7 @@ function Identity({ player }: { player: (typeof MOCK_PLAYERS)[number] }) {
           </span>
         </div>
       </div>
-      <div className="flex gap-2 pt-16 shrink-0">
-        <Button variant="secondary" size="lg">
-          <UserPlus className="w-[15px] h-[15px]" /> Follow
-        </Button>
-        <Button variant="secondary" size="lg">
-          <MessageSquare className="w-[15px] h-[15px]" /> Message
-        </Button>
-        <Button variant="primary" size="lg">
-          <Share2 className="w-[15px] h-[15px]" /> Share profile
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// ── Tabs ─────────────────────────────────────────────────────
-
-function Tabs() {
-  const tabs = [
-    { name: "Overview", active: true },
-    { name: "Stats", count: "4yr" },
-    { name: "Highlights", count: "18" },
-    { name: "Teams", count: "6" },
-    { name: "Recruiting" },
-    { name: "Academic" },
-    { name: "Activity" },
-  ];
-  return (
-    <div className="flex gap-1 border-b border-hair mt-8 overflow-x-auto">
-      {tabs.map((t) => (
-        <button
-          key={t.name}
-          className={cn(
-            "px-[18px] py-3.5 text-[13.5px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors",
-            t.active
-              ? "text-ink border-red"
-              : "text-ink-3 border-transparent hover:text-ink",
-          )}
-        >
-          {t.name}
-          {t.count && <span className="ml-1.5 font-mono text-[11px] text-ink-4">{t.count}</span>}
-        </button>
-      ))}
+      <PlayerProfileActions handle={player.handle} name={`${player.firstName} ${player.lastName}`} />
     </div>
   );
 }

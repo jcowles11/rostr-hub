@@ -2,16 +2,13 @@ import Link from "next/link";
 import {
   Eye,
   Star,
-  Upload,
-  Share2,
-  ExternalLink,
   CheckCircle2,
   TrendingUp,
 } from "lucide-react";
 import { PublicNav } from "@/components/organisms/public-nav";
 import { Avatar } from "@/components/atoms/avatar";
-import { Button } from "@/components/atoms/button";
 import { MOCK_PLAYERS } from "@/lib/mock-data";
+import { MeActions, MeHeaderActions, SuggestionAction, QuickAction } from "./interactive";
 
 /**
  * /me — Authenticated player's home.
@@ -37,19 +34,7 @@ export default function MePage() {
               Class of {me.gradYear} · {me.positions.join("/")} · Lincoln HS · Varsity
             </p>
           </div>
-          <div className="ml-auto flex gap-2">
-            <Link
-              href={`/p/${me.handle}`}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-hair hover:border-ink text-ink rounded-sm text-[13px] font-semibold transition-colors"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              View public profile
-            </Link>
-            <Button variant="red" size="md">
-              <Share2 className="w-[15px] h-[15px]" />
-              Share
-            </Button>
-          </div>
+          <MeHeaderActions handle={me.handle} />
         </div>
 
         <div className="grid grid-cols-[1fr_340px] gap-7">
@@ -83,28 +68,10 @@ export default function MePage() {
                 </p>
               </div>
               <div>
-                {[
-                  { icon: <Upload className="w-4 h-4 text-red" />, title: "Upload a slow-motion swing", meta: "10 sec clip · boosts recruiter engagement by ~4x", cta: "Upload" },
-                  { icon: <CheckCircle2 className="w-4 h-4 text-grass" />, title: "Claim your verified badge", meta: "Your coach has to confirm measurables — done", cta: "View" },
-                  { icon: <Star className="w-4 h-4 text-gold" />, title: "Add SAT / ACT score", meta: "Required by D1 recruiters for initial contact", cta: "Add" },
-                  { icon: <TrendingUp className="w-4 h-4 text-sky" />, title: "Update your target colleges", meta: "Helps Rostr surface your profile to those recruiters", cta: "Update" },
-                ].map((r, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-4 px-5 py-3.5 border-b border-hair-2 last:border-b-0"
-                  >
-                    <div className="w-9 h-9 rounded-md bg-paper flex items-center justify-center shrink-0">
-                      {r.icon}
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-[13.5px]">{r.title}</div>
-                      <div className="text-[11.5px] text-ink-3 mt-0.5">{r.meta}</div>
-                    </div>
-                    <button className="px-3 py-1.5 bg-card border border-hair rounded-sm text-[12px] font-semibold hover:border-ink">
-                      {r.cta}
-                    </button>
-                  </div>
-                ))}
+                <SuggestionAction iconColor="red" iconName="Upload" title="Upload a slow-motion swing" meta="10 sec clip · boosts recruiter engagement by ~4x" cta="Upload" />
+                <SuggestionAction iconColor="grass" iconName="CheckCircle2" title="Claim your verified badge" meta="Your coach has to confirm measurables — done" cta="View" />
+                <SuggestionAction iconColor="gold" iconName="Star" title="Add SAT / ACT score" meta="Required by D1 recruiters for initial contact" cta="Add" />
+                <SuggestionAction iconColor="sky" iconName="TrendingUp" title="Update your target colleges" meta="Helps Rostr surface your profile to those recruiters" cta="Update" />
               </div>
             </div>
 
@@ -196,15 +163,9 @@ export default function MePage() {
             <div className="bg-card border border-hair rounded-lg p-5">
               <div className="type-label">Quick actions</div>
               <div className="mt-3 flex flex-col gap-2">
-                <button className="text-left px-3 py-2.5 bg-paper hover:bg-paper-deep rounded-sm text-[13px] font-semibold">
-                  Upload a highlight
-                </button>
-                <button className="text-left px-3 py-2.5 bg-paper hover:bg-paper-deep rounded-sm text-[13px] font-semibold">
-                  Edit academics
-                </button>
-                <button className="text-left px-3 py-2.5 bg-paper hover:bg-paper-deep rounded-sm text-[13px] font-semibold">
-                  Privacy + visibility
-                </button>
+                <QuickAction label="Upload a highlight" feature="Upload highlight" detail="Mux video upload + recruiter push — next sprint." />
+                <QuickAction label="Edit academics" feature="Edit academics" detail="GPA / test scores / target schools — next sprint." />
+                <QuickAction label="Privacy + visibility" feature="Privacy settings" detail="Control what's public vs. recruiter-only — next sprint." />
               </div>
             </div>
           </div>
