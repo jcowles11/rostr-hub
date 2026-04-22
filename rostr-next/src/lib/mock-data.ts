@@ -5,19 +5,29 @@
 import type { AvatarColor } from "@/components/atoms/avatar";
 
 export type AvailabilityStatus = "ok" | "questionable" | "out";
+export type RosterLevel = "V" | "JV" | "F";
+export type ProfileStatus = "linked" | "pending" | "unlinked";
 
 export interface MockPlayer {
   id: string;
   jerseyNumber: number;
   firstName: string;
   lastName: string;
+  handle: string;
   initials: string;
   avatarColor: AvatarColor;
-  classYear: string; // "Sr", "Jr", etc.
+  classYear: string; // "'26 Sr", "'27 Jr", etc.
+  classYearShort: string; // "Sr", "Jr"
+  gradYear: number; // 2026
   positions: string[];
+  level: RosterLevel;
+  ba?: string;
+  era?: string;
   availabilityStatus: AvailabilityStatus;
   availabilityNote?: string;
-  stat?: string; // sparkle display stat e.g. ".372 BA"
+  profileStatus: ProfileStatus;
+  hot?: boolean; // fire emoji marker on Coach Hub
+  stat?: string; // hub-only sparkle display
   statEmphasis?: "neutral" | "attention";
 }
 
@@ -37,98 +47,98 @@ export const MOCK_COACH = {
 
 export const MOCK_PLAYERS: MockPlayer[] = [
   {
-    id: "p1",
-    jerseyNumber: 21,
-    firstName: "Marcus",
-    lastName: "Johnson",
-    initials: "MJ",
-    avatarColor: "ink",
-    classYear: "Sr",
-    positions: ["CF"],
-    availabilityStatus: "ok",
-    stat: ".372 BA",
-    statEmphasis: "neutral",
+    id: "p1", jerseyNumber: 21, firstName: "Marcus", lastName: "Johnson",
+    handle: "marcusjohnson21", initials: "MJ", avatarColor: "ink",
+    classYear: "'26 Sr", classYearShort: "Sr", gradYear: 2026,
+    positions: ["CF"], level: "V", ba: ".372",
+    availabilityStatus: "ok", profileStatus: "linked", hot: true,
+    stat: ".372 BA", statEmphasis: "neutral",
   },
   {
-    id: "p2",
-    jerseyNumber: 12,
-    firstName: "Jordan",
-    lastName: "Kim",
-    initials: "JK",
-    avatarColor: "sky",
-    classYear: "Jr",
-    positions: ["SS"],
-    availabilityStatus: "questionable",
-    availabilityNote: "Hamstring Q",
-    stat: "limited reps",
-    statEmphasis: "attention",
+    id: "p2", jerseyNumber: 12, firstName: "Jordan", lastName: "Kim",
+    handle: "jkim_ss12", initials: "JK", avatarColor: "sky",
+    classYear: "'27 Jr", classYearShort: "Jr", gradYear: 2027,
+    positions: ["SS"], level: "V", ba: ".318",
+    availabilityStatus: "questionable", availabilityNote: "Hamstring Q",
+    profileStatus: "linked",
+    stat: "limited reps", statEmphasis: "attention",
   },
   {
-    id: "p3",
-    jerseyNumber: 7,
-    firstName: "Alex",
-    lastName: "Riggs",
-    initials: "AR",
-    avatarColor: "dirt",
-    classYear: "Sr",
-    positions: ["P", "1B"],
-    availabilityStatus: "ok",
-    stat: "bullpen day",
-    statEmphasis: "neutral",
+    id: "p3", jerseyNumber: 7, firstName: "Alex", lastName: "Riggs",
+    handle: "riggsbeats", initials: "AR", avatarColor: "dirt",
+    classYear: "'26 Sr", classYearShort: "Sr", gradYear: 2026,
+    positions: ["P", "1B"], level: "V", ba: ".295", era: "2.84",
+    availabilityStatus: "ok", profileStatus: "linked",
+    stat: "bullpen day", statEmphasis: "neutral",
   },
   {
-    id: "p4",
-    jerseyNumber: 33,
-    firstName: "DeAndre",
-    lastName: "Brooks",
-    initials: "DB",
-    avatarColor: "grass",
-    classYear: "Jr",
-    positions: ["2B", "3B"],
-    availabilityStatus: "out",
-    availabilityNote: "Academic",
-    stat: "tutoring until 4",
-    statEmphasis: "attention",
+    id: "p4", jerseyNumber: 33, firstName: "DeAndre", lastName: "Brooks",
+    handle: "dbrooks_33", initials: "DB", avatarColor: "grass",
+    classYear: "'27 Jr", classYearShort: "Jr", gradYear: 2027,
+    positions: ["2B", "3B"], level: "V", ba: ".287",
+    availabilityStatus: "out", availabilityNote: "Academic",
+    profileStatus: "linked",
+    stat: "tutoring until 4", statEmphasis: "attention",
   },
   {
-    id: "p5",
-    jerseyNumber: 44,
-    firstName: "Tre",
-    lastName: "Mbeki",
-    initials: "TM",
-    avatarColor: "amber",
-    classYear: "So",
-    positions: ["C"],
-    availabilityStatus: "ok",
-    stat: "full reps",
-    statEmphasis: "neutral",
+    id: "p5", jerseyNumber: 44, firstName: "Tre", lastName: "Mbeki",
+    handle: "tremb44", initials: "TM", avatarColor: "amber",
+    classYear: "'28 So", classYearShort: "So", gradYear: 2028,
+    positions: ["C"], level: "V", ba: ".254",
+    availabilityStatus: "ok", profileStatus: "pending",
+    stat: "full reps", statEmphasis: "neutral",
   },
   {
-    id: "p6",
-    jerseyNumber: 8,
-    firstName: "Noah",
-    lastName: "Patel",
-    initials: "NP",
-    avatarColor: "red",
-    classYear: "Sr",
-    positions: ["RF"],
-    availabilityStatus: "questionable",
-    availabilityNote: "Wrist tight",
-    stat: "no BP",
-    statEmphasis: "neutral",
+    id: "p6", jerseyNumber: 8, firstName: "Noah", lastName: "Patel",
+    handle: "npatel_rf", initials: "NP", avatarColor: "red",
+    classYear: "'26 Sr", classYearShort: "Sr", gradYear: 2026,
+    positions: ["RF"], level: "V", ba: ".301",
+    availabilityStatus: "questionable", availabilityNote: "Wrist tight",
+    profileStatus: "linked",
+    stat: "no BP", statEmphasis: "neutral",
   },
   {
-    id: "p7",
-    jerseyNumber: 27,
-    firstName: "Sean",
-    lastName: "Hale",
-    initials: "SH",
-    avatarColor: "ink2",
-    classYear: "Jr",
-    positions: ["SS", "3B"],
-    availabilityStatus: "ok",
-    stat: "full reps",
-    statEmphasis: "neutral",
+    id: "p7", jerseyNumber: 27, firstName: "Sean", lastName: "Hale",
+    handle: "seanhale27", initials: "SH", avatarColor: "ink2",
+    classYear: "'27 Jr", classYearShort: "Jr", gradYear: 2027,
+    positions: ["SS", "3B"], level: "V", ba: ".266",
+    availabilityStatus: "ok", profileStatus: "linked",
+    stat: "full reps", statEmphasis: "neutral",
+  },
+  {
+    id: "p8", jerseyNumber: 15, firstName: "Ty", lastName: "Okafor",
+    handle: "tyokafor15", initials: "TO", avatarColor: "gold",
+    classYear: "'28 So", classYearShort: "So", gradYear: 2028,
+    positions: ["P"], level: "V", era: "3.12",
+    availabilityStatus: "ok", profileStatus: "linked",
+  },
+  {
+    id: "p9", jerseyNumber: 5, firstName: "Omar", lastName: "Ruiz",
+    handle: "omarruiz5", initials: "OR", avatarColor: "sky",
+    classYear: "'27 Jr", classYearShort: "Jr", gradYear: 2027,
+    positions: ["LF"], level: "V", ba: ".281",
+    availabilityStatus: "ok", profileStatus: "pending",
+  },
+  {
+    id: "p10", jerseyNumber: 3, firstName: "Cal", lastName: "Washington",
+    handle: "calw_jv", initials: "CW", avatarColor: "dirt",
+    classYear: "'28 So", classYearShort: "So", gradYear: 2028,
+    positions: ["2B"], level: "JV", ba: ".298",
+    availabilityStatus: "ok", profileStatus: "linked",
+  },
+  {
+    id: "p11", jerseyNumber: 19, firstName: "Henry", lastName: "Park",
+    handle: "hpark19", initials: "HP", avatarColor: "grass",
+    classYear: "'28 So", classYearShort: "So", gradYear: 2028,
+    positions: ["P", "OF"], level: "JV", era: "3.78",
+    availabilityStatus: "ok", profileStatus: "unlinked",
+  },
+  {
+    id: "p12", jerseyNumber: 11, firstName: "Diego", lastName: "Alvarez",
+    handle: "dalvarez_c", initials: "DA", avatarColor: "amber",
+    classYear: "'29 Fr", classYearShort: "Fr", gradYear: 2029,
+    positions: ["C"], level: "F",
+    availabilityStatus: "ok", profileStatus: "pending",
   },
 ];
 
