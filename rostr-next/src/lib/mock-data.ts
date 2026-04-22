@@ -21,6 +21,8 @@ export interface MockPlayer {
   gradYear: number; // 2026
   positions: string[];
   level: RosterLevel;
+  /** Full configured level name (e.g. "Varsity", "Sophomore"). */
+  levelName?: string;
   ba?: string;
   era?: string;
   availabilityStatus: AvailabilityStatus;

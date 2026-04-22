@@ -32,14 +32,27 @@ import {
   type MockPlayer,
 } from "@/lib/mock-data";
 
+function shortToLongName(short: string): string {
+  if (short === "V") return "Varsity";
+  if (short === "JV") return "JV";
+  if (short === "F") return "Freshman";
+  return short;
+}
+
 /**
  * Roster view — client component.
- * Receives a players array (real or mock) from the Server Component
- * page wrapper. Nothing else changes vs the original.
+ * Receives a players array + configured level list from the Server
+ * Component page wrapper.
  */
-export function RosterView({ players: MOCK_PLAYERS }: { players: MockPlayer[] }) {
+export function RosterView({
+  players: MOCK_PLAYERS,
+  levels = ["Varsity", "JV", "Freshman"],
+}: {
+  players: MockPlayer[];
+  levels?: string[];
+}) {
   const router = useRouter();
-  const [levelFilter, setLevelFilter] = useState<"all" | RosterLevel>("all");
+  const [levelFilter, setLevelFilter] = useState<"all" | string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<PlayerEditInit | null>(null);
@@ -52,14 +65,22 @@ export function RosterView({ players: MOCK_PLAYERS }: { players: MockPlayer[] })
 
   const filtered = useMemo(() => {
     if (levelFilter === "all") return MOCK_PLAYERS;
-    return MOCK_PLAYERS.filter((p) => p.level === levelFilter);
-  }, [levelFilter]);
+    return MOCK_PLAYERS.filter((p) => {
+      const name = p.levelName ?? shortToLongName(p.level);
+      return name.toLowerCase() === levelFilter.toLowerCase();
+    });
+  }, [levelFilter, MOCK_PLAYERS]);
 
   const levelCounts = useMemo(() => {
-    const base = { V: 0, JV: 0, F: 0 };
-    for (const p of MOCK_PLAYERS) base[p.level]++;
-    return base;
-  }, []);
+    const counts: Record<string, number> = {};
+    for (const lvl of levels) counts[lvl] = 0;
+    for (const p of MOCK_PLAYERS) {
+      const name = p.levelName ?? shortToLongName(p.level);
+      if (counts[name] !== undefined) counts[name]++;
+      else counts[name] = (counts[name] ?? 0) + 1;
+    }
+    return counts;
+  }, [MOCK_PLAYERS, levels]);
 
   const toggleRow = (id: string) =>
     setSelected((prev) => {
@@ -98,32 +119,23 @@ export function RosterView({ players: MOCK_PLAYERS }: { players: MockPlayer[] })
             </div>
           </div>
 
-          {/* Level tabs */}
-          <div className="flex gap-1 mb-4 p-1 bg-paper-deep rounded-md w-fit">
+          {/* Level tabs (dynamic from program.levels) */}
+          <div className="flex gap-1 mb-4 p-1 bg-paper-deep rounded-md w-fit flex-wrap">
             <LevelTab
               active={levelFilter === "all"}
               onClick={() => setLevelFilter("all")}
               label="All"
               count={MOCK_PLAYERS.length}
             />
-            <LevelTab
-              active={levelFilter === "V"}
-              onClick={() => setLevelFilter("V")}
-              label="Varsity"
-              count={levelCounts.V}
-            />
-            <LevelTab
-              active={levelFilter === "JV"}
-              onClick={() => setLevelFilter("JV")}
-              label="JV"
-              count={levelCounts.JV}
-            />
-            <LevelTab
-              active={levelFilter === "F"}
-              onClick={() => setLevelFilter("F")}
-              label="Freshman"
-              count={levelCounts.F}
-            />
+            {levels.map((lvl) => (
+              <LevelTab
+                key={lvl}
+                active={levelFilter === lvl}
+                onClick={() => setLevelFilter(lvl)}
+                label={lvl}
+                count={levelCounts[lvl] ?? 0}
+              />
+            ))}
           </div>
 
           {/* Filter chips */}
@@ -221,7 +233,8 @@ export function RosterView({ players: MOCK_PLAYERS }: { players: MockPlayer[] })
                         <LevelPicker
                           playerId={p.id}
                           playerName={`${p.firstName} ${p.lastName}`}
-                          level={p.level}
+                          level={p.levelName ?? shortToLongName(p.level)}
+                          levels={levels}
                         />
                       </Td>
                       <Td mono>{p.positions.join("/")}</Td>

@@ -256,7 +256,7 @@ function RosterTab({
                   </td>
                   <td className="px-3.5 py-2.5 font-mono">{p.positions.join("/")}</td>
                   <td className="px-3.5 py-2.5">
-                    <LevelPill level={p.level} />
+                    <LevelPill level={p.levelName ?? p.level} />
                   </td>
                   <td className="px-3.5 py-2.5 font-mono text-[11.5px] text-ink-3">{p.classYear}</td>
                 </tr>

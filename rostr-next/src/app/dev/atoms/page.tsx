@@ -75,9 +75,12 @@ export default function AtomsPage() {
 
       <Section title="LevelPill">
         <div className="flex gap-2">
-          <LevelPill level="V" />
-          <LevelPill level="JV" />
-          <LevelPill level="F" />
+          <LevelPill level="Varsity" orderIndex={0} />
+          <LevelPill level="JV" orderIndex={1} />
+          <LevelPill level="Freshman" orderIndex={2} />
+          <LevelPill level="Sophomore" orderIndex={3} />
+          <LevelPill level="Cut" />
+          <LevelPill level="Unassigned" />
         </div>
       </Section>
 

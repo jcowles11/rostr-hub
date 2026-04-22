@@ -24,7 +24,10 @@ export interface RealPlayer {
   classYearShort: string;
   gradYear: number;
   positions: string[];
+  /** Short code for table display (V / JV / Fr) — back-compat. */
   level: RosterLevel;
+  /** Full configured level name (e.g. "Varsity", "Sophomore"). */
+  levelName: string;
   ba?: string;
   era?: string;
   availabilityStatus: AvailabilityStatus;
@@ -71,7 +74,10 @@ function gradYearToClassYear(grade: number | null | undefined): {
 
 // ── Queries ────────────────────────────────────────────────────
 
-export async function fetchRoster(programId: string): Promise<RealPlayer[]> {
+export async function fetchRoster(
+  programId: string,
+  configuredLevels: string[] = ["Varsity", "JV", "Freshman"],
+): Promise<RealPlayer[]> {
   const supabase = createSupabaseServerClient();
 
   const [playersRes, assignmentsRes] = await Promise.all([
@@ -101,6 +107,8 @@ export async function fetchRoster(programId: string): Promise<RealPlayer[]> {
 
   return (playersRes.data ?? []).map((p) => {
     const { gradYear, classYear, classYearShort } = gradYearToClassYear(p.grade);
+    const assignment = assignMap.get(p.id);
+    const level = levelFromAssignment(assignment);
     return {
       id: p.id,
       jerseyNumber: p.player_number ?? 0,
@@ -113,11 +121,25 @@ export async function fetchRoster(programId: string): Promise<RealPlayer[]> {
       classYearShort,
       gradYear,
       positions: p.positions ?? [],
-      level: levelFromAssignment(assignMap.get(p.id)),
+      level,
+      levelName: mapEnumToConfiguredName(assignment, configuredLevels),
       availabilityStatus: "ok" as AvailabilityStatus,
       profileStatus: (p.profile_public ? "linked" : "unlinked") as ProfileStatus,
     };
   });
+}
+
+function mapEnumToConfiguredName(
+  assignment: string | null | undefined,
+  configuredLevels: string[],
+): string {
+  if (!assignment) return "Unassigned";
+  const lower = assignment.toLowerCase();
+  if (lower === "cut") return "Cut";
+  if (lower === "varsity") return configuredLevels[0] ?? "Varsity";
+  if (lower === "jv") return configuredLevels[1] ?? "JV";
+  if (lower === "freshman") return configuredLevels[2] ?? "Freshman";
+  return "Unassigned";
 }
 
 export async function fetchPlayerBySlug(slug: string): Promise<RealPlayer | null> {
@@ -150,6 +172,7 @@ export async function fetchPlayerBySlug(slug: string): Promise<RealPlayer | null
     handle: data.profile_slug ?? data.id,
     initials: initialsOf(data.first_name, data.last_name),
     avatarColor: avatarColorFromSeed(data.id),
+    levelName: mapEnumToConfiguredName(assign?.assignment, ["Varsity", "JV", "Freshman"]),
     classYear,
     classYearShort,
     gradYear,
