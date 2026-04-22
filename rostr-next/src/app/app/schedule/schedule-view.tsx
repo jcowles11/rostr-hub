@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { CalendarDays, Plus, Bell, MapPin, Swords, Dumbbell } from "lucide-react";
 import { TopBar } from "@/components/organisms/top-bar";
 import { cn } from "@/lib/utils";
 import { comingSoon } from "@/lib/coming-soon";
+import { AddEventModal } from "@/components/organisms/add-event-modal";
 
 type Kind = "game" | "practice";
 export interface ScheduleEvent {
@@ -19,6 +21,7 @@ export interface ScheduleEvent {
 }
 
 export function ScheduleView({ week: WEEK }: { week: ScheduleEvent[] }) {
+  const [addOpen, setAddOpen] = useState(false);
   return (
     <>
       <TopBar
@@ -26,7 +29,7 @@ export function ScheduleView({ week: WEEK }: { week: ScheduleEvent[] }) {
         actions={[
           { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
           { kind: "ghost", label: "Export week", onClick: () => comingSoon("Export week", "iCal + PDF + parent-text digest — next sprint.") },
-          { kind: "primary", label: "Add event", icon: <Plus className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Add event", "Create game or practice — next sprint.") },
+          { kind: "primary", label: "Add event", icon: <Plus className="w-[15px] h-[15px]" />, onClick: () => setAddOpen(true) },
         ]}
       />
       <div className="flex-1 overflow-auto px-8 pt-7 pb-12">
@@ -62,6 +65,7 @@ export function ScheduleView({ week: WEEK }: { week: ScheduleEvent[] }) {
           </div>
         </div>
       </div>
+      <AddEventModal open={addOpen} onOpenChange={setAddOpen} />
     </>
   );
 }

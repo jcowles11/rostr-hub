@@ -55,6 +55,60 @@ export async function createPlayerAction(
   return { error: null, playerId: data.id };
 }
 
+export interface UpdatePlayerInput {
+  id: string;
+  firstName: string;
+  lastName: string;
+  grade?: number | null;
+  positions: string[];
+  bats?: "L" | "R" | "S" | null;
+  throws?: "L" | "R" | null;
+  playerNumber?: number | null;
+}
+
+export async function updatePlayerAction(
+  input: UpdatePlayerInput,
+): Promise<{ error: string | null }> {
+  if (!input.firstName.trim() || !input.lastName.trim()) {
+    return { error: "First and last name are required." };
+  }
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program." };
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase
+    .from("players")
+    .update({
+      first_name: input.firstName.trim(),
+      last_name: input.lastName.trim(),
+      grade: input.grade ?? null,
+      positions: input.positions.length > 0 ? input.positions : [],
+      bats: input.bats ?? null,
+      throws: input.throws ?? null,
+      player_number: input.playerNumber ?? null,
+    })
+    .eq("id", input.id)
+    .eq("program_id", coach.program_id);
+  if (error) return { error: error.message };
+  revalidatePath("/app/roster");
+  revalidatePath("/app");
+  return { error: null };
+}
+
+export async function deletePlayerAction(playerId: string): Promise<{ error: string | null }> {
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program." };
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase
+    .from("players")
+    .delete()
+    .eq("id", playerId)
+    .eq("program_id", coach.program_id);
+  if (error) return { error: error.message };
+  revalidatePath("/app/roster");
+  revalidatePath("/app");
+  return { error: null };
+}
+
 /**
  * setPlayerLevelAction — upsert a roster_assignments row.
  * Used by the inline level pill on the roster table.

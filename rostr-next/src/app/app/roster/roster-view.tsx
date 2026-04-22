@@ -7,19 +7,23 @@ import {
   Bell,
   Plus,
   Upload,
-  MoreHorizontal,
   Download,
   X,
   ExternalLink,
+  Pencil,
+  Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { TopBar } from "@/components/organisms/top-bar";
 import { Avatar } from "@/components/atoms/avatar";
 import { Checkbox } from "@/components/atoms/checkbox";
 import { Chip } from "@/components/atoms/chip";
 import { comingSoon } from "@/lib/coming-soon";
 import { cn } from "@/lib/utils";
-import { AddPlayerModal } from "@/components/organisms/add-player-modal";
+import { AddPlayerModal, type PlayerEditInit } from "@/components/organisms/add-player-modal";
 import { LevelPicker } from "@/components/molecules/level-picker";
+import { RowActions } from "@/components/molecules/row-actions";
+import { deletePlayerAction } from "./actions";
 import {
   type AvailabilityStatus,
   type ProfileStatus,
@@ -37,6 +41,7 @@ export function RosterView({ players: MOCK_PLAYERS }: { players: MockPlayer[] })
   const [levelFilter, setLevelFilter] = useState<"all" | RosterLevel>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<PlayerEditInit | null>(null);
   const [filters] = useState([
     { key: "class", label: "Class: Any" },
     { key: "position", label: "Position: Any" },
@@ -244,9 +249,54 @@ export function RosterView({ players: MOCK_PLAYERS }: { players: MockPlayer[] })
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
                           </Link>
-                          <button className="text-ink-3 hover:text-ink hover:bg-paper-deep rounded-xs p-1">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </button>
+                          <RowActions
+                            items={[
+                              {
+                                label: "Edit player",
+                                icon: <Pencil className="w-3.5 h-3.5" />,
+                                onSelect: () =>
+                                  setEditing({
+                                    id: p.id,
+                                    firstName: p.firstName,
+                                    lastName: p.lastName,
+                                    grade:
+                                      p.classYearShort === "Fr"
+                                        ? 9
+                                        : p.classYearShort === "So"
+                                          ? 10
+                                          : p.classYearShort === "Jr"
+                                            ? 11
+                                            : p.classYearShort === "Sr"
+                                              ? 12
+                                              : null,
+                                    positions: p.positions,
+                                    playerNumber: p.jerseyNumber || null,
+                                  }),
+                              },
+                              {
+                                label: "View public profile",
+                                icon: <ExternalLink className="w-3.5 h-3.5" />,
+                                onSelect: () => window.open(`/p/${p.handle}`, "_blank"),
+                              },
+                              {
+                                label: "Delete player",
+                                icon: <Trash2 className="w-3.5 h-3.5" />,
+                                danger: true,
+                                onSelect: async () => {
+                                  if (!confirm(`Delete ${p.firstName} ${p.lastName}? This can't be undone.`)) {
+                                    return;
+                                  }
+                                  const r = await deletePlayerAction(p.id);
+                                  if (r.error) {
+                                    toast.error("Couldn't delete", { description: r.error });
+                                  } else {
+                                    toast.success(`Deleted ${p.firstName} ${p.lastName}`);
+                                    router.refresh();
+                                  }
+                                },
+                              },
+                            ]}
+                          />
                         </div>
                       </Td>
                     </tr>
@@ -270,6 +320,11 @@ export function RosterView({ players: MOCK_PLAYERS }: { players: MockPlayer[] })
       </div>
 
       <AddPlayerModal open={addOpen} onOpenChange={setAddOpen} />
+      <AddPlayerModal
+        open={editing !== null}
+        onOpenChange={(o) => !o && setEditing(null)}
+        editing={editing}
+      />
     </>
   );
 }

@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Swords, Plus, Bell, MapPin, Clock, ChevronRight } from "lucide-react";
 import { TopBar } from "@/components/organisms/top-bar";
 import { cn } from "@/lib/utils";
 import { comingSoon } from "@/lib/coming-soon";
+import { AddEventModal } from "@/components/organisms/add-event-modal";
 
 export interface Game {
   id: string;
@@ -19,6 +21,7 @@ export interface Game {
 }
 
 export function GamesView({ games: GAMES }: { games: Game[] }) {
+  const [addOpen, setAddOpen] = useState(false);
   const upcoming = GAMES.filter((g) => g.status === "upcoming");
   const past = GAMES.filter((g) => g.status === "final");
 
@@ -29,7 +32,7 @@ export function GamesView({ games: GAMES }: { games: Game[] }) {
         actions={[
           { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
           { kind: "ghost", label: "Export schedule", onClick: () => comingSoon("Export schedule", "iCal + CSV + GC export — next sprint.") },
-          { kind: "primary", label: "Add game", icon: <Plus className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Add game", "Game creation form — next sprint.") },
+          { kind: "primary", label: "Add game", icon: <Plus className="w-[15px] h-[15px]" />, onClick: () => setAddOpen(true) },
         ]}
       />
       <div className="flex-1 overflow-auto px-8 pt-7 pb-12">
@@ -91,6 +94,7 @@ export function GamesView({ games: GAMES }: { games: Game[] }) {
           </div>
         </div>
       </div>
+      <AddEventModal open={addOpen} onOpenChange={setAddOpen} initialKind="game" />
     </>
   );
 }

@@ -6,25 +6,41 @@ import { toast } from "sonner";
 import { AlertCircle } from "lucide-react";
 import { Modal, ModalFooter } from "@/components/molecules/modal";
 import { cn } from "@/lib/utils";
-import { createPlayerAction } from "@/app/app/roster/actions";
+import { createPlayerAction, updatePlayerAction } from "@/app/app/roster/actions";
 
 const POSITIONS = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH", "UT"];
+
+export interface PlayerEditInit {
+  id: string;
+  firstName: string;
+  lastName: string;
+  grade?: number | null;
+  positions: string[];
+  bats?: "L" | "R" | "S" | null;
+  throws?: "L" | "R" | null;
+  playerNumber?: number | null;
+}
 
 export function AddPlayerModal({
   open,
   onOpenChange,
+  editing,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  editing?: PlayerEditInit | null;
 }) {
   const router = useRouter();
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [grade, setGrade] = useState("");
-  const [positions, setPositions] = useState<string[]>([]);
-  const [bats, setBats] = useState<"L" | "R" | "S" | "">("");
-  const [throws, setThrows] = useState<"L" | "R" | "">("");
-  const [playerNumber, setPlayerNumber] = useState("");
+  const mode = editing ? "edit" : "create";
+  const [firstName, setFirstName] = useState(editing?.firstName ?? "");
+  const [lastName, setLastName] = useState(editing?.lastName ?? "");
+  const [grade, setGrade] = useState(editing?.grade ? String(editing.grade) : "");
+  const [positions, setPositions] = useState<string[]>(editing?.positions ?? []);
+  const [bats, setBats] = useState<"L" | "R" | "S" | "">(editing?.bats ?? "");
+  const [throws, setThrows] = useState<"L" | "R" | "">(editing?.throws ?? "");
+  const [playerNumber, setPlayerNumber] = useState(
+    editing?.playerNumber != null ? String(editing.playerNumber) : "",
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -41,7 +57,7 @@ export function AddPlayerModal({
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const result = await createPlayerAction({
+    const payload = {
       firstName,
       lastName,
       grade: grade ? parseInt(grade, 10) : null,
@@ -49,13 +65,19 @@ export function AddPlayerModal({
       bats: bats || null,
       throws: throws || null,
       playerNumber: playerNumber ? parseInt(playerNumber, 10) : null,
-    });
+    };
+    const result = editing
+      ? await updatePlayerAction({ id: editing.id, ...payload })
+      : await createPlayerAction(payload);
     setLoading(false);
     if (result.error) {
       setError(result.error);
       return;
     }
-    toast.success("Player added", { description: `${firstName} ${lastName} is on the roster.` });
+    toast.success(
+      editing ? "Player updated" : "Player added",
+      { description: `${firstName} ${lastName}` },
+    );
     reset();
     onOpenChange(false);
     router.refresh();
@@ -68,8 +90,12 @@ export function AddPlayerModal({
         onOpenChange(o);
         if (!o) reset();
       }}
-      title="Add player"
-      description="Quick entry — you can fill in stats, highlights, and bio later from the player's profile."
+      title={mode === "edit" ? "Edit player" : "Add player"}
+      description={
+        mode === "edit"
+          ? "Update roster info. Level assignment is managed inline from the Roster table."
+          : "Quick entry — you can fill in stats, highlights, and bio later from the player's profile."
+      }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
@@ -180,7 +206,7 @@ export function AddPlayerModal({
             disabled={loading}
             className="px-4 h-[38px] rounded-sm bg-red hover:bg-red/90 text-white text-[13px] font-semibold disabled:opacity-60"
           >
-            {loading ? "Adding…" : "Add player"}
+            {loading ? (mode === "edit" ? "Saving…" : "Adding…") : mode === "edit" ? "Save changes" : "Add player"}
           </button>
         </ModalFooter>
       </form>
