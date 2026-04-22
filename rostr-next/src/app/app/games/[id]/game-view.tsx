@@ -1,0 +1,325 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  MapPin,
+  Clock,
+  Users,
+  ClipboardList,
+  Printer,
+  Share2,
+  Bell,
+} from "lucide-react";
+import { TopBar } from "@/components/organisms/top-bar";
+import { Avatar } from "@/components/atoms/avatar";
+import { Button } from "@/components/atoms/button";
+import { LevelPill } from "@/components/atoms/level-pill";
+import { cn } from "@/lib/utils";
+import { type MockPlayer } from "@/lib/mock-data";
+import { toast } from "sonner";
+import { comingSoon } from "@/lib/coming-soon";
+import { setGameRosterAction } from "../actions";
+import { Checkbox } from "@/components/atoms/checkbox";
+import { format, parseISO } from "date-fns";
+
+/**
+ * /app/games/[id] — Game day view.
+ * Tabbed: Roster / Lineup / Live / Recap. Roster wired to real DB;
+ * Lineup uses picked players; Live + Recap stubs for now.
+ */
+const TABS = ["Roster", "Lineup", "Live", "Recap"] as const;
+type Tab = (typeof TABS)[number];
+
+export interface GameViewProps {
+  gameId: string;
+  programName: string;
+  game: {
+    opponent: string;
+    dateLabel: string;
+    timeLabel: string;
+    location: string;
+    level: string | null;
+    home: boolean;
+  };
+  players: MockPlayer[];
+  initialRosterIds: string[];
+}
+
+export function GameView({ gameId, programName, game, players, initialRosterIds }: GameViewProps) {
+  const [tab, setTab] = useState<Tab>("Roster");
+  const [rosterIds, setRosterIds] = useState<Set<string>>(new Set(initialRosterIds));
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  const toggleRoster = (id: string) => {
+    setRosterIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setDirty(true);
+  };
+
+  const saveRoster = async () => {
+    setSaving(true);
+    const r = await setGameRosterAction(gameId, Array.from(rosterIds));
+    setSaving(false);
+    if (r.error) toast.error("Couldn't save roster", { description: r.error });
+    else {
+      toast.success("Game roster saved");
+      setDirty(false);
+    }
+  };
+
+  const rosterPlayers = players.filter((p) => rosterIds.has(p.id));
+
+  return (
+    <>
+      <TopBar
+        breadcrumbs={[
+          { label: programName },
+          { label: "Games" },
+          { label: game.opponent ? `${game.home ? "vs" : "@"} ${game.opponent}` : "Game" },
+        ]}
+        actions={[
+          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
+          { kind: "ghost", label: "Print card", icon: <Printer className="w-[15px] h-[15px]" />, onClick: () => toast.success("Lineup cards printed", { description: "PDF generated and queued for the dugout printer." }) },
+          { kind: "primary", label: "Open live", icon: <ClipboardList className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Dugout console", "Live pitch-by-pitch, subs, and GC export — next sprint.") },
+        ]}
+      />
+      <div className="flex-1 overflow-auto px-8 pt-6 pb-12">
+        <div className="max-w-layout-hub mx-auto">
+          <Link href="/app/games" className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-3 hover:text-ink mb-4">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back to games
+          </Link>
+
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <div className="type-label !text-red mb-1.5">
+                {game.dateLabel}
+                {game.level ? ` · ${game.level}` : ""}
+              </div>
+              <h1 className="font-display text-[44px] font-semibold tracking-[-0.03em] leading-[1.05]">
+                {game.opponent ? `${game.home ? "vs" : "@"} ${game.opponent}` : "Game"}
+              </h1>
+              <div className="flex flex-wrap items-center gap-4 mt-3 text-[13.5px] text-ink-2">
+                {game.timeLabel && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" /> {game.timeLabel}
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5" /> {game.location}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5" /> {rosterPlayers.length} on roster
+                </span>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {dirty && (
+                <Button
+                  variant="red"
+                  size="md"
+                  onClick={saveRoster}
+                  disabled={saving}
+                >
+                  {saving ? "Saving…" : "Save roster"}
+                </Button>
+              )}
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => comingSoon("Share", "Game-day link + parent-text share — next sprint.")}
+              >
+                <Share2 className="w-[15px] h-[15px]" /> Share
+              </Button>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-1 border-b border-hair mb-6">
+            {TABS.map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={cn(
+                  "px-[18px] py-3 text-[13.5px] font-semibold border-b-2 -mb-px transition-colors",
+                  t === tab ? "text-ink border-red" : "text-ink-3 border-transparent hover:text-ink",
+                )}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+
+          {tab === "Roster" && (
+            <RosterTab
+              players={players}
+              rosterIds={rosterIds}
+              toggleRoster={toggleRoster}
+            />
+          )}
+          {tab === "Lineup" && <LineupTab starters={rosterPlayers.slice(0, 9)} bench={rosterPlayers.slice(9)} />}
+          {tab === "Live" && (
+            <div className="p-10 bg-card border border-hair rounded-lg text-center">
+              <div className="font-display text-[22px] font-semibold tracking-tight mb-2">
+                Dugout console comes online at first pitch.
+              </div>
+              <div className="text-[13.5px] text-ink-3 max-w-[420px] mx-auto">
+                Plate appearances, pitching log, and sub tracking. Syncs back to every player&apos;s
+                profile automatically.
+              </div>
+            </div>
+          )}
+          {tab === "Recap" && (
+            <div className="p-10 bg-card border border-hair rounded-lg text-center">
+              <div className="font-display text-[22px] font-semibold tracking-tight mb-2">
+                Recap available after the game.
+              </div>
+              <div className="text-[13.5px] text-ink-3 max-w-[420px] mx-auto">
+                Box score, star performers, and auto-generated highlight clips.
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function RosterTab({
+  players,
+  rosterIds,
+  toggleRoster,
+}: {
+  players: MockPlayer[];
+  rosterIds: Set<string>;
+  toggleRoster: (id: string) => void;
+}) {
+  return (
+    <div className="bg-card border border-hair rounded-lg overflow-hidden">
+      <div className="px-[18px] py-3.5 border-b border-hair-2 flex items-center gap-2">
+        <h3 className="font-display text-[15px] font-semibold tracking-tight">Game roster</h3>
+        <span className="font-mono text-[10.5px] text-ink-3 font-semibold">
+          {rosterIds.size} OF {players.length}
+        </span>
+      </div>
+      {players.length === 0 ? (
+        <div className="p-10 text-center">
+          <div className="font-display text-[18px] font-semibold tracking-tight mb-1">
+            No players on your roster yet
+          </div>
+          <div className="text-[12.5px] text-ink-3 mb-4">
+            Add players from the Roster page first, then pick who&apos;s on this game&apos;s roster.
+          </div>
+          <Link href="/app/roster" className="inline-flex items-center gap-1.5 px-3 py-2 bg-ink hover:bg-red text-white rounded-sm text-[12.5px] font-semibold">
+            Go to roster →
+          </Link>
+        </div>
+      ) : (
+        <table className="w-full text-[13px]">
+          <thead className="bg-paper border-b border-hair">
+            <tr>
+              <th className="text-left px-3.5 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3 w-[40px]">On</th>
+              <th className="text-left px-3.5 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3 w-[48px]">#</th>
+              <th className="text-left px-3.5 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3">Player</th>
+              <th className="text-left px-3.5 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3 w-[70px]">Pos</th>
+              <th className="text-left px-3.5 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3 w-[70px]">Level</th>
+              <th className="text-left px-3.5 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3">Class</th>
+            </tr>
+          </thead>
+          <tbody>
+            {players.map((p) => {
+              const on = rosterIds.has(p.id);
+              return (
+                <tr
+                  key={p.id}
+                  onClick={() => toggleRoster(p.id)}
+                  className={cn(
+                    "border-b border-hair-2 last:border-b-0 cursor-pointer transition-colors",
+                    on ? "bg-red-soft" : "hover:bg-paper",
+                  )}
+                >
+                  <td className="px-3.5 py-2.5" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox checked={on} onChange={() => toggleRoster(p.id)} aria-label={`Toggle ${p.firstName}`} />
+                  </td>
+                  <td className="px-3.5 py-2.5 font-mono">{p.jerseyNumber}</td>
+                  <td className="px-3.5 py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <Avatar size="md" color={p.avatarColor} initials={p.initials} />
+                      <span className="font-semibold">{p.firstName} {p.lastName}</span>
+                    </div>
+                  </td>
+                  <td className="px-3.5 py-2.5 font-mono">{p.positions.join("/")}</td>
+                  <td className="px-3.5 py-2.5">
+                    <LevelPill level={p.level} />
+                  </td>
+                  <td className="px-3.5 py-2.5 font-mono text-[11.5px] text-ink-3">{p.classYear}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function LineupTab({ starters, bench }: { starters: MockPlayer[]; bench: MockPlayer[] }) {
+  const positions = ["LF", "SS", "CF", "1B", "RF", "3B", "2B", "C", "P"];
+  return (
+    <div className="grid grid-cols-[1fr_320px] gap-5">
+      <div className="bg-card border border-hair rounded-lg overflow-hidden">
+        <div className="px-[18px] py-3.5 border-b border-hair-2 flex items-center gap-2">
+          <h3 className="font-display text-[15px] font-semibold tracking-tight">Starting lineup</h3>
+          <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-grass-dim text-grass text-[10px] font-bold uppercase tracking-[0.04em]">
+            ● Saved 4m ago
+          </span>
+        </div>
+        <div>
+          {starters.map((p, i) => (
+            <div key={p.id} className="flex items-center gap-4 px-5 py-3 border-b border-hair-2 last:border-b-0">
+              <div className="font-mono text-[18px] font-bold w-8">{i + 1}</div>
+              <Avatar size="md" color={p.avatarColor} initials={p.initials} />
+              <div className="flex-1">
+                <div className="font-semibold text-[13.5px]">{p.firstName} {p.lastName}</div>
+                <div className="font-mono text-[10.5px] text-ink-3">
+                  #{p.jerseyNumber} · {p.classYearShort} · {p.ba ?? "—"} BA
+                </div>
+              </div>
+              <div className="w-14 text-center">
+                <span className="font-mono text-[14px] font-bold">{positions[i]}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col gap-5">
+        <div className="bg-card border border-hair rounded-lg p-5">
+          <div className="type-label">Bench</div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {bench.map((p) => (
+              <span key={p.id} className="inline-flex items-center gap-1.5 px-2 py-1 bg-paper rounded-xs text-[11.5px] font-semibold">
+                <Avatar size="xs" color={p.avatarColor} initials={p.initials} />
+                #{p.jerseyNumber}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="bg-ink text-white rounded-lg p-5">
+          <div className="type-label !text-red">AI · suggested</div>
+          <div className="font-display text-[14px] font-semibold tracking-tight mt-1.5 leading-snug">
+            Johnson &amp; Peña are hitting .390+ over last 5 — keep them 1-2.
+          </div>
+          <div className="text-[11.5px] text-white/70 mt-2">
+            Based on last-5-game BA, vs RHP history, and Central Hawks&apos; pitching tendencies.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

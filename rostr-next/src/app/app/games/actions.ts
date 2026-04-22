@@ -49,6 +49,54 @@ export async function createGameAction(
   return { error: null, gameId: data.id };
 }
 
+/**
+ * setGameRosterAction — set the full roster for a game.
+ * Deletes rows for players not in the new list, then upserts the rest.
+ */
+export async function setGameRosterAction(
+  gameId: string,
+  playerIds: string[],
+): Promise<{ error: string | null }> {
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program." };
+  const supabase = createSupabaseServerClient();
+
+  // Delete existing rows not in the new list
+  if (playerIds.length > 0) {
+    const { error: delErr } = await supabase
+      .from("game_rosters")
+      .delete()
+      .eq("game_id", gameId)
+      .not("player_id", "in", `(${playerIds.map((p) => `"${p}"`).join(",")})`);
+    if (delErr) return { error: delErr.message };
+  } else {
+    const { error: delErr } = await supabase
+      .from("game_rosters")
+      .delete()
+      .eq("game_id", gameId);
+    if (delErr) return { error: delErr.message };
+  }
+
+  if (playerIds.length === 0) {
+    revalidatePath(`/app/games/${gameId}`);
+    return { error: null };
+  }
+
+  const rows = playerIds.map((pid) => ({
+    game_id: gameId,
+    player_id: pid,
+    status: "active",
+  }));
+  const { error } = await supabase
+    .from("game_rosters")
+    .upsert(rows, { onConflict: "game_id,player_id" });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/app/games/${gameId}`);
+  revalidatePath("/app");
+  return { error: null };
+}
+
 export async function deleteGameAction(gameId: string): Promise<{ error: string | null }> {
   const coach = await getCurrentCoach();
   if (!coach) return { error: "No program." };
