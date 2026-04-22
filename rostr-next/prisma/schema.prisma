@@ -1,0 +1,629 @@
+// Rostr Prisma schema — sourced from handoff/DATA_MODEL.md.
+// All IDs are cuid(), all timestamps UTC, soft-delete via deleted_at.
+//
+// Note: This schema is *defined* here but not yet applied to a live DB.
+// The live Supabase instance holds an older schema that the Vite app uses.
+// Running `prisma migrate dev` will create a fresh migration; do NOT run
+// against the production DB until we've reconciled the two schemas.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────────────────────
+//  Enums
+// ──────────────────────────────────────────────────────────────
+
+enum Sport {
+  baseball
+  softball
+  football
+  basketball
+  volleyball
+  soccer
+}
+
+enum TeamLevel {
+  V
+  JV
+  F
+}
+
+enum UserRole {
+  coach
+  ad
+  player
+  parent
+  recruiter
+  admin
+}
+
+enum MembershipRole {
+  head_coach
+  assistant_coach
+  ad
+  player
+  parent
+}
+
+enum MembershipStatus {
+  active
+  invited
+  archived
+}
+
+enum Bats {
+  L
+  R
+  S
+}
+
+enum Throws {
+  L
+  R
+}
+
+enum AvailabilityStatus {
+  ok
+  questionable
+  out
+}
+
+enum ProfileStatus {
+  unlinked
+  pending
+  linked
+  verified
+}
+
+enum StatSource {
+  game
+  practice
+  tryout
+  combine
+  self_reported
+}
+
+enum VerificationKind {
+  coach_measurement
+  game_log
+  device_capture
+  self_reported
+}
+
+enum NoteKind {
+  general
+  evaluation
+  medical
+  disciplinary
+  college
+}
+
+enum NoteVisibility {
+  coach_only
+  team_staff
+  player_visible
+}
+
+enum PracticeStatus {
+  draft
+  scheduled
+  in_progress
+  complete
+}
+
+enum PracticeCategory {
+  hitting
+  fielding
+  pitching
+  conditioning
+  situational
+  warmup
+}
+
+enum TryoutStatus {
+  draft
+  live
+  complete
+}
+
+enum Verdict {
+  undecided
+  keep_v
+  keep_jv
+  keep_f
+  bubble
+  cut
+}
+
+enum StationStatus {
+  idle
+  live
+  complete
+}
+
+enum GameStatus {
+  scheduled
+  in_progress
+  final
+  postponed
+}
+
+enum HomeAway {
+  home
+  away
+  neutral
+}
+
+// ──────────────────────────────────────────────────────────────
+//  Core entities
+// ──────────────────────────────────────────────────────────────
+
+model School {
+  id        String  @id @default(cuid())
+  name      String
+  ncesId    String? @unique @map("nces_id")
+  state     String?
+  city      String?
+  mascot    String?
+  colors    String[] // 2-entry primary/secondary
+  logoUrl   String? @map("logo_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  teams Team[]
+
+  @@map("schools")
+}
+
+model Team {
+  id           String   @id @default(cuid())
+  schoolId     String   @map("school_id")
+  sport        Sport
+  level        TeamLevel
+  seasonYear   Int      @map("season_year")
+  seasonStart  DateTime? @map("season_start")
+  seasonEnd    DateTime? @map("season_end")
+  headCoachId  String?  @map("head_coach_id")
+  teamSlug     String   @unique @map("team_slug")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  school       School           @relation(fields: [schoolId], references: [id])
+  memberships  TeamMembership[]
+  players      Player[]
+  games        Game[]
+  practices    Practice[]
+  tryouts      Tryout[]
+  fieldZones   FieldZone[]
+  drills       Drill[]
+  practiceTemplates PracticeTemplate[]
+
+  @@index([schoolId])
+  @@map("teams")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String
+  avatarUrl   String?  @map("avatar_url")
+  handle      String?  @unique
+  primaryRole UserRole @map("primary_role")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  memberships      TeamMembership[]
+  linkedPlayer     Player[]          @relation("PlayerUser")
+  authoredNotes    Note[]            @relation("NoteAuthor")
+  verifiedStats    SportStat[]       @relation("StatVerifier")
+  recruiterSeat    RecruiterSeat?
+  savedProspects   SavedProspect[]
+  recruiterMessages RecruiterMessage[] @relation("RecruiterSender")
+  profileViews     ProfileView[]     @relation("ProfileViewer")
+  recordedResults  TryoutResult[]    @relation("ResultRecorder")
+
+  @@map("users")
+}
+
+model TeamMembership {
+  userId    String           @map("user_id")
+  teamId    String           @map("team_id")
+  role      MembershipRole
+  status    MembershipStatus @default(active)
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+  team Team @relation(fields: [teamId], references: [id])
+
+  @@id([userId, teamId])
+  @@map("team_memberships")
+}
+
+model Player {
+  id                    String    @id @default(cuid())
+  teamId                String    @map("team_id")
+  userId                String?   @map("user_id")
+  handle                String    @unique
+  firstName             String    @map("first_name")
+  lastName              String    @map("last_name")
+  jerseyNumber          Int?      @map("jersey_number")
+  level                 TeamLevel
+  positions             String[]
+  classYear             Int?      @map("class_year")
+  bats                  Bats?
+  throws                Throws?
+  heightIn              Int?      @map("height_in")
+  weightLb              Int?      @map("weight_lb")
+  dob                   DateTime?
+  gpa                   Decimal?  @db.Decimal(4, 2)
+  testScores            Json?     @map("test_scores")
+  targetDivision        String?   @map("target_division")
+  intendedMajor         String?   @map("intended_major")
+  availabilityStatus    AvailabilityStatus @default(ok) @map("availability_status")
+  availabilityNote      String?   @map("availability_note")
+  availabilityUntil     DateTime? @map("availability_until")
+  profileStatus         ProfileStatus @default(unlinked) @map("profile_status")
+  claimedAt             DateTime? @map("claimed_at")
+  claimToken            String?   @unique @map("claim_token")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  team             Team         @relation(fields: [teamId], references: [id])
+  user             User?        @relation("PlayerUser", fields: [userId], references: [id])
+  sportStats       SportStat[]
+  highlights       Highlight[]
+  notes            Note[]
+  tryoutResults    TryoutResult[]
+  tryoutAttendees  TryoutAttendee[]
+  savedProspects   SavedProspect[]
+  recruiterMessages RecruiterMessage[]
+  profileViews     ProfileView[]
+
+  @@index([teamId])
+  @@index([userId])
+  @@map("players")
+}
+
+model SportStat {
+  id                   String           @id @default(cuid())
+  playerId             String           @map("player_id")
+  sport                Sport
+  statKey              String           @map("stat_key")
+  value                Json
+  recordedAt           DateTime         @map("recorded_at")
+  source               StatSource
+  sourceRefId          String?          @map("source_ref_id")
+  verifiedByUserId     String?          @map("verified_by_user_id")
+  verifiedAt           DateTime?        @map("verified_at")
+  verificationKind     VerificationKind? @map("verification_kind")
+  createdAt            DateTime         @default(now()) @map("created_at")
+
+  player   Player @relation(fields: [playerId], references: [id])
+  verifier User?  @relation("StatVerifier", fields: [verifiedByUserId], references: [id])
+
+  @@index([playerId, statKey])
+  @@index([playerId, recordedAt])
+  @@map("sport_stats")
+}
+
+model Highlight {
+  id                 String   @id @default(cuid())
+  playerId           String   @map("player_id")
+  muxAssetId         String   @map("mux_asset_id")
+  thumbnailUrl       String?  @map("thumbnail_url")
+  durationSec        Int?     @map("duration_sec")
+  recordedAt         DateTime @map("recorded_at")
+  gameId             String?  @map("game_id")
+  caption            String?
+  verificationStatus ProfileStatus @default(unlinked) @map("verification_status")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  player Player @relation(fields: [playerId], references: [id])
+  game   Game?  @relation(fields: [gameId], references: [id])
+
+  @@map("highlights")
+}
+
+model Note {
+  id           String         @id @default(cuid())
+  playerId     String         @map("player_id")
+  authorUserId String         @map("author_user_id")
+  body         String
+  kind         NoteKind       @default(general)
+  contextRef   String?        @map("context_ref") // polymorphic ref e.g. "tryout:abc"
+  visibility   NoteVisibility @default(coach_only)
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  player Player @relation(fields: [playerId], references: [id])
+  author User   @relation("NoteAuthor", fields: [authorUserId], references: [id])
+
+  @@index([playerId])
+  @@map("notes")
+}
+
+// ──────────────────────────────────────────────────────────────
+//  Practice
+// ──────────────────────────────────────────────────────────────
+
+model Practice {
+  id               String          @id @default(cuid())
+  teamId           String          @map("team_id")
+  startsAt         DateTime        @map("starts_at")
+  durationMin      Int             @map("duration_min")
+  location         String?
+  weather          Json?
+  templateId       String?         @map("template_id")
+  createdByUserId  String          @map("created_by_user_id")
+  status           PracticeStatus  @default(draft)
+  startedAt        DateTime?       @map("started_at")
+  completedAt      DateTime?       @map("completed_at")
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  team   Team             @relation(fields: [teamId], references: [id])
+  blocks PracticeBlock[]
+
+  @@index([teamId, startsAt])
+  @@map("practices")
+}
+
+model PracticeBlock {
+  id                  String           @id @default(cuid())
+  practiceId          String           @map("practice_id")
+  order               Int
+  drillId             String?          @map("drill_id")
+  name                String
+  category            PracticeCategory
+  durationMin         Int              @map("duration_min")
+  focus               String?
+  fieldZoneId         String?          @map("field_zone_id")
+  groupAssignments    Json?            @map("group_assignments")
+  actualDurationMin   Int?             @map("actual_duration_min")
+  coachNote           String?          @map("coach_note")
+
+  practice Practice   @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+  drill    Drill?     @relation(fields: [drillId], references: [id])
+  zone     FieldZone? @relation(fields: [fieldZoneId], references: [id])
+
+  @@index([practiceId, order])
+  @@map("practice_blocks")
+}
+
+model Drill {
+  id                  String           @id @default(cuid())
+  teamId              String?          @map("team_id")
+  name                String
+  category            PracticeCategory
+  defaultDurationMin  Int              @map("default_duration_min")
+  description         String?
+  focus               String?
+  equipment           String[]
+  createdAt           DateTime         @default(now()) @map("created_at")
+
+  team  Team?           @relation(fields: [teamId], references: [id])
+  blocks PracticeBlock[]
+
+  @@map("drills")
+}
+
+model PracticeTemplate {
+  id      String @id @default(cuid())
+  teamId  String @map("team_id")
+  name    String
+  blocks  Json // array of block shapes without IDs
+
+  team Team @relation(fields: [teamId], references: [id])
+
+  @@map("practice_templates")
+}
+
+// ──────────────────────────────────────────────────────────────
+//  Tryouts
+// ──────────────────────────────────────────────────────────────
+
+model Tryout {
+  id                 String       @id @default(cuid())
+  teamId             String       @map("team_id")
+  name               String
+  targetLevel        String       @map("target_level")
+  startsAt           DateTime     @map("starts_at")
+  endsAt             DateTime?    @map("ends_at")
+  status             TryoutStatus @default(draft)
+  rosterSizeTarget   Int?         @map("roster_size_target")
+  createdByUserId    String       @map("created_by_user_id")
+  createdAt          DateTime     @default(now()) @map("created_at")
+
+  team      Team             @relation(fields: [teamId], references: [id])
+  stations  Station[]
+  results   TryoutResult[]
+  attendees TryoutAttendee[]
+
+  @@map("tryouts")
+}
+
+model TryoutAttendee {
+  tryoutId           String   @map("tryout_id")
+  playerId           String   @map("player_id")
+  checkedInAt        DateTime? @map("checked_in_at")
+  verdict            Verdict  @default(undecided)
+  verdictReason      String?  @map("verdict_reason")
+  verdictSetByUserId String?  @map("verdict_set_by_user_id")
+
+  tryout Tryout @relation(fields: [tryoutId], references: [id])
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@id([tryoutId, playerId])
+  @@map("tryout_attendees")
+}
+
+model Station {
+  id           String           @id @default(cuid())
+  tryoutId     String           @map("tryout_id")
+  name         String
+  category     PracticeCategory
+  coachUserId  String?          @map("coach_user_id")
+  order        Int
+  status       StationStatus    @default(idle)
+  fieldZoneId  String?          @map("field_zone_id")
+
+  tryout  Tryout         @relation(fields: [tryoutId], references: [id])
+  zone    FieldZone?     @relation(fields: [fieldZoneId], references: [id])
+  results TryoutResult[]
+
+  @@map("stations")
+}
+
+model TryoutResult {
+  id                 String   @id @default(cuid())
+  tryoutId           String   @map("tryout_id")
+  stationId          String   @map("station_id")
+  playerId           String   @map("player_id")
+  attemptNumber      Int      @map("attempt_number")
+  metricKey          String   @map("metric_key")
+  value              Decimal  @db.Decimal(10, 3)
+  unit               String
+  recordedByUserId   String   @map("recorded_by_user_id")
+  recordedAt         DateTime @default(now()) @map("recorded_at")
+  mediaUrl           String?  @map("media_url")
+
+  tryout   Tryout  @relation(fields: [tryoutId], references: [id])
+  station  Station @relation(fields: [stationId], references: [id])
+  player   Player  @relation(fields: [playerId], references: [id])
+  recorder User    @relation("ResultRecorder", fields: [recordedByUserId], references: [id])
+
+  @@index([tryoutId, stationId])
+  @@map("tryout_results")
+}
+
+// ──────────────────────────────────────────────────────────────
+//  Games
+// ──────────────────────────────────────────────────────────────
+
+model Game {
+  id                    String     @id @default(cuid())
+  teamId                String     @map("team_id")
+  opponentTeamId        String?    @map("opponent_team_id")
+  opponentName          String?    @map("opponent_name")
+  startsAt              DateTime   @map("starts_at")
+  homeAway              HomeAway   @map("home_away")
+  location              String?
+  status                GameStatus @default(scheduled)
+  scoreUs               Int?       @map("score_us")
+  scoreThem             Int?       @map("score_them")
+  gamechangerImportId   String?    @map("gamechanger_import_id")
+  createdAt             DateTime   @default(now()) @map("created_at")
+
+  team       Team        @relation(fields: [teamId], references: [id])
+  lineups    Lineup[]
+  highlights Highlight[]
+
+  @@index([teamId, startsAt])
+  @@map("games")
+}
+
+model Lineup {
+  id                 String @id @default(cuid())
+  gameId             String @map("game_id")
+  name               String
+  playerAssignments  Json   @map("player_assignments")
+  isActive           Boolean @default(false) @map("is_active")
+
+  game Game @relation(fields: [gameId], references: [id])
+
+  @@map("lineups")
+}
+
+// ──────────────────────────────────────────────────────────────
+//  Recruiting
+// ──────────────────────────────────────────────────────────────
+
+model RecruiterSeat {
+  id                     String    @id @default(cuid())
+  userId                 String    @unique @map("user_id")
+  orgName                String    @map("org_name")
+  division               String?
+  recruitingTerritories  String[]  @map("recruiting_territories")
+  sports                 Sport[]
+  expiresAt              DateTime? @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("recruiter_seats")
+}
+
+model ProfileView {
+  id             String   @id @default(cuid())
+  playerId       String   @map("player_id")
+  viewerUserId   String?  @map("viewer_user_id")
+  viewerIpHash   String?  @map("viewer_ip_hash")
+  viewedAt       DateTime @default(now()) @map("viewed_at")
+  source         String?
+
+  player  Player @relation(fields: [playerId], references: [id])
+  viewer  User?  @relation("ProfileViewer", fields: [viewerUserId], references: [id])
+
+  @@index([playerId, viewedAt])
+  @@map("profile_views")
+}
+
+model SavedProspect {
+  recruiterUserId  String   @map("recruiter_user_id")
+  playerId         String   @map("player_id")
+  savedAt          DateTime @default(now()) @map("saved_at")
+  tag              String?
+  lastContactedAt  DateTime? @map("last_contacted_at")
+
+  recruiter User   @relation(fields: [recruiterUserId], references: [id])
+  player    Player @relation(fields: [playerId], references: [id])
+
+  @@id([recruiterUserId, playerId])
+  @@map("saved_prospects")
+}
+
+model RecruiterMessage {
+  id                   String   @id @default(cuid())
+  recruiterUserId      String   @map("recruiter_user_id")
+  playerId             String   @map("player_id")
+  routedViaCoachUserId String   @map("routed_via_coach_user_id")
+  body                 String
+  sentAt               DateTime @default(now()) @map("sent_at")
+  readAt               DateTime? @map("read_at")
+
+  recruiter User   @relation("RecruiterSender", fields: [recruiterUserId], references: [id])
+  player    Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, sentAt])
+  @@map("recruiter_messages")
+}
+
+// ──────────────────────────────────────────────────────────────
+//  Field / venue
+// ──────────────────────────────────────────────────────────────
+
+model FieldZone {
+  id      String @id @default(cuid())
+  teamId  String @map("team_id")
+  name    String
+  color   String
+  svgPath String? @map("svg_path")
+  x       Float?
+  y       Float?
+  w       Float?
+  h       Float?
+
+  team     Team             @relation(fields: [teamId], references: [id])
+  blocks   PracticeBlock[]
+  stations Station[]
+
+  @@map("field_zones")
+}

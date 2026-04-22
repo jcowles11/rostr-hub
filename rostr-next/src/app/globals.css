@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Rostr design tokens. Matches handoff/DESIGN_TOKENS.md verbatim.
+ * Always keep this file and tailwind.config.ts in sync.
+ */
+
+@layer base {
+  :root {
+    /* Surface / text */
+    --paper: #f5f2ec;
+    --paper-deep: #ebe6db;
+    --card: #ffffff;
+    --ink: #0e1116;
+    --ink-2: #3a3f47;
+    --ink-3: #6b7280;
+    --ink-4: #9ca3af;
+    --hair: #e5e0d4;
+    --hair-2: #efeadf;
+
+    /* Brand / accent */
+    --red: #c83a3a;
+    --red-soft: #f8dedc;
+    --red-dim: #e8c9c4;
+    --grass: #2f7d4f;
+    --grass-dim: #cfe3d4;
+    --dirt: #b37a4c;
+    --sky: #3a6ea8;
+    --sky-soft: #e0ebf4;
+    --gold: #d4a23a;
+    --amber: #d68620;
+    --amber-soft: #f8e3c4;
+  }
+
+  html,
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans), "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  /* Always use tabular numerics on stat numbers & mono-font elements */
+  .font-mono,
+  [class*="stat-"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Focus ring matches the token (§DESIGN_TOKENS / Focus ring) */
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--red-soft);
+    border-color: var(--red);
+  }
+
+  /* Dashed red accent inside the brand mark */
+  .brand-dashed::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border: 1.5px dashed var(--red);
+    border-radius: 3px;
+    opacity: 0.7;
+    pointer-events: none;
+  }
+}
+
+@layer utilities {
+  /* Display / mono font helpers — shorthand for inline use where Tailwind’s
+     fontFamily tokens would be verbose. */
+  .font-display {
+    font-family: var(--font-display), "Space Grotesk", sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  /* UPPERCASE label shortcut (DESIGN_TOKENS.md §Typography label role) */
+  .type-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+}
