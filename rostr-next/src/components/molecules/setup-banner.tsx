@@ -20,7 +20,7 @@ export function SetupBanner() {
         </span>
       </div>
       <Link
-        href="/app/settings"
+        href="/app/setup"
         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red hover:bg-red/90 rounded-sm text-[12px] font-semibold"
       >
         Set up program <ArrowRight className="w-3 h-3" />
