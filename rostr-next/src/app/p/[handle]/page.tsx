@@ -9,7 +9,8 @@ import {
 import { PublicNav } from "@/components/organisms/public-nav";
 import { Avatar } from "@/components/atoms/avatar";
 import { cn } from "@/lib/utils";
-import { MOCK_PLAYERS } from "@/lib/mock-data";
+import { MOCK_PLAYERS, type MockPlayer } from "@/lib/mock-data";
+import { fetchPlayerBySlug } from "@/lib/services/players";
 import { PlayerProfileTabs, PlayerProfileActions } from "./interactive";
 
 /**
@@ -22,12 +23,16 @@ import { PlayerProfileTabs, PlayerProfileActions } from "./interactive";
  * Migrate via redirect when handle reservations are implemented.
  */
 
-export default function PlayerProfilePage({
+export default async function PlayerProfilePage({
   params,
 }: {
   params: { handle: string };
 }) {
-  const player = MOCK_PLAYERS.find((p) => p.handle === params.handle) ?? MOCK_PLAYERS[0];
+  // Try real DB lookup first by profile_slug.
+  const real = await fetchPlayerBySlug(params.handle);
+  const player: MockPlayer = real
+    ? (real as unknown as MockPlayer)
+    : (MOCK_PLAYERS.find((p) => p.handle === params.handle) ?? MOCK_PLAYERS[0]);
   if (!player) notFound();
 
   return (

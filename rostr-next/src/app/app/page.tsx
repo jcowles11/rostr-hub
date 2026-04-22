@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Bell,
   Plus,
@@ -8,8 +10,6 @@ import {
   Download,
   MoreHorizontal,
 } from "lucide-react";
-"use client";
-
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/atoms/button";
