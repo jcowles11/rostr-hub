@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SearchInput } from "@/components/atoms/input";
@@ -21,6 +22,7 @@ export interface TopBarAction {
   label?: string;
   icon?: React.ReactNode;
   onClick?: () => void;
+  href?: string;
   notification?: boolean;
 }
 
@@ -86,6 +88,16 @@ export function TopBar({
                   <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-red" />
                 )}
               </button>
+            );
+          }
+          if (a.href) {
+            return (
+              <Link key={i} href={a.href}>
+                <Button size="md" variant={a.kind === "primary" ? "primary" : "ghost"}>
+                  {a.icon}
+                  {a.label}
+                </Button>
+              </Link>
             );
           }
           return (

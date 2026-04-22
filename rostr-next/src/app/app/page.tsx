@@ -38,7 +38,7 @@ export default function HubPage() {
         actions={[
           { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, notification: true },
           { kind: "ghost", label: "Quick add", icon: <Plus className="w-[15px] h-[15px]" /> },
-          { kind: "primary", label: "Start practice" },
+          { kind: "primary", label: "Start practice", href: "/app/practice" },
         ]}
       />
       <div className="flex-1 overflow-auto px-8 pt-7 pb-12">
@@ -140,15 +140,24 @@ function TodayHeroCard() {
           </span>
         </div>
         <div className="mt-4.5 flex gap-2">
-          <button className="bg-red hover:bg-red/90 text-white rounded-sm px-3.5 h-[34px] text-[12.5px] font-semibold">
+          <Link
+            href="/app/practice"
+            className="inline-flex items-center bg-red hover:bg-red/90 text-white rounded-sm px-3.5 h-[34px] text-[12.5px] font-semibold"
+          >
             Open practice plan →
-          </button>
-          <button className="bg-white/[0.08] hover:bg-white/[0.14] text-white rounded-sm px-3.5 h-[34px] text-[12.5px] font-semibold">
+          </Link>
+          <Link
+            href="/app/practice"
+            className="inline-flex items-center bg-white/[0.08] hover:bg-white/[0.14] text-white rounded-sm px-3.5 h-[34px] text-[12.5px] font-semibold"
+          >
             Field runner mode
-          </button>
-          <button className="bg-white/[0.08] hover:bg-white/[0.14] text-white rounded-sm px-3.5 h-[34px] text-[12.5px] font-semibold">
+          </Link>
+          <Link
+            href="/app/practice"
+            className="inline-flex items-center bg-white/[0.08] hover:bg-white/[0.14] text-white rounded-sm px-3.5 h-[34px] text-[12.5px] font-semibold"
+          >
             Edit
-          </button>
+          </Link>
         </div>
       </div>
     </div>
@@ -173,8 +182,9 @@ function AvailabilityPanel() {
       />
       <div>
         {MOCK_PLAYERS.map((p) => (
-          <div
+          <Link
             key={p.id}
+            href={`/p/${p.handle}`}
             className="grid grid-cols-[28px_1fr_90px_110px_80px] gap-3 px-[18px] py-2.5 border-b border-hair-2 last:border-b-0 items-center hover:bg-paper transition-colors text-[13px]"
           >
             <div className="font-mono text-[11px] text-ink-3">#{p.jerseyNumber}</div>
@@ -202,7 +212,7 @@ function AvailabilityPanel() {
             >
               {p.stat}
             </div>
-          </div>
+          </Link>
         ))}
       </div>
       <div className="px-[18px] py-2.5 border-t border-hair-2 text-[12px] text-ink-3 flex items-center">
@@ -409,8 +419,9 @@ function MessagesPanel() {
       />
       <div>
         {MOCK_MESSAGES.map((m) => (
-          <div
+          <Link
             key={m.id}
+            href="/app/messages"
             className="flex gap-2.5 px-[18px] py-3 border-b border-hair-2 last:border-b-0 hover:bg-paper transition-colors cursor-pointer"
           >
             <Avatar size="md" color={m.avatarColor} initials={m.initials} />
@@ -422,7 +433,7 @@ function MessagesPanel() {
               <div className="text-[12px] text-ink-2 truncate">{m.preview}</div>
             </div>
             {m.unread && <span className="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full bg-red" />}
-          </div>
+          </Link>
         ))}
       </div>
     </Panel>

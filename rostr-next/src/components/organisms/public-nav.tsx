@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Button } from "@/components/atoms/button";
 
 /**
  * PublicNav — organisms/public-nav
@@ -33,12 +32,15 @@ export function PublicNav({
           <Link href="#" className="hover:text-ink">For coaches</Link>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <Link href="#" className="text-[13px] text-ink-2 hover:text-ink px-2">
+          <Link href="/login" className="text-[13px] text-ink-2 hover:text-ink px-2">
             Sign in
           </Link>
-          <Button variant="red" size="md">
+          <Link
+            href="/signup"
+            className="inline-flex items-center h-[34px] px-3.5 bg-red hover:bg-red/90 text-white rounded-sm text-[13px] font-semibold transition-colors"
+          >
             Get your profile
-          </Button>
+          </Link>
         </div>
       </div>
     </nav>

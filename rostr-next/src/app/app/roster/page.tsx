@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   Plus,
@@ -30,6 +31,7 @@ import {
  * Import wizard + player slide-over are stubbed for a later sprint.
  */
 export default function RosterPage() {
+  const router = useRouter();
   const [levelFilter, setLevelFilter] = useState<"all" | RosterLevel>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filters] = useState([
@@ -173,7 +175,7 @@ export default function RosterPage() {
                   return (
                     <tr
                       key={p.id}
-                      onClick={() => toggleRow(p.id)}
+                      onClick={() => router.push(`/p/${p.handle}`)}
                       className={cn(
                         "cursor-pointer transition-colors",
                         isSelected ? "bg-red-soft" : "hover:bg-paper",

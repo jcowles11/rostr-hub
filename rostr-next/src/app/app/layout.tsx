@@ -30,7 +30,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { label: "Games", href: "/app/games", icon: <Swords className="w-4 h-4" /> },
       { label: "Schedule", href: "/app/schedule", icon: <CalendarDays className="w-4 h-4" /> },
-      { label: "Tryouts", href: "/app/tryouts/spring-2026", icon: <Trophy className="w-4 h-4" /> },
+      { label: "Tryouts", href: "/app/tryouts", icon: <Trophy className="w-4 h-4" /> },
     ],
   },
   {
