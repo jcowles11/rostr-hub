@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Bell, User, Users, Shield, Zap, Database, Link2, Check, X as XIcon } from "lucide-react";
+import { Bell, User, Users, Shield, Zap, Database, Link2, Check, X as XIcon, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { TopBar } from "@/components/organisms/top-bar";
 import { Avatar } from "@/components/atoms/avatar";
@@ -126,16 +126,7 @@ export function SettingsView({
                 readOnly={!hasCoach}
                 onSave={async (v) => (await updateProgramAction({ sport: v })).error}
               />
-              <EditableField
-                label="Levels"
-                initialValue={levels.join(" · ")}
-                readOnly={!hasCoach}
-                onSave={async (v) => {
-                  const list = v.split(/[·,]/).map((x) => x.trim()).filter(Boolean);
-                  return (await updateProgramAction({ levels: list })).error;
-                }}
-                hint="Comma- or bullet-separated list (e.g. Varsity · JV · Freshman)"
-              />
+              <LevelsEditor levels={levels} readOnly={!hasCoach} />
 
               <div className="pt-4 border-t border-hair">
                 <div className="type-label mb-4">Notifications</div>
@@ -282,6 +273,136 @@ function ToggleRow({
         <div className="text-[11.5px] text-ink-3 mt-0.5">{sub}</div>
       </div>
       <Toggle on={value} onChange={onChange} aria-label={label} />
+    </div>
+  );
+}
+
+// ── Multi-team (Levels) editor ─────────────────────────────────
+
+function LevelsEditor({
+  levels: initial,
+  readOnly,
+}: {
+  levels: string[];
+  readOnly?: boolean;
+}) {
+  const [levels, setLevels] = useState(initial);
+  const [input, setInput] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  const save = (next: string[]) => {
+    setLevels(next);
+    startTransition(async () => {
+      const r = await updateProgramAction({ levels: next });
+      if (r.error) {
+        toast.error("Couldn't save teams", { description: r.error });
+        setLevels(initial);
+      } else {
+        toast.success("Teams updated", { description: next.join(" · ") });
+      }
+    });
+  };
+
+  const add = () => {
+    const val = input.trim();
+    if (!val) return;
+    if (levels.some((l) => l.toLowerCase() === val.toLowerCase())) {
+      toast.info("Already added", { description: val });
+      return;
+    }
+    setInput("");
+    save([...levels, val]);
+  };
+
+  const remove = (idx: number) => {
+    save(levels.filter((_, i) => i !== idx));
+  };
+
+  const move = (idx: number, dir: -1 | 1) => {
+    const target = idx + dir;
+    if (target < 0 || target >= levels.length) return;
+    const next = [...levels];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    save(next);
+  };
+
+  return (
+    <div className="py-3 border-b border-hair-2 last:border-b-0">
+      <div className="flex items-baseline justify-between mb-2">
+        <div>
+          <div className="type-label">Teams / Levels</div>
+          <p className="text-[11.5px] text-ink-3 mt-0.5 max-w-[440px]">
+            Add as many teams as your program runs — Varsity, JV, Sophomore, Freshman, 7th grade,
+            whatever. Order top-down by seniority.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {levels.map((l, i) => (
+          <div
+            key={l}
+            className="inline-flex items-center gap-1 bg-card border border-hair rounded-xs pl-2.5 pr-1 py-1 text-[12.5px] font-semibold"
+          >
+            <span>{l}</span>
+            {!readOnly && (
+              <>
+                <button
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0 || isPending}
+                  aria-label={`Move ${l} up`}
+                  className="p-0.5 text-ink-4 hover:text-ink disabled:opacity-30 rounded-xs"
+                  title="Move up"
+                >
+                  <ChevronUp className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={() => move(i, 1)}
+                  disabled={i === levels.length - 1 || isPending}
+                  aria-label={`Move ${l} down`}
+                  className="p-0.5 text-ink-4 hover:text-ink disabled:opacity-30 rounded-xs"
+                  title="Move down"
+                >
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={() => remove(i)}
+                  disabled={isPending}
+                  aria-label={`Remove ${l}`}
+                  className="p-0.5 text-ink-4 hover:text-red rounded-xs"
+                  title="Remove"
+                >
+                  <XIcon className="w-3 h-3" />
+                </button>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {!readOnly && (
+        <div className="mt-3 flex gap-1.5 max-w-[340px]">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+              }
+            }}
+            placeholder="Add a team… e.g. Sophomore"
+            className="flex-1 bg-paper border border-hair rounded-xs px-2.5 py-1.5 text-[13px] outline-none focus:border-red focus:ring-2 focus:ring-red-soft"
+          />
+          <button
+            onClick={add}
+            disabled={!input.trim() || isPending}
+            className="px-3 h-[32px] rounded-xs bg-ink text-white text-[12.5px] font-semibold hover:bg-red disabled:opacity-50"
+          >
+            Add
+          </button>
+        </div>
+      )}
     </div>
   );
 }

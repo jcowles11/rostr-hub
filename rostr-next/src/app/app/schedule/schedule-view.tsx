@@ -2,11 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CalendarDays, Plus, Bell, MapPin, Swords, Dumbbell } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { CalendarDays, Plus, Bell, MapPin, Swords, Dumbbell, Trash2 } from "lucide-react";
 import { TopBar } from "@/components/organisms/top-bar";
 import { cn } from "@/lib/utils";
 import { comingSoon } from "@/lib/coming-soon";
 import { AddEventModal } from "@/components/organisms/add-event-modal";
+import { RowActions } from "@/components/molecules/row-actions";
+import { deleteGameAction } from "@/app/app/games/actions";
+import { deletePracticeAction } from "@/app/app/practice/actions";
 
 type Kind = "game" | "practice";
 export interface ScheduleEvent {
@@ -71,7 +76,21 @@ export function ScheduleView({ week: WEEK }: { week: ScheduleEvent[] }) {
 }
 
 function EventRow({ event: e }: { event: ScheduleEvent }) {
+  const router = useRouter();
   const Icon = e.kind === "game" ? Swords : Dumbbell;
+
+  const handleDelete = async () => {
+    const label = e.kind === "game" ? "game" : "practice";
+    if (!confirm(`Delete this ${label}: "${e.title}"?`)) return;
+    const action = e.kind === "game" ? deleteGameAction : deletePracticeAction;
+    const r = await action(e.id);
+    if (r.error) toast.error(`Couldn't delete ${label}`, { description: r.error });
+    else {
+      toast.success(`${label === "game" ? "Game" : "Practice"} deleted`);
+      router.refresh();
+    }
+  };
+
   return (
     <Link
       href={e.href}
@@ -122,6 +141,18 @@ function EventRow({ event: e }: { event: ScheduleEvent }) {
       >
         {e.kind === "game" ? "Game" : "Practice"}
       </span>
+      <div onClick={(ev) => ev.stopPropagation()}>
+        <RowActions
+          items={[
+            {
+              label: `Delete ${e.kind}`,
+              icon: <Trash2 className="w-3.5 h-3.5" />,
+              danger: true,
+              onSelect: handleDelete,
+            },
+          ]}
+        />
+      </div>
     </Link>
   );
 }
