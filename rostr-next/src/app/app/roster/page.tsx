@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import {
   Bell,
   Plus,
@@ -8,6 +9,7 @@ import {
   MoreHorizontal,
   Download,
   X,
+  ExternalLink,
 } from "lucide-react";
 import { TopBar } from "@/components/organisms/top-bar";
 import { Avatar } from "@/components/atoms/avatar";
@@ -224,9 +226,19 @@ export default function RosterPage() {
                         <ProfileLinkBadge status={p.profileStatus} />
                       </Td>
                       <Td onClickStopPropagation>
-                        <button className="text-ink-3 hover:text-ink hover:bg-paper-deep rounded-xs p-1">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-0.5 justify-end">
+                          <Link
+                            href={`/p/${p.handle}`}
+                            target="_blank"
+                            className="text-ink-3 hover:text-ink hover:bg-paper-deep rounded-xs p-1"
+                            aria-label="View public profile"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </Link>
+                          <button className="text-ink-3 hover:text-ink hover:bg-paper-deep rounded-xs p-1">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </button>
+                        </div>
                       </Td>
                     </tr>
                   );
