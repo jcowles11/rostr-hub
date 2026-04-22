@@ -147,6 +147,80 @@ export async function setPlayerLevelAction(
   return { error: null };
 }
 
+export interface BulkPlayer {
+  firstName: string;
+  lastName: string;
+  grade?: number | null;
+  positions?: string[];
+  bats?: "L" | "R" | "S" | null;
+  throws?: "L" | "R" | null;
+  playerNumber?: number | null;
+}
+
+/**
+ * bulkCreatePlayersAction — insert many player rows at once.
+ * Returns inserted + skipped counts. Skips rows with duplicate
+ * (firstName + lastName) against the existing roster, case-insensitive.
+ */
+export async function bulkCreatePlayersAction(
+  rows: BulkPlayer[],
+): Promise<{ error: string | null; inserted: number; skipped: number }> {
+  if (rows.length === 0) return { error: "No rows to import.", inserted: 0, skipped: 0 };
+
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program.", inserted: 0, skipped: 0 };
+
+  const supabase = createSupabaseServerClient();
+
+  const { data: existing } = await supabase
+    .from("players")
+    .select("first_name, last_name")
+    .eq("program_id", coach.program_id);
+  const seen = new Set(
+    (existing ?? []).map(
+      (p: { first_name: string; last_name: string }) =>
+        `${p.first_name.trim().toLowerCase()}|${p.last_name.trim().toLowerCase()}`,
+    ),
+  );
+
+  const toInsert: Record<string, unknown>[] = [];
+  let skipped = 0;
+  for (const r of rows) {
+    if (!r.firstName?.trim() || !r.lastName?.trim()) {
+      skipped++;
+      continue;
+    }
+    const key = `${r.firstName.trim().toLowerCase()}|${r.lastName.trim().toLowerCase()}`;
+    if (seen.has(key)) {
+      skipped++;
+      continue;
+    }
+    seen.add(key);
+    toInsert.push({
+      program_id: coach.program_id,
+      first_name: r.firstName.trim(),
+      last_name: r.lastName.trim(),
+      grade: r.grade ?? null,
+      positions: r.positions && r.positions.length > 0 ? r.positions : [],
+      bats: r.bats ?? null,
+      throws: r.throws ?? null,
+      player_number: r.playerNumber ?? null,
+    });
+  }
+
+  if (toInsert.length === 0) {
+    revalidatePath("/app/roster");
+    return { error: null, inserted: 0, skipped };
+  }
+
+  const { error } = await supabase.from("players").insert(toInsert);
+  if (error) return { error: error.message, inserted: 0, skipped };
+
+  revalidatePath("/app/roster");
+  revalidatePath("/app");
+  return { error: null, inserted: toInsert.length, skipped };
+}
+
 /**
  * deleteAllPlayersAction — wipes every player on the coach's program.
  * Used by the roster footer's "clear" action (future).

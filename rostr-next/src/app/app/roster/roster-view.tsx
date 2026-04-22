@@ -21,6 +21,7 @@ import { Chip } from "@/components/atoms/chip";
 import { comingSoon } from "@/lib/coming-soon";
 import { cn } from "@/lib/utils";
 import { AddPlayerModal, type PlayerEditInit } from "@/components/organisms/add-player-modal";
+import { ImportRosterModal } from "@/components/organisms/import-roster-modal";
 import { LevelPicker } from "@/components/molecules/level-picker";
 import { RowActions } from "@/components/molecules/row-actions";
 import { deletePlayerAction } from "./actions";
@@ -42,6 +43,7 @@ export function RosterView({ players: MOCK_PLAYERS }: { players: MockPlayer[] })
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<PlayerEditInit | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [filters] = useState([
     { key: "class", label: "Class: Any" },
     { key: "position", label: "Position: Any" },
@@ -80,7 +82,7 @@ export function RosterView({ players: MOCK_PLAYERS }: { players: MockPlayer[] })
         actions={[
           { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
           { kind: "ghost", label: "Export", icon: <Download className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Export roster", "GameChanger + MaxPreps CSV out — next sprint.") },
-          { kind: "ghost", label: "Import", icon: <Upload className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Import wizard", "Upload → map → levels → invite → review modal — next sprint.") },
+          { kind: "ghost", label: "Import", icon: <Upload className="w-[15px] h-[15px]" />, onClick: () => setImportOpen(true) },
           { kind: "primary", label: "Add player", icon: <Plus className="w-[15px] h-[15px]" />, onClick: () => setAddOpen(true) },
         ]}
       />
@@ -325,6 +327,7 @@ export function RosterView({ players: MOCK_PLAYERS }: { players: MockPlayer[] })
         onOpenChange={(o) => !o && setEditing(null)}
         editing={editing}
       />
+      <ImportRosterModal open={importOpen} onOpenChange={setImportOpen} />
     </>
   );
 }

@@ -31,6 +31,8 @@ import {
 } from "@/lib/mock-data";
 import { useState } from "react";
 import { AddPlayerModal } from "@/components/organisms/add-player-modal";
+import { ImportRosterModal } from "@/components/organisms/import-roster-modal";
+import { AddEventModal } from "@/components/organisms/add-event-modal";
 
 interface HubViewProps {
   greetingName: string;
@@ -64,6 +66,8 @@ export function HubView({
   const MOCK_WEEK = weekItems;
   const PLAYERS_FOR_AVAIL = availabilityPlayers;
   const [addPlayerOpen, setAddPlayerOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [addEventOpen, setAddEventOpen] = useState<"game" | "practice" | null>(null);
 
   function greeting() {
     const h = new Date().getHours();
@@ -158,7 +162,12 @@ export function HubView({
             {/* SIDE COLUMN */}
             <div className="flex flex-col gap-[18px]">
               <AICoachCard />
-              <QuickActionsPanel onAddPlayer={() => setAddPlayerOpen(true)} />
+              <QuickActionsPanel
+                onAddPlayer={() => setAddPlayerOpen(true)}
+                onImport={() => setImportOpen(true)}
+                onNewGame={() => setAddEventOpen("game")}
+                onNewPractice={() => setAddEventOpen("practice")}
+              />
               <MessagesPanel />
               <PlayerSpotlightPanel />
             </div>
@@ -167,6 +176,12 @@ export function HubView({
       </div>
 
       <AddPlayerModal open={addPlayerOpen} onOpenChange={setAddPlayerOpen} />
+      <ImportRosterModal open={importOpen} onOpenChange={setImportOpen} />
+      <AddEventModal
+        open={addEventOpen !== null}
+        onOpenChange={(o) => !o && setAddEventOpen(null)}
+        initialKind={addEventOpen ?? "game"}
+      />
     </>
   );
 }
@@ -464,15 +479,25 @@ function AICoachCard() {
   );
 }
 
-function QuickActionsPanel({ onAddPlayer }: { onAddPlayer: () => void }) {
+function QuickActionsPanel({
+  onAddPlayer,
+  onImport,
+  onNewGame,
+  onNewPractice,
+}: {
+  onAddPlayer: () => void;
+  onImport: () => void;
+  onNewGame: () => void;
+  onNewPractice: () => void;
+}) {
   const actions: Array<
     | { ic: string; t: string; s: string; href: string; onClick?: never }
     | { ic: string; t: string; s: string; onClick: () => void; href?: never }
   > = [
     { ic: "+", t: "Add player", s: "Manual entry", onClick: onAddPlayer },
-    { ic: "↑", t: "Import CSV", s: "GC / MaxPreps", href: "/app/roster?import=1" },
-    { ic: "◼", t: "New tryout", s: "Spring '26", href: "/app/tryouts" },
-    { ic: "✎", t: "Post update", s: "Team · Parents", href: "/app/messages" },
+    { ic: "↑", t: "Import CSV", s: "GC / MaxPreps", onClick: onImport },
+    { ic: "⚔", t: "Add game", s: "Schedule one", onClick: onNewGame },
+    { ic: "◎", t: "Add practice", s: "Plan a session", onClick: onNewPractice },
   ];
   return (
     <Panel>
