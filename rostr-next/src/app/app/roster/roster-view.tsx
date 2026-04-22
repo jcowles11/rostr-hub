@@ -24,7 +24,7 @@ import { AddPlayerModal, type PlayerEditInit } from "@/components/organisms/add-
 import { ImportRosterModal } from "@/components/organisms/import-roster-modal";
 import { LevelPicker } from "@/components/molecules/level-picker";
 import { RowActions } from "@/components/molecules/row-actions";
-import { deletePlayerAction } from "./actions";
+import { deletePlayerAction, bulkSetPlayerLevelAction } from "./actions";
 import {
   type AvailabilityStatus,
   type ProfileStatus,
@@ -154,12 +154,42 @@ export function RosterView({
           <div className="bg-card border border-hair rounded-md overflow-hidden">
             {/* Bulk toolbar */}
             {selected.size > 0 && (
-              <div className="flex items-center gap-3 bg-ink text-white px-4 py-2.5 text-[12.5px]">
+              <div className="flex items-center gap-2.5 flex-wrap bg-ink text-white px-4 py-2.5 text-[12.5px]">
                 <b className="font-bold">{selected.size} selected</b>
-                <BulkButton>Move to JV</BulkButton>
+                <span className="text-white/40">·</span>
+                <span className="text-white/60">Move to:</span>
+                {levels.map((lvl, i) => (
+                  <BulkMoveButton
+                    key={lvl}
+                    label={lvl}
+                    onClick={async () => {
+                      const enumVal = i === 0 ? "varsity" : i === 1 ? "jv" : "freshman";
+                      const r = await bulkSetPlayerLevelAction(Array.from(selected), enumVal);
+                      if (r.error) toast.error("Bulk move failed", { description: r.error });
+                      else {
+                        toast.success(`Moved ${r.updated} to ${lvl}`);
+                        setSelected(new Set());
+                        router.refresh();
+                      }
+                    }}
+                  />
+                ))}
+                <BulkMoveButton
+                  label="Cut"
+                  danger
+                  onClick={async () => {
+                    const r = await bulkSetPlayerLevelAction(Array.from(selected), "cut");
+                    if (r.error) toast.error("Bulk cut failed", { description: r.error });
+                    else {
+                      toast.success(`Cut ${r.updated}`);
+                      setSelected(new Set());
+                      router.refresh();
+                    }
+                  }}
+                />
+                <span className="text-white/40">·</span>
                 <BulkButton>Send message</BulkButton>
                 <BulkButton>Invite to profile</BulkButton>
-                <BulkButton>Mark unavailable</BulkButton>
                 <button
                   onClick={clearSelection}
                   className="ml-auto inline-flex items-center gap-1 text-[12px] text-white/70 hover:text-white"
@@ -405,6 +435,30 @@ function BulkButton({ children }: { children: string }) {
       className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/10 hover:bg-white/20 rounded-sm text-[12px] font-medium"
     >
       {children}
+    </button>
+  );
+}
+
+function BulkMoveButton({
+  label,
+  onClick,
+  danger,
+}: {
+  label: string;
+  onClick: () => void | Promise<void>;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-[12px] font-semibold transition-colors",
+        danger
+          ? "bg-red/80 hover:bg-red text-white"
+          : "bg-white/10 hover:bg-white/20 text-white",
+      )}
+    >
+      {label}
     </button>
   );
 }

@@ -97,6 +97,48 @@ export async function setGameRosterAction(
   return { error: null };
 }
 
+export interface LineupEntry {
+  playerId: string;
+  battingOrder: number; // 1..N
+  position: string; // "P", "C", "SS", ...
+}
+
+/**
+ * setLineupAction — replace the lineup_entries for a game.
+ */
+export async function setLineupAction(
+  gameId: string,
+  entries: LineupEntry[],
+): Promise<{ error: string | null }> {
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program." };
+  const supabase = createSupabaseServerClient();
+
+  const { error: delErr } = await supabase
+    .from("lineup_entries")
+    .delete()
+    .eq("game_id", gameId);
+  if (delErr) return { error: delErr.message };
+
+  if (entries.length === 0) {
+    revalidatePath(`/app/games/${gameId}`);
+    return { error: null };
+  }
+
+  const { error } = await supabase.from("lineup_entries").insert(
+    entries.map((e) => ({
+      game_id: gameId,
+      player_id: e.playerId,
+      batting_order: e.battingOrder,
+      position: e.position,
+    })),
+  );
+  if (error) return { error: error.message };
+
+  revalidatePath(`/app/games/${gameId}`);
+  return { error: null };
+}
+
 export async function deleteGameAction(gameId: string): Promise<{ error: string | null }> {
   const coach = await getCurrentCoach();
   if (!coach) return { error: "No program." };

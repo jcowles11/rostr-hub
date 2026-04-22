@@ -20,7 +20,8 @@ import { cn } from "@/lib/utils";
 import { type MockPlayer } from "@/lib/mock-data";
 import { toast } from "sonner";
 import { comingSoon } from "@/lib/coming-soon";
-import { setGameRosterAction } from "../actions";
+import { setGameRosterAction, setLineupAction, type LineupEntry as LineupEntryInput } from "../actions";
+import type { LineupEntryRecord } from "@/lib/services/game";
 import { Checkbox } from "@/components/atoms/checkbox";
 import { format, parseISO } from "date-fns";
 
@@ -45,13 +46,25 @@ export interface GameViewProps {
   };
   players: MockPlayer[];
   initialRosterIds: string[];
+  initialLineup: LineupEntryRecord[];
 }
 
-export function GameView({ gameId, programName, game, players, initialRosterIds }: GameViewProps) {
+const DEFAULT_POSITIONS = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
+
+export function GameView({
+  gameId,
+  programName,
+  game,
+  players,
+  initialRosterIds,
+  initialLineup,
+}: GameViewProps) {
   const [tab, setTab] = useState<Tab>("Roster");
   const [rosterIds, setRosterIds] = useState<Set<string>>(new Set(initialRosterIds));
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [lineup, setLineup] = useState<LineupEntryRecord[]>(initialLineup);
+  const [lineupDirty, setLineupDirty] = useState(false);
 
   const toggleRoster = (id: string) => {
     setRosterIds((prev) => {
@@ -75,6 +88,31 @@ export function GameView({ gameId, programName, game, players, initialRosterIds 
   };
 
   const rosterPlayers = players.filter((p) => rosterIds.has(p.id));
+
+  const saveLineup = async () => {
+    setSaving(true);
+    const entries: LineupEntryInput[] = lineup.map((e) => ({
+      playerId: e.playerId,
+      battingOrder: e.battingOrder,
+      position: e.position,
+    }));
+    const r = await setLineupAction(gameId, entries);
+    setSaving(false);
+    if (r.error) toast.error("Couldn't save lineup", { description: r.error });
+    else {
+      toast.success("Lineup saved");
+      setLineupDirty(false);
+    }
+  };
+
+  const updateLineupSlot = (battingOrder: number, playerId: string | null, position: string) => {
+    setLineup((prev) => {
+      const next = prev.filter((e) => e.battingOrder !== battingOrder);
+      if (playerId) next.push({ battingOrder, playerId, position });
+      return next.sort((a, b) => a.battingOrder - b.battingOrder);
+    });
+    setLineupDirty(true);
+  };
 
   return (
     <>
@@ -163,7 +201,16 @@ export function GameView({ gameId, programName, game, players, initialRosterIds 
               toggleRoster={toggleRoster}
             />
           )}
-          {tab === "Lineup" && <LineupTab starters={rosterPlayers.slice(0, 9)} bench={rosterPlayers.slice(9)} />}
+          {tab === "Lineup" && (
+            <LineupTab
+              rosterPlayers={rosterPlayers}
+              lineup={lineup}
+              onUpdateSlot={updateLineupSlot}
+              dirty={lineupDirty}
+              onSave={saveLineup}
+              saving={saving}
+            />
+          )}
           {tab === "Live" && (
             <div className="p-10 bg-card border border-hair rounded-lg text-center">
               <div className="font-display text-[22px] font-semibold tracking-tight mb-2">
@@ -269,54 +316,146 @@ function RosterTab({
   );
 }
 
-function LineupTab({ starters, bench }: { starters: MockPlayer[]; bench: MockPlayer[] }) {
-  const positions = ["LF", "SS", "CF", "1B", "RF", "3B", "2B", "C", "P"];
+function LineupTab({
+  rosterPlayers,
+  lineup,
+  onUpdateSlot,
+  dirty,
+  onSave,
+  saving,
+}: {
+  rosterPlayers: MockPlayer[];
+  lineup: LineupEntryRecord[];
+  onUpdateSlot: (battingOrder: number, playerId: string | null, position: string) => void;
+  dirty: boolean;
+  onSave: () => void;
+  saving: boolean;
+}) {
+  const slots = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  const slotEntries = slots.map((s) => lineup.find((e) => e.battingOrder === s) ?? null);
+  const usedPlayerIds = new Set(
+    lineup.map((e) => e.playerId).filter((id): id is string => Boolean(id)),
+  );
+  const benchPlayers = rosterPlayers.filter((p) => !usedPlayerIds.has(p.id));
+
   return (
     <div className="grid grid-cols-[1fr_320px] gap-5">
       <div className="bg-card border border-hair rounded-lg overflow-hidden">
         <div className="px-[18px] py-3.5 border-b border-hair-2 flex items-center gap-2">
           <h3 className="font-display text-[15px] font-semibold tracking-tight">Starting lineup</h3>
-          <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-grass-dim text-grass text-[10px] font-bold uppercase tracking-[0.04em]">
-            ● Saved 4m ago
-          </span>
+          {dirty ? (
+            <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-amber-soft text-amber text-[10px] font-bold uppercase tracking-[0.04em]">
+              ● Unsaved
+            </span>
+          ) : (
+            <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-grass-dim text-grass text-[10px] font-bold uppercase tracking-[0.04em]">
+              ● Saved
+            </span>
+          )}
+          {dirty && (
+            <Button variant="red" size="sm" onClick={onSave} disabled={saving}>
+              {saving ? "Saving…" : "Save lineup"}
+            </Button>
+          )}
         </div>
-        <div>
-          {starters.map((p, i) => (
-            <div key={p.id} className="flex items-center gap-4 px-5 py-3 border-b border-hair-2 last:border-b-0">
-              <div className="font-mono text-[18px] font-bold w-8">{i + 1}</div>
-              <Avatar size="md" color={p.avatarColor} initials={p.initials} />
-              <div className="flex-1">
-                <div className="font-semibold text-[13.5px]">{p.firstName} {p.lastName}</div>
-                <div className="font-mono text-[10.5px] text-ink-3">
-                  #{p.jerseyNumber} · {p.classYearShort} · {p.ba ?? "—"} BA
-                </div>
-              </div>
-              <div className="w-14 text-center">
-                <span className="font-mono text-[14px] font-bold">{positions[i]}</span>
-              </div>
+        {rosterPlayers.length === 0 ? (
+          <div className="p-10 text-center">
+            <div className="font-display text-[18px] font-semibold tracking-tight mb-1">
+              No roster picked yet
             </div>
-          ))}
-        </div>
+            <div className="text-[12.5px] text-ink-3">
+              Go to the Roster tab and check off players for this game first.
+            </div>
+          </div>
+        ) : (
+          <div>
+            {slots.map((slot, i) => {
+              const entry = slotEntries[i];
+              const player = entry ? rosterPlayers.find((p) => p.id === entry.playerId) : null;
+              const defaultPos = DEFAULT_POSITIONS[i] ?? "P";
+              const position = entry?.position ?? defaultPos;
+              return (
+                <div
+                  key={slot}
+                  className="flex items-center gap-3 px-5 py-2.5 border-b border-hair-2 last:border-b-0"
+                >
+                  <div className="font-mono text-[18px] font-bold w-8 shrink-0">{slot}</div>
+                  <select
+                    value={entry?.playerId ?? ""}
+                    onChange={(e) =>
+                      onUpdateSlot(slot, e.target.value || null, position)
+                    }
+                    className="flex-1 bg-paper border border-hair rounded-xs px-2.5 py-1.5 text-[13px] outline-none focus:border-red"
+                  >
+                    <option value="">— Empty —</option>
+                    {rosterPlayers.map((p) => {
+                      const takenElsewhere =
+                        usedPlayerIds.has(p.id) && entry?.playerId !== p.id;
+                      return (
+                        <option
+                          key={p.id}
+                          value={p.id}
+                          disabled={takenElsewhere}
+                        >
+                          {p.firstName} {p.lastName} (#{p.jerseyNumber || "—"}
+                          {p.positions.length > 0 ? ` · ${p.positions.join("/")}` : ""})
+                          {takenElsewhere ? " — already batting" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {player && (
+                    <div className="shrink-0">
+                      <Avatar size="sm" color={player.avatarColor} initials={player.initials} />
+                    </div>
+                  )}
+                  <select
+                    value={position}
+                    onChange={(e) =>
+                      onUpdateSlot(slot, entry?.playerId ?? null, e.target.value)
+                    }
+                    className="w-20 bg-paper border border-hair rounded-xs px-2 py-1.5 text-[13px] font-mono font-semibold text-center outline-none focus:border-red"
+                  >
+                    {["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH"].map((pos) => (
+                      <option key={pos}>{pos}</option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
       <div className="flex flex-col gap-5">
         <div className="bg-card border border-hair rounded-lg p-5">
-          <div className="type-label">Bench</div>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {bench.map((p) => (
-              <span key={p.id} className="inline-flex items-center gap-1.5 px-2 py-1 bg-paper rounded-xs text-[11.5px] font-semibold">
-                <Avatar size="xs" color={p.avatarColor} initials={p.initials} />
-                #{p.jerseyNumber}
-              </span>
-            ))}
-          </div>
+          <div className="type-label">Bench · {benchPlayers.length}</div>
+          {benchPlayers.length === 0 ? (
+            <div className="mt-3 text-[12px] text-ink-3">
+              Everyone on the game roster is in the lineup.
+            </div>
+          ) : (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {benchPlayers.map((p) => (
+                <span
+                  key={p.id}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 bg-paper rounded-xs text-[11.5px] font-semibold"
+                  title={`${p.firstName} ${p.lastName} · ${p.positions.join("/")}`}
+                >
+                  <Avatar size="xs" color={p.avatarColor} initials={p.initials} />
+                  {p.lastName}
+                  {p.jerseyNumber ? ` · #${p.jerseyNumber}` : ""}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="bg-ink text-white rounded-lg p-5">
           <div className="type-label !text-red">AI · suggested</div>
           <div className="font-display text-[14px] font-semibold tracking-tight mt-1.5 leading-snug">
-            Johnson &amp; Peña are hitting .390+ over last 5 — keep them 1-2.
+            Optimize your batting order based on last-5 BA + handedness.
           </div>
           <div className="text-[11.5px] text-white/70 mt-2">
-            Based on last-5-game BA, vs RHP history, and Central Hawks&apos; pitching tendencies.
+            AI Co-coach will propose a lineup once there's real game data — next sprint.
           </div>
         </div>
       </div>

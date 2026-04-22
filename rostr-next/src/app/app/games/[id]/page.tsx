@@ -15,7 +15,7 @@ import { MOCK_PLAYERS, type MockPlayer } from "@/lib/mock-data";
  */
 export default async function GamePage({ params }: { params: { id: string } }) {
   const coach = await getCurrentCoach();
-  const { game, rosterPlayerIds } = await fetchGameDetail(params.id);
+  const { game, rosterPlayerIds, lineup } = await fetchGameDetail(params.id);
 
   let players: MockPlayer[] = [];
   if (coach) {
@@ -41,6 +41,7 @@ export default async function GamePage({ params }: { params: { id: string } }) {
         }}
         players={MOCK_PLAYERS}
         initialRosterIds={MOCK_PLAYERS.filter((p) => p.level === "V").map((p) => p.id)}
+        initialLineup={[]}
       />
     );
   }
@@ -65,6 +66,7 @@ export default async function GamePage({ params }: { params: { id: string } }) {
       }}
       players={players.length > 0 ? players : MOCK_PLAYERS}
       initialRosterIds={rosterPlayerIds}
+      initialLineup={lineup}
     />
   );
 }

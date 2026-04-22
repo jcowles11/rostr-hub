@@ -17,12 +17,19 @@ export interface GameRosterEntry {
   status: string;
 }
 
+export interface LineupEntryRecord {
+  playerId: string;
+  battingOrder: number;
+  position: string;
+}
+
 export async function fetchGameDetail(gameId: string): Promise<{
   game: GameDetail | null;
   rosterPlayerIds: string[];
+  lineup: LineupEntryRecord[];
 }> {
   const supabase = createSupabaseServerClient();
-  const [gameRes, rosterRes] = await Promise.all([
+  const [gameRes, rosterRes, lineupRes] = await Promise.all([
     supabase
       .from("games")
       .select(
@@ -34,10 +41,15 @@ export async function fetchGameDetail(gameId: string): Promise<{
       .from("game_rosters")
       .select("player_id, status")
       .eq("game_id", gameId),
+    supabase
+      .from("lineup_entries")
+      .select("player_id, batting_order, position")
+      .eq("game_id", gameId)
+      .order("batting_order", { ascending: true }),
   ]);
 
   if (gameRes.error || !gameRes.data) {
-    return { game: null, rosterPlayerIds: [] };
+    return { game: null, rosterPlayerIds: [], lineup: [] };
   }
 
   return {
@@ -53,5 +65,10 @@ export async function fetchGameDetail(gameId: string): Promise<{
       status: gameRes.data.status ?? "scheduled",
     },
     rosterPlayerIds: (rosterRes.data ?? []).map((r) => r.player_id),
+    lineup: (lineupRes.data ?? []).map((l) => ({
+      playerId: l.player_id,
+      battingOrder: l.batting_order,
+      position: l.position,
+    })),
   };
 }

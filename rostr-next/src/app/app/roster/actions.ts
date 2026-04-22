@@ -110,7 +110,43 @@ export async function deletePlayerAction(playerId: string): Promise<{ error: str
 }
 
 /**
- * setPlayerLevelAction — upsert a roster_assignments row.
+ * bulkSetPlayerLevelAction — apply a level to many players at once.
+ * Used by the Roster bulk toolbar.
+ */
+export async function bulkSetPlayerLevelAction(
+  playerIds: string[],
+  level: "varsity" | "jv" | "freshman" | "cut" | null,
+): Promise<{ error: string | null; updated: number }> {
+  if (playerIds.length === 0) return { error: null, updated: 0 };
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program.", updated: 0 };
+  const supabase = createSupabaseServerClient();
+
+  if (level === null) {
+    const { error } = await supabase
+      .from("roster_assignments")
+      .delete()
+      .in("player_id", playerIds)
+      .eq("program_id", coach.program_id);
+    if (error) return { error: error.message, updated: 0 };
+  } else {
+    const rows = playerIds.map((pid) => ({
+      player_id: pid,
+      program_id: coach.program_id,
+      assignment: level,
+    }));
+    const { error } = await supabase
+      .from("roster_assignments")
+      .upsert(rows, { onConflict: "player_id,program_id" });
+    if (error) return { error: error.message, updated: 0 };
+  }
+  revalidatePath("/app/roster");
+  revalidatePath("/app");
+  return { error: null, updated: playerIds.length };
+}
+
+/**
+ * setPlayerLevelAction — upsert a single roster_assignments row.
  * Used by the inline level pill on the roster table.
  */
 export async function setPlayerLevelAction(
