@@ -9,13 +9,14 @@
  * - Queue is stored in a ref (no re-renders on internal retry ticks)
  * - State is exposed for UI (pendingCount, failedItems)
  * - navigator.onLine check pauses retries when offline
- *
- * Future: This queue could be persisted to localStorage/IndexedDB
- * for true offline scoring support.
+ * - When a coachId is provided, the queue is persisted to localStorage so a
+ *   phone lock, tab suspend, or refresh doesn't lose queued saves. See
+ *   lib/retryQueueStorage.ts.
  */
 import { useRef, useState, useEffect, useCallback } from "react";
 import { saveScore, type SaveScoreInput, type SaveScoreResult } from "@/services/evaluationService";
 import type { MetricBounds } from "@/lib/validation";
+import { loadQueue, saveQueue, type PersistedQueueState } from "@/lib/retryQueueStorage";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -52,6 +53,7 @@ export interface RetryQueueCallbacks {
 const MAX_RETRIES = 4;
 const BASE_DELAY_MS = 2000; // 2s, 4s, 8s, 16s
 const TICK_INTERVAL_MS = 1000; // Check queue every second
+const PERSIST_DEBOUNCE_MS = 50;
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -65,10 +67,25 @@ function nextDelay(retries: number): number {
 
 // ── Hook ───────────────────────────────────────────────────────────
 
-export function useRetryQueue(callbacks?: RetryQueueCallbacks) {
+export interface UseRetryQueueOptions {
+  /**
+   * When provided, the queue is persisted to localStorage under this coach's
+   * namespace and hydrated on mount. Omit to run purely in-memory (e.g. demo
+   * mode or before auth resolves).
+   */
+  coachId?: string | null;
+}
+
+export function useRetryQueue(callbacks?: RetryQueueCallbacks, options?: UseRetryQueueOptions) {
   const queueRef = useRef<Map<string, QueuedScore>>(new Map());
   const failedRef = useRef<QueuedScore[]>([]);
   const retryingRef = useRef(false);
+  const coachIdRef = useRef<string | null>(null);
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hydratedForRef = useRef<string | null>(null);
+  // Snapshot of the last status we surfaced — used to skip no-op state updates
+  // and skip persistence writes when queue state hasn't actually changed.
+  const lastStatusSigRef = useRef<string>("0|0||false");
 
   // UI-facing state — updated after each tick that changes the queue
   const [status, setStatus] = useState<RetryQueueStatus>({
@@ -77,13 +94,43 @@ export function useRetryQueue(callbacks?: RetryQueueCallbacks) {
     isRetrying: false,
   });
 
-  const syncStatus = useCallback(() => {
-    setStatus({
-      pendingCount: queueRef.current.size,
-      failedItems: [...failedRef.current],
-      isRetrying: retryingRef.current,
-    });
+  // ── Persistence ────────────────────────────────────────────────
+  // Debounced write: bursts of enqueue/retry don't thrash localStorage.
+  const schedulePersist = useCallback(() => {
+    const coachId = coachIdRef.current;
+    if (!coachId) return;
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      persistTimerRef.current = null;
+      saveQueue(coachId, {
+        pending: [...queueRef.current.values()],
+        failed: [...failedRef.current],
+      });
+    }, PERSIST_DEBOUNCE_MS);
   }, []);
+
+  // Only push a new status object to React (and a new persistence write)
+  // when something the UI cares about actually changed: pending count,
+  // isRetrying flag, or the failed-items signature (key + lastError).
+  // This keeps the 1-second retry tick from re-rendering ScoreEntry on
+  // every pass when the queue is sitting idle between backoffs.
+  const syncStatus = useCallback(() => {
+    const nextPending = queueRef.current.size;
+    const nextFailed = failedRef.current;
+    const nextRetrying = retryingRef.current;
+    const failedSig = nextFailed.map((f) => `${f.key}:${f.lastError}`).join("|");
+    const sig = `${nextPending}|${nextFailed.length}|${failedSig}|${nextRetrying}`;
+
+    if (sig === lastStatusSigRef.current) return;
+    lastStatusSigRef.current = sig;
+
+    setStatus({
+      pendingCount: nextPending,
+      failedItems: [...nextFailed],
+      isRetrying: nextRetrying,
+    });
+    schedulePersist();
+  }, [schedulePersist]);
 
   /** Enqueue a failed score for retry. Replaces any existing entry for the same key (latest value wins). */
   const enqueue = useCallback(
@@ -140,6 +187,37 @@ export function useRetryQueue(callbacks?: RetryQueueCallbacks) {
     syncStatus();
   }, [syncStatus]);
 
+  // ── Hydration from localStorage ────────────────────────────────
+  // Runs when coachId becomes available (or changes). Merges persisted items
+  // into the in-memory queue without creating duplicates.
+  useEffect(() => {
+    const coachId = options?.coachId ?? null;
+    coachIdRef.current = coachId;
+    if (!coachId) return;
+    if (hydratedForRef.current === coachId) return;
+    hydratedForRef.current = coachId;
+
+    const persisted: PersistedQueueState = loadQueue(coachId);
+    if (persisted.pending.length === 0 && persisted.failed.length === 0) return;
+
+    const now = Date.now();
+    let staggered = 0;
+    for (const item of persisted.pending) {
+      // Don't clobber items that were enqueued in this session
+      if (queueRef.current.has(item.key)) continue;
+      // Let items be eligible immediately (with a small stagger so they
+      // don't all fire in the same tick and overwhelm a flaky connection)
+      queueRef.current.set(item.key, { ...item, nextRetryAt: now + staggered });
+      staggered += 250;
+    }
+    const existingFailedKeys = new Set(failedRef.current.map((f) => f.key));
+    for (const item of persisted.failed) {
+      if (existingFailedKeys.has(item.key)) continue;
+      failedRef.current.push(item);
+    }
+    syncStatus();
+  }, [options?.coachId, syncStatus]);
+
   // ── Background retry tick ──────────────────────────────────────
 
   useEffect(() => {
@@ -152,10 +230,13 @@ export function useRetryQueue(callbacks?: RetryQueueCallbacks) {
 
       // Don't overlap retry batches
       if (retryingRef.current) return;
-      retryingRef.current = true;
 
       const now = Date.now();
       const readyItems = [...queue.values()].filter((item) => item.nextRetryAt <= now);
+      // Idle tick: items present but still in backoff — don't touch state.
+      if (readyItems.length === 0) return;
+
+      retryingRef.current = true;
 
       for (const item of readyItems) {
         const result: SaveScoreResult = await saveScore(
@@ -191,6 +272,23 @@ export function useRetryQueue(callbacks?: RetryQueueCallbacks) {
 
     return () => clearInterval(interval);
   }, [callbacks, syncStatus]);
+
+  // Flush any pending debounced write on unmount so the final state is saved.
+  useEffect(() => {
+    return () => {
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+        const coachId = coachIdRef.current;
+        if (coachId) {
+          saveQueue(coachId, {
+            pending: [...queueRef.current.values()],
+            failed: [...failedRef.current],
+          });
+        }
+      }
+    };
+  }, []);
 
   return {
     enqueue,

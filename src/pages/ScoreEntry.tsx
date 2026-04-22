@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo, memo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
 import { Input } from "@/components/ui/input";
@@ -18,9 +18,69 @@ import {
 } from "@/services/evaluationService";
 import { useRetryQueue, type QueuedScore } from "@/hooks/useRetryQueue";
 import { track } from "@/services/analyticsService";
+import { PageHeader } from "@/components/ui/layout";
 
 type Player = PlayerSummary;
 type Metric = MetricForScoring;
+
+// ── PlayerRow ─────────────────────────────────────────────────────
+// Memoized row so rapid re-renders of ScoreEntry (keystrokes in the
+// score input, save-flash timers, retry-queue ticks) don't cascade
+// into rebuilding all 50 roster buttons on every pass.
+interface PlayerRowProps {
+  player: Player;
+  attempts: (number | null)[] | null;
+  onSelect: (p: Player) => void;
+}
+
+const PlayerRow = memo(
+  function PlayerRow({ player, attempts, onSelect }: PlayerRowProps) {
+    return (
+      <button onClick={() => onSelect(player)} className="player-card tap-target">
+        <div className="flex items-center gap-3">
+          {player.player_number ? (
+            <span className="number-badge">{player.player_number}</span>
+          ) : (
+            <span className="number-badge bg-muted text-muted-foreground">—</span>
+          )}
+          <div>
+            <span className="font-bold text-[15px]">
+              {player.last_name}, {player.first_name}
+            </span>
+            {attempts && (
+              <div className="flex gap-1 mt-0.5">
+                {attempts.map((val, i) => (
+                  <span
+                    key={i}
+                    className={cn(
+                      "inline-block rounded px-1.5 py-0 text-[10px] font-semibold",
+                      val !== null
+                        ? "bg-accent/20 text-accent-foreground"
+                        : "bg-muted/60 text-muted-foreground/50"
+                    )}
+                  >
+                    {val !== null ? `${val}` : `Att ${i + 1}`}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </button>
+    );
+  },
+  (prev, next) => {
+    if (prev.player !== next.player) return false;
+    if (prev.onSelect !== next.onSelect) return false;
+    if (prev.attempts === next.attempts) return true;
+    if (!prev.attempts || !next.attempts) return prev.attempts === next.attempts;
+    if (prev.attempts.length !== next.attempts.length) return false;
+    for (let i = 0; i < prev.attempts.length; i++) {
+      if (prev.attempts[i] !== next.attempts[i]) return false;
+    }
+    return true;
+  }
+);
 
 export default function ScoreEntry() {
   const { coach } = useAuth();
@@ -65,7 +125,10 @@ export default function ScoreEntry() {
     },
   }), []);
 
-  const { enqueue, dismissFailed, retryAllFailed, status: retryStatus } = useRetryQueue(retryCallbacks);
+  const { enqueue, dismissFailed, retryAllFailed, status: retryStatus } = useRetryQueue(
+    retryCallbacks,
+    { coachId: coach?.id ?? null }
+  );
 
   const selectedSession = selectedSessionId !== "all" ? selectedSessionId : "";
 
@@ -103,32 +166,64 @@ export default function ScoreEntry() {
       .catch(() => toast.error("Failed to load existing evaluations"));
   }, [coach, selectedMetric, selectedSession, recentScores]);
 
-  const filtered = players
-    .filter((p) => {
-      const q = search.toLowerCase().trim();
-      if (!q) return true;
-      const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
-      const reverseName = `${p.last_name} ${p.first_name}`.toLowerCase();
-      const numStr = p.player_number != null ? String(p.player_number) : "";
-      return fullName.includes(q) || reverseName.includes(q) || numStr.includes(q);
-    })
-    .sort((a, b) => {
-      if (sortBy === "number") {
-        const aNum = a.player_number ?? Infinity;
-        const bNum = b.player_number ?? Infinity;
-        return aNum - bNum;
-      }
-      return a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name);
-    });
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return players
+      .filter((p) => {
+        if (!q) return true;
+        const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
+        const reverseName = `${p.last_name} ${p.first_name}`.toLowerCase();
+        const numStr = p.player_number != null ? String(p.player_number) : "";
+        return fullName.includes(q) || reverseName.includes(q) || numStr.includes(q);
+      })
+      .sort((a, b) => {
+        if (sortBy === "number") {
+          const aNum = a.player_number ?? Infinity;
+          const bNum = b.player_number ?? Infinity;
+          return aNum - bNum;
+        }
+        return a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name);
+      });
+  }, [players, search, sortBy]);
 
-  const currentMetric = metrics.find((m) => m.id === selectedMetric);
+  const currentMetric = useMemo(
+    () => metrics.find((m) => m.id === selectedMetric),
+    [metrics, selectedMetric]
+  );
   const maxAttempts = currentMetric?.max_attempts || 1;
 
-  const getPlayerAttemptEval = (playerId: string, attempt: number) => {
-    return existingEvals.find(
-      (e) => e.player_id === playerId && e.attempt_number === attempt
-    );
-  };
+  // O(1) eval lookups — replaces a linear scan through existingEvals per
+  // call. The player list used to call `.find()` maxAttempts times per
+  // player per render, which got expensive with 50+ players × 3 attempts
+  // × hundreds of existing scores.
+  const evalsByKey = useMemo(() => {
+    const m = new Map<string, Evaluation>();
+    for (const e of existingEvals) m.set(`${e.player_id}|${e.attempt_number}`, e);
+    return m;
+  }, [existingEvals]);
+
+  const getPlayerAttemptEval = useCallback(
+    (playerId: string, attempt: number): Evaluation | undefined =>
+      evalsByKey.get(`${playerId}|${attempt}`),
+    [evalsByKey]
+  );
+
+  // Precomputed per-row attempt values so memoized PlayerRow only re-renders
+  // when its own data actually changed (via the custom equality fn).
+  const playerRowsData = useMemo(
+    () =>
+      filtered.map((p) => ({
+        player: p,
+        attempts:
+          maxAttempts > 1
+            ? Array.from({ length: maxAttempts }, (_, i) => {
+                const ev = evalsByKey.get(`${p.id}|${i + 1}`);
+                return ev ? ev.value : null;
+              })
+            : null,
+      })),
+    [filtered, maxAttempts, evalsByKey]
+  );
 
   // Clamp stationIndex when filtered array shrinks (KI-9b fix)
   useEffect(() => {
@@ -264,25 +359,27 @@ export default function ScoreEntry() {
     if (e.key === "Enter" && !savingRef.current) handleScore();
   }, [handleScore]);
 
-  const enterStationMode = (playerIndex?: number) => {
+  const enterStationMode = useCallback((playerIndex?: number) => {
     setStationMode(true);
     setStationIndex(playerIndex ?? 0);
     setSelectedPlayer(null);
     setValue("");
     setTimeout(() => inputRef.current?.focus(), 100);
-  };
+  }, []);
 
-  const exitStationMode = () => {
+  const exitStationMode = useCallback(() => {
     setStationMode(false);
     setSelectedPlayer(null);
     setValue("");
-  };
+  }, []);
 
-  const selectPlayerDirect = (p: Player) => {
-    const idx = filtered.findIndex((fp) => fp.id === p.id);
-    enterStationMode(idx >= 0 ? idx : 0);
-  };
-
+  const selectPlayerDirect = useCallback(
+    (p: Player) => {
+      const idx = filtered.findIndex((fp) => fp.id === p.id);
+      enterStationMode(idx >= 0 ? idx : 0);
+    },
+    [filtered, enterStationMode]
+  );
 
   const playerDisplay = (p: Player) => (
     <>
@@ -290,34 +387,6 @@ export default function ScoreEntry() {
       {p.last_name}, {p.first_name}
     </>
   );
-
-  const AttemptSelector = () => {
-    if (maxAttempts <= 1) return null;
-    return (
-      <div className="flex items-center justify-center gap-1.5 my-3">
-        <span className="text-xs font-semibold text-muted-foreground mr-1">Attempt:</span>
-        {Array.from({ length: maxAttempts }, (_, i) => i + 1).map((att) => {
-          const hasScore = resolvedActivePlayer ? !!getPlayerAttemptEval(resolvedActivePlayer.id, att) : false;
-          return (
-            <button
-              key={att}
-              onClick={() => { setCurrentAttempt(att); setValue(""); inputRef.current?.focus(); }}
-              className={cn(
-                "h-9 w-9 rounded-lg text-sm font-bold transition-all border",
-                currentAttempt === att
-                  ? "bg-primary text-primary-foreground border-primary shadow-md scale-110"
-                  : hasScore
-                    ? "bg-accent/20 text-accent-foreground border-accent/30"
-                    : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
-              )}
-            >
-              {att}
-            </button>
-          );
-        })}
-      </div>
-    );
-  };
 
   const currentExistingScore = resolvedActivePlayer ? getPlayerAttemptEval(resolvedActivePlayer.id, currentAttempt) : null;
 
@@ -352,33 +421,26 @@ export default function ScoreEntry() {
 
   return (
     <div className="mx-auto max-w-lg px-4 pt-4 animate-fade-in">
-      {/* Hero header */}
-      <div className="page-hero mb-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-extrabold text-white tracking-tight">Score Entry</h1>
-            <p className="text-white/70 text-sm mt-0.5">
-              {stationMode
-                ? `Station Mode — Attempt ${currentAttempt}${maxAttempts > 1 ? ` of ${maxAttempts}` : ""}`
-                : "Tap a player to start scoring"}
-            </p>
-          </div>
+      <PageHeader
+        className="mb-5"
+        title="Score Entry"
+        subtitle={
+          stationMode
+            ? `Station Mode — Attempt ${currentAttempt}${maxAttempts > 1 ? ` of ${maxAttempts}` : ""}`
+            : "Tap a player to start scoring"
+        }
+        right={
           <Button
             variant={stationMode ? "default" : "outline"}
             size="sm"
-            onClick={() => stationMode ? exitStationMode() : enterStationMode()}
-            className={cn(
-              "tap-target font-bold rounded-xl transition-all",
-              stationMode
-                ? "bg-white/20 hover:bg-white/30 text-white border-0"
-                : "bg-white/10 hover:bg-white/20 text-white border-white/20"
-            )}
+            onClick={() => (stationMode ? exitStationMode() : enterStationMode())}
+            className="tap-target font-bold rounded-xl h-9 text-xs"
             disabled={sessionDisabled}
           >
             {stationMode ? "Exit Station" : "Station Mode"}
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Event notice — guides coach to create or select a session */}
       {sessionDisabled && (
@@ -557,7 +619,36 @@ export default function ScoreEntry() {
             </div>
           )}
 
-          <AttemptSelector />
+          {maxAttempts > 1 && (
+            <div className="flex items-center justify-center gap-1.5 my-3">
+              <span className="text-xs font-semibold text-muted-foreground mr-1">Attempt:</span>
+              {Array.from({ length: maxAttempts }, (_, i) => i + 1).map((att) => {
+                const hasScore = resolvedActivePlayer
+                  ? !!getPlayerAttemptEval(resolvedActivePlayer.id, att)
+                  : false;
+                return (
+                  <button
+                    key={att}
+                    onClick={() => {
+                      setCurrentAttempt(att);
+                      setValue("");
+                      inputRef.current?.focus();
+                    }}
+                    className={cn(
+                      "h-9 w-9 rounded-lg text-sm font-bold transition-all border",
+                      currentAttempt === att
+                        ? "bg-primary text-primary-foreground border-primary shadow-md scale-110"
+                        : hasScore
+                          ? "bg-accent/20 text-accent-foreground border-accent/30"
+                          : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                    )}
+                  >
+                    {att}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {currentExistingScore && (
             <p className="text-xs text-muted-foreground mb-2">
@@ -638,48 +729,14 @@ export default function ScoreEntry() {
       )}
       {!resolvedActivePlayer && !sessionDisabled && filtered.length > 0 && (
         <div className="space-y-2 max-h-[50vh] overflow-y-auto stagger-list">
-          {filtered.map((p) => {
-            const attemptDots = maxAttempts > 1 ? Array.from({ length: maxAttempts }, (_, i) => {
-              const ev = getPlayerAttemptEval(p.id, i + 1);
-              return ev ? ev.value : null;
-            }) : null;
-
-            return (
-              <button
-                key={p.id}
-                onClick={() => selectPlayerDirect(p)}
-                className="player-card tap-target"
-              >
-                <div className="flex items-center gap-3">
-                  {p.player_number ? (
-                    <span className="number-badge">{p.player_number}</span>
-                  ) : (
-                    <span className="number-badge bg-muted text-muted-foreground">—</span>
-                  )}
-                  <div>
-                    <span className="font-bold text-[15px]">{p.last_name}, {p.first_name}</span>
-                    {attemptDots && (
-                      <div className="flex gap-1 mt-0.5">
-                        {attemptDots.map((val, i) => (
-                          <span
-                            key={i}
-                            className={cn(
-                              "inline-block rounded px-1.5 py-0 text-[10px] font-semibold",
-                              val !== null
-                                ? "bg-accent/20 text-accent-foreground"
-                                : "bg-muted/60 text-muted-foreground/50"
-                            )}
-                          >
-                            {val !== null ? `${val}` : `Att ${i + 1}`}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
+          {playerRowsData.map((row) => (
+            <PlayerRow
+              key={row.player.id}
+              player={row.player}
+              attempts={row.attempts}
+              onSelect={selectPlayerDirect}
+            />
+          ))}
         </div>
       )}
 
