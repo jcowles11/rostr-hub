@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Tryouts — Rostr</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f5f2ec; --paper-deep:#ebe6db; --card:#fff;
+    --ink:#0e1116; --ink2:#3a3f47; --ink3:#6b7280; --ink4:#9ca3af;
+    --hair:#e5e0d4; --hair2:#efeadf;
+    --red:#c83a3a; --red-dim:#e8c9c4; --red-soft:#f8dedc;
+    --grass:#2f7d4f; --grass-dim:#cfe3d4;
+    --dirt:#b37a4c; --sky:#3a6ea8; --gold:#d4a23a; --amber:#d68620;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;font-size:14px;line-height:1.5}
+  .mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+  .disp{font-family:'Space Grotesk',sans-serif;letter-spacing:-.02em}
+  button{font-family:inherit;cursor:pointer;border:none;background:none}
+  a{color:inherit;text-decoration:none}
+  .i{display:inline-block;width:15px;height:15px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+  /* TOP BAR */
+  header.bar{background:var(--ink);color:#fff;padding:12px 28px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:5}
+  .brand{display:flex;align-items:center;gap:8px;font-family:'Space Grotesk';font-weight:700}
+  .brand-m{width:24px;height:24px;border-radius:6px;background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+  .bar .ctx{font-size:12.5px;color:rgba(255,255,255,.6);display:flex;align-items:center;gap:8px}
+  .bar .ctx b{color:#fff;font-weight:600}
+  .bar-actions{margin-left:auto;display:flex;gap:8px}
+  .bar-actions .btn{padding:6px 12px;border-radius:7px;font-size:12.5px;font-weight:500}
+  .bar-actions .btn.ghost{color:rgba(255,255,255,.8);background:rgba(255,255,255,.08)}
+  .bar-actions .btn.ghost:hover{background:rgba(255,255,255,.15);color:#fff}
+  .bar-actions .btn.primary{background:var(--red);color:#fff}
+
+  /* VIEW SWITCHER */
+  .view-tabs{padding:16px 28px 0;background:var(--card);border-bottom:1px solid var(--hair);display:flex;gap:2px;align-items:flex-end;position:sticky;top:48px;z-index:4}
+  .vt{padding:10px 18px;font-size:13px;font-weight:600;color:var(--ink3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;align-items:center;gap:8px}
+  .vt:hover{color:var(--ink)}
+  .vt.on{color:var(--ink);border-color:var(--red)}
+  .vt .ct{font-family:'JetBrains Mono';font-size:10.5px;padding:2px 6px;border-radius:4px;background:var(--paper-deep);font-weight:600;color:var(--ink2)}
+  .vt.on .ct{background:var(--red);color:#fff}
+  .vt-spacer{flex:1}
+  .vt-live{padding:6px 12px;background:var(--red-soft);color:var(--red);border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;display:flex;align-items:center;gap:6px;margin-bottom:8px}
+  .vt-live .pulse{width:8px;height:8px;border-radius:4px;background:var(--red);animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  /* CONTENT */
+  .content{padding:24px 28px 48px;max-width:1400px;margin:0 auto}
+
+  /* HEAD */
+  .th{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px}
+  .th h1{font-family:'Space Grotesk';font-size:30px;font-weight:600;letter-spacing:-.03em;line-height:1.1}
+  .th .sub{font-size:13.5px;color:var(--ink3);margin-top:4px}
+
+  /* LAYOUT */
+  .layout{display:grid;grid-template-columns:1fr 360px;gap:22px}
+
+  .panel{background:var(--card);border:1px solid var(--hair);border-radius:14px}
+  .phead{padding:14px 18px;border-bottom:1px solid var(--hair2);display:flex;align-items:center;gap:12px}
+  .phead h3{font-family:'Space Grotesk';font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .phead .a{margin-left:auto;display:flex;gap:6px}
+  .phead .tab{font-size:11.5px;padding:4px 10px;border-radius:5px;color:var(--ink3);font-weight:500;cursor:pointer}
+  .phead .tab.on{background:var(--paper);color:var(--ink);font-weight:600}
+
+  /* STATIONS */
+  .station-head{padding:18px;display:flex;gap:14px;border-bottom:1px solid var(--hair2)}
+  .stn-card{flex:1;background:var(--paper);border:1px solid var(--hair2);border-radius:10px;padding:14px}
+  .stn-card.live{background:var(--card);border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
+  .stn-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .stn-ic{width:24px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;color:#fff}
+  .stn-card h4{font-family:'Space Grotesk';font-size:13.5px;font-weight:600}
+  .stn-card .coach{font-size:11px;color:var(--ink3);margin-bottom:10px;font-family:'JetBrains Mono'}
+  .progress-row{display:flex;justify-content:space-between;font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--ink3);margin-bottom:4px}
+  .progress-row .mono{color:var(--ink)}
+  .pbar{height:6px;background:var(--paper-deep);border-radius:3px;overflow:hidden}
+  .pbar .fill{height:100%;border-radius:3px}
+  .stn-card.live .pbar{background:var(--red-soft)}
+
+  /* RANKINGS TABLE */
+  .rank-tbl{width:100%;border-collapse:collapse;font-size:13px}
+  .rank-tbl th{text-align:left;padding:10px 14px;background:var(--paper);font-size:10px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:var(--ink3);border-bottom:1px solid var(--hair);position:sticky;top:0}
+  .rank-tbl td{padding:11px 14px;border-bottom:1px solid var(--hair2);vertical-align:middle}
+  .rank-tbl tr:hover{background:var(--paper)}
+  .rank-tbl tr:last-child td{border:none}
+  .rank-pos{width:58px}
+  .rank-num{font-family:'Space Grotesk';font-size:18px;font-weight:700;letter-spacing:-.02em}
+  .rank-num.gold{color:var(--gold)}
+  .rank-num.silver{color:#9ca3af}
+  .rank-num.bronze{color:var(--dirt)}
+  .rank-delta{font-size:10px;font-family:'JetBrains Mono';font-weight:600;display:block}
+  .rank-delta.up{color:var(--grass)}
+  .rank-delta.dn{color:var(--red)}
+
+  .player-cell{display:flex;align-items:center;gap:10px}
+  .av{width:30px;height:30px;border-radius:15px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0}
+  .player-cell .name{font-weight:600;font-size:13.5px}
+  .player-cell .tag{font-family:'JetBrains Mono';font-size:10.5px;color:var(--ink3)}
+
+  .score-cell{font-family:'JetBrains Mono';font-size:13px;font-weight:500;min-width:54px}
+  .score-cell.ok{color:var(--grass)}
+  .score-cell.hot{color:var(--red);font-weight:700}
+  .score-cell.pending{color:var(--ink4)}
+
+  .overall{font-family:'Space Grotesk';font-size:16px;font-weight:700;letter-spacing:-.01em}
+  .overall.hot{color:var(--red)}
+
+  .verd{padding:3px 8px;border-radius:5px;font-size:10.5px;font-weight:700;letter-spacing:.4px}
+  .verd.keep{background:var(--grass-dim);color:var(--grass)}
+  .verd.maybe{background:#f8e3c4;color:var(--amber)}
+  .verd.cut{background:var(--red-soft);color:var(--red)}
+  .verd.undec{background:var(--paper-deep);color:var(--ink3)}
+
+  /* SIDE: LIVE FEED */
+  .feed{display:flex;flex-direction:column}
+  .feed-item{display:flex;gap:10px;padding:10px 18px;border-bottom:1px solid var(--hair2);font-size:12.5px}
+  .feed-item:last-child{border:none}
+  .feed-ic{width:26px;height:26px;border-radius:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700}
+  .feed-body{flex:1;line-height:1.5}
+  .feed-body b{font-weight:600}
+  .feed-body .mono{font-size:11px;color:var(--ink3);font-weight:600}
+  .feed-time{font-size:10px;color:var(--ink4);font-family:'JetBrains Mono';margin-top:2px}
+
+  /* MOBILE MOCK */
+  .phones{display:flex;gap:24px;margin-top:22px;padding:24px;background:linear-gradient(135deg,var(--ink) 0%,#1a1f26 100%);border-radius:16px;position:relative;overflow:hidden}
+  .phones::before{content:'';position:absolute;top:-80px;right:-60px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(200,58,58,.15),transparent 70%)}
+  .phones-copy{flex:1;color:#fff;padding:12px 8px;position:relative}
+  .phones-copy .pill{display:inline-block;padding:4px 10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:999px;font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--red);margin-bottom:12px}
+  .phones-copy h3{font-family:'Space Grotesk';font-size:22px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px;line-height:1.2}
+  .phones-copy p{color:rgba(255,255,255,.7);font-size:13px;line-height:1.55;max-width:380px;margin-bottom:14px}
+  .phones-copy ul{list-style:none;display:flex;flex-direction:column;gap:7px;font-size:12px;color:rgba(255,255,255,.75)}
+  .phones-copy ul li{display:flex;gap:8px;align-items:flex-start}
+  .phones-copy ul li::before{content:'';width:5px;height:5px;border-radius:3px;background:var(--red);margin-top:7px;flex-shrink:0}
+
+  .phone{width:230px;background:#000;border-radius:32px;padding:8px;box-shadow:0 20px 50px rgba(0,0,0,.4);flex-shrink:0;position:relative}
+  .phone-screen{background:var(--paper);border-radius:26px;overflow:hidden;aspect-ratio:9/19.5}
+  .ph-status{height:28px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;font-size:10.5px;font-weight:600;font-family:'JetBrains Mono'}
+  .ph-status .notch{position:absolute;left:50%;transform:translateX(-50%);width:70px;height:20px;background:#000;border-radius:0 0 14px 14px}
+
+  /* Phone 1 — station select / queue */
+  .ph-top{padding:10px 16px 12px;border-bottom:1px solid var(--hair2)}
+  .ph-top .who{font-size:10px;font-weight:700;color:var(--ink3);letter-spacing:.8px;text-transform:uppercase}
+  .ph-top .stn{font-family:'Space Grotesk';font-size:17px;font-weight:600;margin-top:2px}
+  .ph-top .q{font-size:10.5px;color:var(--ink3);margin-top:4px}
+  .ph-top .q b{color:var(--red);font-weight:700}
+
+  .ph-queue{padding:8px 14px;display:flex;flex-direction:column;gap:4px;max-height:140px;overflow:hidden}
+  .ph-q-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;background:var(--card);border:1px solid var(--hair);font-size:11px}
+  .ph-q-item.now{background:var(--red-soft);border-color:var(--red)}
+  .ph-q-item .num{width:18px;text-align:center;font-family:'JetBrains Mono';font-size:10px;color:var(--ink3);font-weight:700}
+  .ph-q-item.now .num{color:var(--red)}
+  .ph-q-av{width:18px;height:18px;border-radius:9px;font-size:8px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .ph-q-item .n{font-weight:600}
+  .ph-q-item .pos{font-family:'JetBrains Mono';font-size:9px;color:var(--ink3);margin-left:auto}
+
+  /* Phone 2 — scoring */
+  .ph2-head{padding:12px 16px;background:var(--ink);color:#fff}
+  .ph2-head .l{font-size:9px;color:rgba(255,255,255,.5);font-weight:700;letter-spacing:.8px;text-transform:uppercase}
+  .ph2-head .n{font-family:'Space Grotesk';font-size:17px;font-weight:600;margin-top:2px;display:flex;align-items:center;gap:8px}
+  .ph2-head .n .av2{width:24px;height:24px;border-radius:12px;background:var(--dirt);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
+  .ph2-head .sub2{font-size:10.5px;color:rgba(255,255,255,.6);font-family:'JetBrains Mono';margin-top:2px}
+
+  .ph2-metric{padding:16px;background:var(--paper)}
+  .ph2-metric .lbl{font-size:10px;font-weight:700;color:var(--ink3);letter-spacing:.8px;text-transform:uppercase;text-align:center}
+  .ph2-val{font-family:'Space Grotesk';font-size:42px;font-weight:700;text-align:center;letter-spacing:-.03em;line-height:1;margin:6px 0 2px}
+  .ph2-unit{font-size:14px;color:var(--ink3);font-weight:500}
+  .ph2-sub{text-align:center;font-size:10.5px;color:var(--ink3);font-family:'JetBrains Mono'}
+
+  .ph2-attempts{padding:0 14px;display:flex;gap:5px;justify-content:center;margin-top:10px}
+  .ph2-att{flex:1;padding:8px 4px;border-radius:7px;background:var(--card);border:1px solid var(--hair);text-align:center}
+  .ph2-att.best{background:var(--grass-dim);border-color:var(--grass)}
+  .ph2-att .v{font-family:'JetBrains Mono';font-size:12px;font-weight:700}
+  .ph2-att .l2{font-size:8.5px;color:var(--ink3);font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-top:2px}
+
+  .ph2-keypad{padding:10px 14px;margin-top:8px}
+  .keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+  .keypad .k{padding:10px 0;background:var(--card);border:1px solid var(--hair);border-radius:8px;font-family:'Space Grotesk';font-size:17px;font-weight:600;text-align:center}
+  .keypad .k.act{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  .ph2-foot{padding:10px 14px;display:flex;gap:6px}
+  .ph2-foot .btn{flex:1;padding:10px;border-radius:8px;font-size:11.5px;font-weight:600;text-align:center}
+  .ph2-foot .btn.sec{background:var(--card);border:1px solid var(--hair);color:var(--ink2)}
+  .ph2-foot .btn.pri{background:var(--red);color:#fff}
+
+  /* Phone 3 — decision */
+  .ph3{background:var(--card)}
+  .ph3-top{padding:12px 16px;border-bottom:1px solid var(--hair);display:flex;align-items:center;gap:8px}
+  .ph3-top .av3{width:38px;height:38px;border-radius:19px;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+  .ph3-top .n{font-family:'Space Grotesk';font-size:15px;font-weight:600;line-height:1.1}
+  .ph3-top .s{font-size:10px;color:var(--ink3);font-family:'JetBrains Mono';margin-top:2px}
+
+  .ph3-score{padding:16px;text-align:center;background:linear-gradient(135deg,var(--paper),var(--card))}
+  .ph3-score .big{font-family:'Space Grotesk';font-size:48px;font-weight:700;letter-spacing:-.03em;line-height:1}
+  .ph3-score .big.hot{color:var(--red)}
+  .ph3-score .lab{font-size:10px;font-weight:700;color:var(--ink3);letter-spacing:.8px;text-transform:uppercase;margin-top:6px}
+  .ph3-score .rnk{font-size:11px;color:var(--grass);font-family:'JetBrains Mono';font-weight:700;margin-top:3px}
+
+  .ph3-stats{padding:10px 14px;display:grid;grid-template-columns:1fr 1fr;gap:4px}
+  .ph3-stat{padding:7px 9px;background:var(--paper);border-radius:7px}
+  .ph3-stat .l{font-size:8.5px;font-weight:700;color:var(--ink3);letter-spacing:.5px;text-transform:uppercase}
+  .ph3-stat .v{font-family:'JetBrains Mono';font-size:13px;font-weight:700;margin-top:1px}
+
+  .ph3-cta{padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+  .ph3-cta .btn{padding:11px;border-radius:9px;font-size:12px;font-weight:700;text-align:center;letter-spacing:.3px}
+  .ph3-cta .btn.keep{background:var(--grass);color:#fff}
+  .ph3-cta .btn.maybe{background:var(--card);border:1px solid var(--amber);color:var(--amber)}
+  .ph3-cta .btn.cut{background:var(--card);border:1px solid var(--red);color:var(--red)}
+
+  /* BIG STAT STRIP */
+  .stats-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:22px}
+  .stat-tile{background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:14px 16px}
+  .stat-tile .l{font-size:10px;font-weight:700;color:var(--ink3);letter-spacing:.8px;text-transform:uppercase}
+  .stat-tile .v{font-family:'Space Grotesk';font-size:26px;font-weight:600;margin-top:4px;letter-spacing:-.02em}
+  .stat-tile .d{font-size:11px;color:var(--ink3);margin-top:2px}
+
+  /* COLOR HELPER */
+  .c-red{background:var(--red)} .c-sky{background:var(--sky)} .c-grass{background:var(--grass)} .c-dirt{background:var(--dirt)} .c-gold{background:var(--gold)} .c-amber{background:var(--amber)} .c-ink{background:var(--ink)}
+
+</style>
+</head>
+<body>
+
+<!-- BAR -->
+<header class="bar">
+  <a href="Rostr Coach Hub.html" class="brand">
+    <span class="brand-m">R</span>
+    <span style="font-size:16px">rostr</span>
+  </a>
+  <div class="ctx">
+    <span>Lincoln HS · Varsity</span> <span style="color:rgba(255,255,255,.3)">›</span> <b>Spring tryout 2026</b> <span style="color:rgba(255,255,255,.3)">·</span>
+    <span style="font-family:'JetBrains Mono';font-size:11.5px">Day 2 of 3</span>
+  </div>
+  <div class="bar-actions">
+    <button class="btn ghost">Settings</button>
+    <button class="btn ghost">Add player</button>
+    <button class="btn primary">End tryout</button>
+  </div>
+</header>
+
+<!-- VIEW TABS -->
+<div class="view-tabs">
+  <div class="vt"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Setup</div>
+  <div class="vt"><svg class="i" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Players<span class="ct">52</span></div>
+  <div class="vt on"><svg class="i" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Live rankings<span class="ct">47</span></div>
+  <div class="vt"><svg class="i" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Decide<span class="ct">0 / 52</span></div>
+  <div class="vt-spacer"></div>
+  <div class="vt-live"><span class="pulse"></span>Live · 3 coaches scoring</div>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+
+  <div class="th">
+    <div>
+      <h1>Live rankings</h1>
+      <div class="sub">Updated the moment a score is saved. Sort, filter, or tap any player to see full detail.</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button style="padding:7px 12px;border:1px solid var(--hair);background:var(--card);border-radius:8px;font-size:13px;font-weight:500;color:var(--ink2)">Filter</button>
+      <button style="padding:7px 12px;border:1px solid var(--hair);background:var(--card);border-radius:8px;font-size:13px;font-weight:500;color:var(--ink2)">Export</button>
+      <button style="padding:7px 12px;background:var(--ink);color:#fff;border-radius:8px;font-size:13px;font-weight:500">Print cards</button>
+    </div>
+  </div>
+
+  <!-- STAT STRIP -->
+  <div class="stats-strip">
+    <div class="stat-tile"><div class="l">Players</div><div class="v">52</div><div class="d">registered</div></div>
+    <div class="stat-tile"><div class="l">Scored</div><div class="v">47</div><div class="d" style="color:var(--grass)">90% complete</div></div>
+    <div class="stat-tile"><div class="l">Stations live</div><div class="v">4 <span style="font-size:14px;color:var(--ink3)">/ 5</span></div><div class="d">BP paused</div></div>
+    <div class="stat-tile"><div class="l">Top 60yd</div><div class="v mono">6.74s</div><div class="d">Peña, C · #9</div></div>
+    <div class="stat-tile"><div class="l">Top exit velo</div><div class="v mono">94<span style="font-size:14px;color:var(--ink3)">mph</span></div><div class="d">Johnson, M · #21</div></div>
+  </div>
+
+  <div class="layout">
+    <!-- MAIN -->
+    <div style="display:flex;flex-direction:column;gap:22px">
+
+      <!-- STATIONS -->
+      <div class="panel">
+        <div class="phead">
+          <h3>Stations</h3>
+          <div class="a">
+            <button class="tab on">Live</button>
+            <button class="tab">Today's plan</button>
+          </div>
+        </div>
+        <div class="station-head">
+          <div class="stn-card live">
+            <div class="stn-head"><div class="stn-ic c-red">60</div><h4>60-yard dash</h4></div>
+            <div class="coach">Coach Park · Field A</div>
+            <div class="progress-row"><span>PROGRESS</span><span class="mono">47 / 52</span></div>
+            <div class="pbar"><div class="fill" style="width:90%;background:var(--red)"></div></div>
+          </div>
+          <div class="stn-card live">
+            <div class="stn-head"><div class="stn-ic c-sky">EV</div><h4>Exit velo</h4></div>
+            <div class="coach">Coach Hendricks · Cage 2</div>
+            <div class="progress-row"><span>PROGRESS</span><span class="mono">41 / 52</span></div>
+            <div class="pbar"><div class="fill" style="width:78%;background:var(--sky)"></div></div>
+          </div>
+          <div class="stn-card live">
+            <div class="stn-head"><div class="stn-ic c-grass">F</div><h4>Fielding · IF</h4></div>
+            <div class="coach">Coach Ruiz · Infield</div>
+            <div class="progress-row"><span>PROGRESS</span><span class="mono">28 / 34</span></div>
+            <div class="pbar"><div class="fill" style="width:82%;background:var(--grass)"></div></div>
+          </div>
+          <div class="stn-card live">
+            <div class="stn-head"><div class="stn-ic c-amber">P</div><h4>Pitching velo</h4></div>
+            <div class="coach">Coach Vega · Bullpen</div>
+            <div class="progress-row"><span>PROGRESS</span><span class="mono">12 / 18</span></div>
+            <div class="pbar"><div class="fill" style="width:66%;background:var(--amber)"></div></div>
+          </div>
+          <div class="stn-card" style="opacity:.6">
+            <div class="stn-head"><div class="stn-ic" style="background:var(--ink4)">BP</div><h4>Batting practice</h4></div>
+            <div class="coach">Paused · starts 4:30 PM</div>
+            <div class="progress-row"><span>PROGRESS</span><span class="mono">0 / 52</span></div>
+            <div class="pbar"><div class="fill" style="width:0%;background:var(--ink4)"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RANKING TABLE -->
+      <div class="panel">
+        <div class="phead">
+          <h3>Overall ranking</h3>
+          <div class="a">
+            <button class="tab on">All positions</button>
+            <button class="tab">Pitchers</button>
+            <button class="tab">Infield</button>
+            <button class="tab">Outfield</button>
+            <button class="tab">Catchers</button>
+          </div>
+        </div>
+        <table class="rank-tbl">
+          <thead>
+            <tr>
+              <th class="rank-pos">Rank</th>
+              <th>Player</th>
+              <th>Pos</th>
+              <th>60yd</th>
+              <th>EV max</th>
+              <th>Fielding</th>
+              <th>Velo</th>
+              <th>Overall</th>
+              <th>Verdict</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><div class="rank-num gold">01</div><span class="rank-delta up">↑ 2</span></td>
+              <td><div class="player-cell"><div class="av c-ink">MJ</div><div><div class="name">Marcus Johnson</div><div class="tag">Sr · CF · R/R</div></div></div></td>
+              <td class="mono">CF</td>
+              <td><div class="score-cell hot">6.78</div></td>
+              <td><div class="score-cell hot">94 mph</div></td>
+              <td><div class="score-cell ok">4.6 / 5</div></td>
+              <td><div class="score-cell pending">—</div></td>
+              <td><div class="overall hot">94.8</div></td>
+              <td><span class="verd keep">LOCK</span></td>
+            </tr>
+            <tr>
+              <td><div class="rank-num silver">02</div><span class="rank-delta up">↑ 1</span></td>
+              <td><div class="player-cell"><div class="av c-sky">CP</div><div><div class="name">Carlos Peña</div><div class="tag">So · P/OF · L/L</div></div></div></td>
+              <td class="mono">P</td>
+              <td><div class="score-cell hot">6.74</div></td>
+              <td><div class="score-cell ok">89 mph</div></td>
+              <td><div class="score-cell ok">4.2 / 5</div></td>
+              <td><div class="score-cell hot">87 mph</div></td>
+              <td><div class="overall">91.4</div></td>
+              <td><span class="verd keep">KEEP · V</span></td>
+            </tr>
+            <tr>
+              <td><div class="rank-num bronze">03</div><span class="rank-delta up">↑ 4</span></td>
+              <td><div class="player-cell"><div class="av c-dirt">AR</div><div><div class="name">Alex Riggs</div><div class="tag">Sr · P/1B · R/R</div></div></div></td>
+              <td class="mono">P</td>
+              <td><div class="score-cell ok">7.04</div></td>
+              <td><div class="score-cell ok">88 mph</div></td>
+              <td><div class="score-cell ok">4.4 / 5</div></td>
+              <td><div class="score-cell hot">87 mph</div></td>
+              <td><div class="overall">89.7</div></td>
+              <td><span class="verd keep">KEEP · V</span></td>
+            </tr>
+            <tr>
+              <td><div class="rank-num">04</div><span class="rank-delta dn">↓ 2</span></td>
+              <td><div class="player-cell"><div class="av c-grass">DB</div><div><div class="name">DeAndre Brooks</div><div class="tag">Jr · 2B/3B · R/R</div></div></div></td>
+              <td class="mono">IF</td>
+              <td><div class="score-cell ok">6.91</div></td>
+              <td><div class="score-cell ok">85 mph</div></td>
+              <td><div class="score-cell ok">4.3 / 5</div></td>
+              <td><div class="score-cell pending">—</div></td>
+              <td><div class="overall">87.5</div></td>
+              <td><span class="verd keep">KEEP · V</span></td>
+            </tr>
+            <tr>
+              <td><div class="rank-num">05</div><span class="rank-delta up">↑ 3</span></td>
+              <td><div class="player-cell"><div class="av c-sky">JK</div><div><div class="name">Jordan Kim</div><div class="tag">Jr · SS · L/R</div></div></div></td>
+              <td class="mono">SS</td>
+              <td><div class="score-cell ok">6.88</div></td>
+              <td><div class="score-cell ok">83 mph</div></td>
+              <td><div class="score-cell ok">4.7 / 5</div></td>
+              <td><div class="score-cell pending">—</div></td>
+              <td><div class="overall">86.9</div></td>
+              <td><span class="verd keep">KEEP · V</span></td>
+            </tr>
+            <tr>
+              <td><div class="rank-num">06</div><span class="rank-delta">—</span></td>
+              <td><div class="player-cell"><div class="av c-red">NP</div><div><div class="name">Noah Patel</div><div class="tag">Sr · RF · R/R</div></div></div></td>
+              <td class="mono">OF</td>
+              <td><div class="score-cell ok">6.95</div></td>
+              <td><div class="score-cell ok">87 mph</div></td>
+              <td><div class="score-cell ok">4.1 / 5</div></td>
+              <td><div class="score-cell pending">—</div></td>
+              <td><div class="overall">85.6</div></td>
+              <td><span class="verd keep">KEEP · V</span></td>
+            </tr>
+            <tr>
+              <td><div class="rank-num">07</div><span class="rank-delta up">↑ 1</span></td>
+              <td><div class="player-cell"><div class="av c-ink" style="background:var(--ink2)">SH</div><div><div class="name">Sean Hale</div><div class="tag">Jr · SS/3B · R/R</div></div></div></td>
+              <td class="mono">IF</td>
+              <td><div class="score-cell ok">7.02</div></td>
+              <td><div class="score-cell ok">82 mph</div></td>
+              <td><div class="score-cell ok">4.5 / 5</div></td>
+              <td><div class="score-cell pending">—</div></td>
+              <td><div class="overall">84.2</div></td>
+              <td><span class="verd maybe">BUBBLE</span></td>
+            </tr>
+            <tr>
+              <td><div class="rank-num">08</div><span class="rank-delta dn">↓ 1</span></td>
+              <td><div class="player-cell"><div class="av c-amber">TM</div><div><div class="name">Tre Mbeki</div><div class="tag">So · C · R/R</div></div></div></td>
+              <td class="mono">C</td>
+              <td><div class="score-cell ok">7.18</div></td>
+              <td><div class="score-cell ok">84 mph</div></td>
+              <td><div class="score-cell ok">4.0 / 5</div></td>
+              <td><div class="score-cell pending">—</div></td>
+              <td><div class="overall">82.1</div></td>
+              <td><span class="verd maybe">BUBBLE</span></td>
+            </tr>
+            <tr style="background:#fbf5e8">
+              <td colspan="9" style="padding:8px 14px;font-size:10.5px;font-weight:700;letter-spacing:1px;color:var(--amber);text-transform:uppercase;text-align:center;font-family:'JetBrains Mono'">— VARSITY BUBBLE · 18 above · 4 ON THE LINE · 30 below —</td>
+            </tr>
+            <tr>
+              <td><div class="rank-num">22</div><span class="rank-delta up">↑ 2</span></td>
+              <td><div class="player-cell"><div class="av c-gold">JB</div><div><div class="name">Jamal Brighton</div><div class="tag">So · OF · R/R</div></div></div></td>
+              <td class="mono">OF</td>
+              <td><div class="score-cell ok">7.08</div></td>
+              <td><div class="score-cell ok">79 mph</div></td>
+              <td><div class="score-cell ok">3.8 / 5</div></td>
+              <td><div class="score-cell pending">—</div></td>
+              <td><div class="overall">76.4</div></td>
+              <td><span class="verd maybe">JV</span></td>
+            </tr>
+            <tr>
+              <td><div class="rank-num">23</div><span class="rank-delta">—</span></td>
+              <td><div class="player-cell"><div class="av c-red">EL</div><div><div class="name">Ethan Lopez</div><div class="tag">Fr · 2B · R/R</div></div></div></td>
+              <td class="mono">IF</td>
+              <td><div class="score-cell ok">7.22</div></td>
+              <td><div class="score-cell ok">74 mph</div></td>
+              <td><div class="score-cell ok">3.6 / 5</div></td>
+              <td><div class="score-cell pending">—</div></td>
+              <td><div class="overall">72.8</div></td>
+              <td><span class="verd maybe">JV</span></td>
+            </tr>
+            <tr>
+              <td><div class="rank-num">24</div><span class="rank-delta dn">↓ 3</span></td>
+              <td><div class="player-cell"><div class="av c-grass">MW</div><div><div class="name">Miles Washington</div><div class="tag">Fr · P/OF · R/R</div></div></div></td>
+              <td class="mono">P</td>
+              <td><div class="score-cell ok">7.31</div></td>
+              <td><div class="score-cell ok">71 mph</div></td>
+              <td><div class="score-cell ok">3.4 / 5</div></td>
+              <td><div class="score-cell ok">74 mph</div></td>
+              <td><div class="overall">70.2</div></td>
+              <td><span class="verd undec">UNDECIDED</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="padding:10px 14px;border-top:1px solid var(--hair);background:var(--paper);display:flex;align-items:center;font-size:12px;color:var(--ink3)">
+          <span>Showing 11 of 47 scored · 5 not started</span>
+          <span style="margin-left:auto;font-family:'JetBrains Mono';color:var(--ink)">View all →</span>
+        </div>
+      </div>
+
+      <!-- MOBILE COACH FLOW -->
+      <div class="phones">
+        <div class="phones-copy">
+          <span class="pill">Coach phone flow</span>
+          <h3>Score a player in under 10 seconds.</h3>
+          <p>Every station coach runs Rostr on their phone. Tap the next player in the queue, log the metric, confirm. Scores appear in the live ranking the instant they hit save.</p>
+          <ul>
+            <li>Pre-sorted queue — you never ask "who's next"</li>
+            <li>Big numeric keypad for times and velo; tap-scale for subjective</li>
+            <li>Auto-logs best of 3 attempts</li>
+            <li>Works offline at outdoor fields; syncs when back in range</li>
+          </ul>
+        </div>
+
+        <!-- Phone 1 queue -->
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="ph-status" style="background:var(--paper);position:relative"><span>2:41</span><div class="notch"></div><span>●●●●</span></div>
+            <div class="ph-top">
+              <div class="who">You're running</div>
+              <div class="stn">60-yard dash</div>
+              <div class="q"><b>3 in queue</b> · Coach Park</div>
+            </div>
+            <div class="ph-queue">
+              <div class="ph-q-item now">
+                <div class="num">NOW</div>
+                <div class="ph-q-av c-ink">MJ</div>
+                <div class="n">Marcus J.</div>
+                <div class="pos">CF</div>
+              </div>
+              <div class="ph-q-item"><div class="num">2</div><div class="ph-q-av c-sky">JK</div><div class="n">Jordan K.</div><div class="pos">SS</div></div>
+              <div class="ph-q-item"><div class="num">3</div><div class="ph-q-av c-dirt">AR</div><div class="n">Alex R.</div><div class="pos">P/1B</div></div>
+              <div class="ph-q-item"><div class="num">4</div><div class="ph-q-av c-amber">TM</div><div class="n">Tre M.</div><div class="pos">C</div></div>
+              <div class="ph-q-item"><div class="num">5</div><div class="ph-q-av c-grass">DB</div><div class="n">DeAndre B.</div><div class="pos">2B</div></div>
+            </div>
+            <div style="padding:8px 14px;font-size:10px;color:var(--ink3);font-family:'JetBrains Mono';border-top:1px solid var(--hair2);margin-top:4px">+42 remaining · 5 scored</div>
+            <div style="padding:12px 14px 14px;display:flex;gap:6px">
+              <button style="flex:1;padding:10px;background:var(--card);border:1px solid var(--hair);border-radius:8px;font-size:11.5px;font-weight:600;color:var(--ink2)">Skip</button>
+              <button style="flex:2;padding:10px;background:var(--red);color:#fff;border-radius:8px;font-size:11.5px;font-weight:700">Score Marcus →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phone 2 scoring -->
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="ph-status" style="background:var(--ink);color:#fff;position:relative"><span>2:41</span><div class="notch"></div><span>●●●●</span></div>
+            <div class="ph2-head">
+              <div class="l">60-yard · attempt 2 of 3</div>
+              <div class="n"><div class="av2">MJ</div>Marcus Johnson</div>
+              <div class="sub2">#21 · Sr · CF · best 6.82</div>
+            </div>
+            <div class="ph2-metric">
+              <div class="lbl">Time</div>
+              <div class="ph2-val">6.78<span class="ph2-unit">s</span></div>
+              <div class="ph2-sub">new personal best</div>
+              <div class="ph2-attempts">
+                <div class="ph2-att"><div class="v">6.82</div><div class="l2">Att 1</div></div>
+                <div class="ph2-att best"><div class="v">6.78</div><div class="l2">Best</div></div>
+                <div class="ph2-att"><div class="v" style="color:var(--ink4)">—</div><div class="l2">Att 3</div></div>
+              </div>
+            </div>
+            <div class="ph2-keypad">
+              <div class="keypad">
+                <div class="k">1</div><div class="k">2</div><div class="k">3</div>
+                <div class="k">4</div><div class="k">5</div><div class="k">6</div>
+                <div class="k">7</div><div class="k">8</div><div class="k">9</div>
+                <div class="k act">.</div><div class="k">0</div><div class="k act">⌫</div>
+              </div>
+            </div>
+            <div class="ph2-foot">
+              <button class="btn sec">Retry</button>
+              <button class="btn pri">Save →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phone 3 done -->
+        <div class="phone">
+          <div class="phone-screen ph3">
+            <div class="ph-status" style="background:var(--card);position:relative"><span>2:42</span><div class="notch"></div><span>●●●●</span></div>
+            <div class="ph3-top">
+              <div class="av3">MJ</div>
+              <div><div class="n">Marcus Johnson</div><div class="s">#21 · Sr · CF · 4 stations done</div></div>
+            </div>
+            <div class="ph3-score">
+              <div class="lab">Overall score</div>
+              <div class="big hot">94.8</div>
+              <div class="rnk">▲ #1 overall</div>
+            </div>
+            <div class="ph3-stats">
+              <div class="ph3-stat"><div class="l">60 yd</div><div class="v">6.78s</div></div>
+              <div class="ph3-stat"><div class="l">Exit velo</div><div class="v">94 mph</div></div>
+              <div class="ph3-stat"><div class="l">Fielding</div><div class="v">4.6/5</div></div>
+              <div class="ph3-stat"><div class="l">Pop time</div><div class="v">—</div></div>
+            </div>
+            <div class="ph3-cta">
+              <button class="btn keep">✓ KEEP · Varsity</button>
+              <button class="btn maybe">— Bubble list</button>
+              <button class="btn cut">✕ Thank & release</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- SIDE COL -->
+    <div style="display:flex;flex-direction:column;gap:22px">
+
+      <!-- AI INSIGHT -->
+      <div style="background:var(--ink);color:#fff;border-radius:14px;padding:18px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(200,58,58,.25),transparent 70%)"></div>
+        <div style="position:relative;font-size:10px;color:var(--red);font-weight:700;letter-spacing:1.2px;text-transform:uppercase;display:flex;align-items:center;gap:6px">
+          <span style="width:6px;height:6px;border-radius:3px;background:var(--red)"></span>AI co-coach
+        </div>
+        <h4 style="position:relative;font-family:'Space Grotesk';font-size:16px;font-weight:600;margin:6px 0 12px;line-height:1.3">3 things to check before cuts.</h4>
+        <div style="position:relative;padding:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-bottom:6px;font-size:12px">
+          <b style="color:var(--red)">Peña, C (#9, So)</b> · fastest 60 on roster but hasn't thrown bullpen. Prioritize.
+        </div>
+        <div style="position:relative;padding:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-bottom:6px;font-size:12px">
+          <b style="color:var(--red)">Hale, S (#27, Jr)</b> · borderline 82.1 · strong upward trend since Day 1, +4 spots.
+        </div>
+        <div style="position:relative;padding:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-bottom:10px;font-size:12px">
+          <b style="color:var(--red)">5 players</b> · never submitted to BP station. Last chance at 4:30.
+        </div>
+        <button style="position:relative;width:100%;padding:9px;background:var(--red);color:#fff;border-radius:7px;font-size:12px;font-weight:600">Ask a question</button>
+      </div>
+
+      <!-- LIVE FEED -->
+      <div class="panel">
+        <div class="phead">
+          <h3>Live feed</h3>
+          <span class="vt-live" style="margin-bottom:0;padding:4px 9px;font-size:9.5px"><span class="pulse"></span>LIVE</span>
+        </div>
+        <div class="feed">
+          <div class="feed-item"><div class="feed-ic c-red">★</div><div class="feed-body"><b>Marcus J.</b> scored <b class="mono">6.78</b> at 60yd · <span class="mono" style="color:var(--grass)">NEW LEADER</span><div class="feed-time">just now · Coach Park</div></div></div>
+          <div class="feed-item"><div class="feed-ic c-sky">EV</div><div class="feed-body"><b>Jordan K.</b> hit <b class="mono">83 mph</b> exit velo<div class="feed-time">38s ago · Coach Hendricks</div></div></div>
+          <div class="feed-item"><div class="feed-ic c-amber">P</div><div class="feed-body"><b>Alex R.</b> topped <b class="mono">87 mph</b> in bullpen<div class="feed-time">1m · Coach Vega</div></div></div>
+          <div class="feed-item"><div class="feed-ic c-grass">F</div><div class="feed-body"><b>Sean H.</b> earned <b class="mono">4.5/5</b> fielding · clean bag plays<div class="feed-time">2m · Coach Ruiz</div></div></div>
+          <div class="feed-item"><div class="feed-ic c-ink">✎</div><div class="feed-body">Note added to <b>Ethan L.</b> · "gloves soft but arm needs work"<div class="feed-time">4m · Coach Ruiz</div></div></div>
+          <div class="feed-item"><div class="feed-ic c-dirt">🔄</div><div class="feed-body"><b>Tre M.</b> moved to C station queue<div class="feed-time">6m · system</div></div></div>
+        </div>
+      </div>
+
+      <!-- BUBBLE -->
+      <div class="panel">
+        <div class="phead">
+          <h3>On the bubble</h3>
+          <span style="margin-left:auto;font-size:11px;color:var(--amber);font-family:'JetBrains Mono';font-weight:700">4 PLAYERS</span>
+        </div>
+        <div style="padding:16px 18px;font-size:12px;color:var(--ink3);line-height:1.5">
+          These 4 are clustered around the <b style="color:var(--amber)">varsity cut line</b> (82.0). Worth a second look before you decide.
+        </div>
+        <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--paper);border-radius:9px;border-left:3px solid var(--amber)">
+            <div class="av c-ink" style="background:var(--ink2)">SH</div>
+            <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600">Sean Hale</div><div class="mono" style="font-size:10.5px;color:var(--ink3)">#27 · Jr · SS/3B</div></div>
+            <div style="text-align:right"><div class="overall" style="font-size:15px">84.2</div><div class="mono" style="font-size:10px;color:var(--grass)">+1 rank</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--paper);border-radius:9px;border-left:3px solid var(--amber)">
+            <div class="av c-amber">TM</div>
+            <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600">Tre Mbeki</div><div class="mono" style="font-size:10.5px;color:var(--ink3)">#44 · So · C</div></div>
+            <div style="text-align:right"><div class="overall" style="font-size:15px">82.1</div><div class="mono" style="font-size:10px;color:var(--red)">-1 rank</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--paper);border-radius:9px;border-left:3px solid var(--amber)">
+            <div class="av c-gold">JB</div>
+            <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600">Jamal Brighton</div><div class="mono" style="font-size:10.5px;color:var(--ink3)">#3 · So · OF</div></div>
+            <div style="text-align:right"><div class="overall" style="font-size:15px">76.4</div><div class="mono" style="font-size:10px;color:var(--grass)">+2 rank</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--paper);border-radius:9px;border-left:3px solid var(--amber)">
+            <div class="av c-red">EL</div>
+            <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600">Ethan Lopez</div><div class="mono" style="font-size:10.5px;color:var(--ink3)">#11 · Fr · 2B</div></div>
+            <div style="text-align:right"><div class="overall" style="font-size:15px">72.8</div><div class="mono" style="font-size:10px;color:var(--ink3)">—</div></div>
+          </div>
+        </div>
+        <div style="padding:10px 18px;border-top:1px solid var(--hair2);display:flex;gap:6px">
+          <button style="flex:1;padding:8px;background:var(--card);border:1px solid var(--hair);border-radius:7px;font-size:12px;font-weight:600;color:var(--ink2)">Compare side-by-side</button>
+          <button style="flex:1;padding:8px;background:var(--ink);color:#fff;border-radius:7px;font-size:12px;font-weight:600">Open decide view →</button>
+        </div>
+      </div>
+
+      <!-- COACH STATUS -->
+      <div class="panel">
+        <div class="phead"><h3>Evaluators</h3><span style="margin-left:auto;font-size:11px;color:var(--grass);font-family:'JetBrains Mono';font-weight:700">● 3 ACTIVE</span></div>
+        <div style="padding:4px 0">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--hair2)">
+            <div class="av c-ink">DR</div>
+            <div style="flex:1"><div style="font-size:12.5px;font-weight:600">Coach Ruiz</div><div class="mono" style="font-size:10.5px;color:var(--ink3)">Head · Infield station</div></div>
+            <div style="font-family:'JetBrains Mono';font-size:11px;font-weight:600">28 scored</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--hair2)">
+            <div class="av c-sky">JP</div>
+            <div style="flex:1"><div style="font-size:12.5px;font-weight:600">Coach Park</div><div class="mono" style="font-size:10.5px;color:var(--ink3)">60yd · Field A</div></div>
+            <div style="font-family:'JetBrains Mono';font-size:11px;font-weight:600">47 scored</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--hair2)">
+            <div class="av c-amber">MV</div>
+            <div style="flex:1"><div style="font-size:12.5px;font-weight:600">Coach Vega</div><div class="mono" style="font-size:10.5px;color:var(--ink3)">Bullpen</div></div>
+            <div style="font-family:'JetBrains Mono';font-size:11px;font-weight:600">12 scored</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 18px;opacity:.5">
+            <div class="av c-dirt">BH</div>
+            <div style="flex:1"><div style="font-size:12.5px;font-weight:600">Coach Hendricks</div><div class="mono" style="font-size:10.5px;color:var(--ink3)">Exit velo · away</div></div>
+            <div class="mono" style="font-size:10.5px;color:var(--ink3)">idle 4m</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

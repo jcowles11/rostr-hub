@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Coach Hub — Rostr</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f5f2ec;
+    --paper-deep: #ebe6db;
+    --card: #ffffff;
+    --ink: #0e1116;
+    --ink2: #3a3f47;
+    --ink3: #6b7280;
+    --ink4: #9ca3af;
+    --hair: #e5e0d4;
+    --hair2: #efeadf;
+    --red: #c83a3a;
+    --red-dim: #e8c9c4;
+    --red-soft: #f8dedc;
+    --grass: #2f7d4f;
+    --grass-dim: #cfe3d4;
+    --dirt: #b37a4c;
+    --sky: #3a6ea8;
+    --gold: #d4a23a;
+    --amber: #d68620;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--paper); color: var(--ink); font-family: 'Inter', -apple-system, sans-serif; font-size: 14px; line-height: 1.5; height: 100%; overflow: hidden; }
+  .mono { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+  .disp { font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.02em; }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; }
+
+  /* ── APP SHELL ────────────────────────── */
+  .app { display: grid; grid-template-columns: 220px 1fr; height: 100vh; }
+  
+  /* SIDEBAR */
+  aside.nav {
+    background: var(--ink); color: #fff; display: flex; flex-direction: column; padding: 16px 12px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px; margin-bottom: 4px; }
+  .brand-mark { width: 28px; height: 28px; border-radius: 7px; background: #fff; color: var(--ink); display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk'; font-size: 16px; font-weight: 700; position: relative; }
+  .brand-mark::after { content: ''; position: absolute; inset: 4px; border: 1.5px dashed var(--red); border-radius: 3px; opacity: .7; }
+  .brand-text { font-family: 'Space Grotesk'; font-size: 17px; font-weight: 700; }
+  
+  .team-switch { margin: 16px 0 20px; padding: 12px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; cursor: pointer; }
+  .team-switch .tlbl { font-size: 9.5px; color: rgba(255,255,255,.5); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+  .team-switch .tname { font-family: 'Space Grotesk'; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .team-switch .tsub { font-size: 11px; color: rgba(255,255,255,.55); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+  .team-switch .chev { margin-left: auto; color: rgba(255,255,255,.4); }
+  
+  .nav-sec { font-size: 10px; color: rgba(255,255,255,.4); font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; padding: 14px 10px 8px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 7px; color: rgba(255,255,255,.75); font-size: 13.5px; font-weight: 500; cursor: pointer; }
+  .nav-item:hover { background: rgba(255,255,255,.05); color: #fff; }
+  .nav-item.active { background: var(--red); color: #fff; }
+  .nav-item .icon { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .nav-item .badge { margin-left: auto; font-size: 10px; padding: 2px 6px; border-radius: 999px; background: rgba(255,255,255,.15); color: #fff; font-weight: 600; font-family: 'JetBrains Mono'; }
+  .nav-item.active .badge { background: rgba(0,0,0,.25); }
+  
+  .nav-bottom { margin-top: auto; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.08); }
+  .me { display: flex; align-items: center; gap: 10px; padding: 8px; }
+  .me-av { width: 30px; height: 30px; border-radius: 15px; background: var(--dirt); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+  .me-name { font-size: 13px; font-weight: 600; }
+  .me-role { font-size: 10.5px; color: rgba(255,255,255,.55); }
+  
+  /* MAIN */
+  main.hub { display: flex; flex-direction: column; overflow: hidden; }
+  header.topbar {
+    height: 56px; padding: 0 28px; background: var(--card); border-bottom: 1px solid var(--hair);
+    display: flex; align-items: center; gap: 18px; flex-shrink: 0;
+  }
+  .crumbs { font-size: 13px; color: var(--ink3); display: flex; align-items: center; gap: 8px; }
+  .crumbs b { color: var(--ink); font-weight: 600; }
+  .search { margin-left: auto; display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: var(--paper); border: 1px solid var(--hair); border-radius: 8px; width: 280px; font-size: 13px; color: var(--ink3); }
+  .search kbd { margin-left: auto; font-family: 'JetBrains Mono'; font-size: 10.5px; color: var(--ink4); padding: 2px 6px; background: var(--card); border: 1px solid var(--hair); border-radius: 4px; }
+  .top-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 8px; color: var(--ink2); font-size: 13px; font-weight: 500; }
+  .top-btn:hover { background: var(--paper); color: var(--ink); }
+  .top-btn.primary { background: var(--ink); color: #fff; }
+  .top-btn.primary:hover { background: var(--red); color: #fff; }
+  .notif-dot { position: relative; }
+  .notif-dot::after { content: ''; position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 3px; background: var(--red); }
+  
+  /* CONTENT */
+  .content { flex: 1; overflow: auto; padding: 28px 32px 48px; }
+  
+  .hub-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 22px; }
+  .hub-head h1 { font-family: 'Space Grotesk'; font-size: 32px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
+  .hub-head .sub { font-size: 14px; color: var(--ink3); margin-top: 4px; }
+  .today-pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 11px; background: var(--red-soft); color: var(--red); border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
+  .today-pill::before { content: ''; width: 6px; height: 6px; border-radius: 3px; background: var(--red); }
+  
+  /* Layout */
+  .hub-grid { display: grid; grid-template-columns: 1fr 340px; gap: 22px; }
+  .col-main { display: flex; flex-direction: column; gap: 22px; }
+  .col-side { display: flex; flex-direction: column; gap: 18px; }
+  
+  .panel { background: var(--card); border: 1px solid var(--hair); border-radius: 14px; }
+  .panel-head { padding: 16px 18px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--hair2); }
+  .panel-head h3 { font-family: 'Space Grotesk'; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .panel-head .actions { margin-left: auto; display: flex; gap: 6px; }
+  .panel-head .tab { font-size: 12px; padding: 4px 10px; border-radius: 6px; color: var(--ink3); font-weight: 500; cursor: pointer; }
+  .panel-head .tab.active { background: var(--paper); color: var(--ink); font-weight: 600; }
+  .panel-head .tab:hover { color: var(--ink); }
+  .panel-head .more { color: var(--ink3); font-size: 13px; padding: 4px 6px; border-radius: 5px; }
+  .panel-head .more:hover { background: var(--paper); color: var(--ink); }
+  .panel-body { padding: 18px; }
+  .panel-body.p0 { padding: 0; }
+  
+  /* HERO TODAY CARD */
+  .today-card { background: linear-gradient(135deg, var(--ink) 0%, #191d24 100%); color: #fff; border-radius: 14px; padding: 24px; position: relative; overflow: hidden; }
+  .today-card::before { content: ''; position: absolute; top: -60px; right: -60px; width: 240px; height: 240px; border-radius: 50%; background: radial-gradient(circle, rgba(200, 58, 58, 0.25), transparent 65%); }
+  .today-lbl { font-size: 10.5px; color: rgba(255,255,255,.55); font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; position: relative; }
+  .today-ev { font-family: 'Space Grotesk'; font-size: 26px; font-weight: 600; letter-spacing: -0.02em; margin-top: 4px; position: relative; line-height: 1.2; }
+  .today-meta { display: flex; gap: 18px; margin-top: 14px; position: relative; font-size: 12.5px; color: rgba(255,255,255,.7); }
+  .today-meta span { display: flex; align-items: center; gap: 6px; }
+  .today-actions { display: flex; gap: 8px; margin-top: 18px; position: relative; }
+  .today-actions .btn { padding: 9px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; }
+  .today-actions .btn.primary { background: var(--red); color: #fff; }
+  .today-actions .btn.primary:hover { background: #a92d2d; }
+  .today-actions .btn.ghost { background: rgba(255,255,255,.08); color: #fff; }
+  .today-actions .btn.ghost:hover { background: rgba(255,255,255,.14); }
+  
+  /* STAT ROW */
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .stat { background: var(--card); border: 1px solid var(--hair); border-radius: 12px; padding: 14px 16px; }
+  .stat .lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--ink3); }
+  .stat .v { font-family: 'JetBrains Mono'; font-size: 26px; font-weight: 600; margin-top: 4px; letter-spacing: -0.02em; }
+  .stat .d { font-size: 11px; color: var(--ink3); margin-top: 2px; }
+  .stat .d.up { color: var(--grass); }
+  .stat .d.dn { color: var(--red); }
+  
+  /* ROSTER AVAIL TABLE */
+  .avail-table { display: flex; flex-direction: column; }
+  .avail-row { display: grid; grid-template-columns: 28px 1fr 90px 110px 80px; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--hair2); align-items: center; font-size: 13px; }
+  .avail-row:last-child { border-bottom: none; }
+  .avail-row:hover { background: var(--paper); }
+  .avail-row .num { font-family: 'JetBrains Mono'; color: var(--ink3); font-size: 11px; }
+  .avail-row .name { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .avail-row .name .av { width: 24px; height: 24px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .avail-row .mono { font-size: 11.5px; color: var(--ink3); }
+  .badge-status { padding: 3px 8px; border-radius: 5px; font-size: 10.5px; font-weight: 700; letter-spacing: .4px; display: inline-block; }
+  .badge-ok  { background: var(--grass-dim); color: var(--grass); }
+  .badge-q   { background: #f8e3c4; color: var(--amber); }
+  .badge-out { background: var(--red-soft); color: var(--red); }
+  
+  /* ACTIVITY FEED */
+  .feed { display: flex; flex-direction: column; }
+  .feed-item { display: flex; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--hair2); align-items: flex-start; }
+  .feed-item:last-child { border-bottom: none; }
+  .feed-ic { width: 28px; height: 28px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; color: #fff; }
+  .feed-body { flex: 1; font-size: 13px; line-height: 1.5; }
+  .feed-body b { font-weight: 600; }
+  .feed-body .meta { font-size: 11px; color: var(--ink3); margin-top: 2px; font-family: 'JetBrains Mono'; }
+  
+  /* QUICK ACTIONS */
+  .qa-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 14px; }
+  .qa { border: 1px solid var(--hair); border-radius: 10px; padding: 14px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; background: var(--card); transition: all .15s; }
+  .qa:hover { border-color: var(--ink); transform: translateY(-1px); }
+  .qa .qa-ic { font-family: 'Space Grotesk'; font-size: 18px; font-weight: 700; color: var(--red); }
+  .qa .qa-t { font-size: 12.5px; font-weight: 600; margin-top: 2px; }
+  .qa .qa-s { font-size: 10.5px; color: var(--ink3); }
+  
+  /* SCHEDULE */
+  .sch-item { display: flex; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--hair2); align-items: center; }
+  .sch-item:last-child { border-bottom: none; }
+  .sch-date { width: 42px; text-align: center; flex-shrink: 0; }
+  .sch-date .d { font-family: 'Space Grotesk'; font-size: 20px; font-weight: 600; line-height: 1; }
+  .sch-date .m { font-size: 9.5px; color: var(--ink3); font-weight: 700; text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+  .sch-body { flex: 1; min-width: 0; }
+  .sch-title { font-size: 13px; font-weight: 600; }
+  .sch-sub { font-size: 11.5px; color: var(--ink3); margin-top: 2px; }
+  .sch-tag { padding: 3px 7px; border-radius: 5px; font-size: 10px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; flex-shrink: 0; }
+  .sch-tag.game { background: var(--red-soft); color: var(--red); }
+  .sch-tag.prac { background: var(--paper-deep); color: var(--ink2); }
+  .sch-tag.trv  { background: var(--grass-dim); color: var(--grass); }
+  
+  /* MESSAGES PREVIEW */
+  .msg-item { display: flex; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--hair2); cursor: pointer; }
+  .msg-item:hover { background: var(--paper); }
+  .msg-item:last-child { border-bottom: none; }
+  .msg-av { width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .msg-body { flex: 1; min-width: 0; }
+  .msg-head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 2px; }
+  .msg-head b { font-size: 13px; font-weight: 600; }
+  .msg-head .time { font-size: 10.5px; color: var(--ink4); font-family: 'JetBrains Mono'; margin-left: auto; }
+  .msg-preview { font-size: 12px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .msg-unread { width: 6px; height: 6px; border-radius: 3px; background: var(--red); margin-top: 6px; flex-shrink: 0; }
+  
+  /* PLAYER SPOTLIGHT */
+  .spot { padding: 18px; }
+  .spot-head { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
+  .spot-av { width: 48px; height: 48px; border-radius: 24px; background: var(--ink); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+  .spot-name { font-family: 'Space Grotesk'; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+  .spot-meta { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--ink3); margin-top: 2px; }
+  .spot-reason { font-size: 12.5px; color: var(--ink2); padding: 10px 12px; background: var(--paper); border-radius: 8px; border-left: 3px solid var(--red); line-height: 1.5; }
+  .spot-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 12px; }
+  .spot-stat { text-align: center; padding: 8px 4px; background: var(--paper); border-radius: 7px; }
+  .spot-stat .v { font-family: 'JetBrains Mono'; font-size: 15px; font-weight: 600; }
+  .spot-stat .l { font-size: 9.5px; font-weight: 700; color: var(--ink3); letter-spacing: .5px; text-transform: uppercase; margin-top: 2px; }
+  
+  /* AI CARD */
+  .ai-card { background: var(--ink); color: #fff; border-radius: 14px; padding: 18px; position: relative; overflow: hidden; }
+  .ai-card::before { content: ''; position: absolute; top: -40px; right: -40px; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle, rgba(200, 58, 58, 0.25), transparent 70%); }
+  .ai-lbl { position: relative; font-size: 10px; color: var(--red); font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+  .ai-lbl::before { content: ''; width: 6px; height: 6px; border-radius: 3px; background: var(--red); }
+  .ai-card h4 { position: relative; font-family: 'Space Grotesk'; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; margin: 6px 0 10px; line-height: 1.3; }
+  .ai-chip { position: relative; display: flex; align-items: center; gap: 8px; padding: 10px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); border-radius: 8px; margin-bottom: 6px; cursor: pointer; font-size: 12px; }
+  .ai-chip:hover { background: rgba(255,255,255,.1); }
+  .ai-chip .mono { font-size: 11px; color: var(--red); font-weight: 600; flex-shrink: 0; }
+  
+  /* ICON PRIMITIVES */
+  .i { display: inline-block; width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ── SIDEBAR ── -->
+  <aside class="nav">
+    <div class="brand">
+      <div class="brand-mark">R</div>
+      <div class="brand-text">rostr</div>
+    </div>
+
+    <div class="team-switch">
+      <div class="tlbl">Team</div>
+      <div class="tname">
+        <span style="width:14px; height:14px; border-radius:3px; background:var(--red);"></span>
+        Lincoln HS · Varsity
+        <span class="chev">⌄</span>
+      </div>
+      <div class="tsub">Baseball · Spring '26 · 22 players</div>
+    </div>
+
+    <div class="nav-sec">Program</div>
+    <a class="nav-item active">
+      <span class="icon"><svg class="i" viewBox="0 0 24 24"><path d="M3 13l9-9 9 9"/><path d="M5 10v10h14V10"/></svg></span>
+      Today
+    </a>
+    <a class="nav-item" href="#">
+      <span class="icon"><svg class="i" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+      Roster
+      <span class="badge">22</span>
+    </a>
+    <a class="nav-item" href="#">
+      <span class="icon"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+      Schedule
+    </a>
+    <a class="nav-item" href="#">
+      <span class="icon"><svg class="i" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
+      Practice
+    </a>
+    <a class="nav-item" href="#">
+      <span class="icon"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2v10l6 3"/></svg></span>
+      Lineups
+    </a>
+    <a class="nav-item" href="#">
+      <span class="icon"><svg class="i" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+      Tryouts
+      <span class="badge" style="background:var(--red);">47</span>
+    </a>
+    <a class="nav-item" href="#">
+      <span class="icon"><svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+      Messages
+      <span class="badge">3</span>
+    </a>
+
+    <div class="nav-sec">Players</div>
+    <a class="nav-item" href="#">
+      <span class="icon"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M5 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2"/></svg></span>
+      Profiles
+    </a>
+    <a class="nav-item" href="#">
+      <span class="icon"><svg class="i" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+      Development
+    </a>
+
+    <div class="nav-sec">Program</div>
+    <a class="nav-item" href="#">
+      <span class="icon"><svg class="i" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+      Notifications
+    </a>
+    <a class="nav-item" href="#">
+      <span class="icon"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+      Settings
+    </a>
+
+    <div class="nav-bottom">
+      <div class="me">
+        <div class="me-av">DR</div>
+        <div>
+          <div class="me-name">Coach Ruiz</div>
+          <div class="me-role">Head Coach · V</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="hub">
+    <header class="topbar">
+      <div class="crumbs"><span>Lincoln HS</span> <span style="color:var(--ink4);">›</span> <b>Today</b></div>
+      <div class="search">
+        <svg class="i" style="color:var(--ink3)" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Search players, drills, games…
+        <kbd>⌘K</kbd>
+      </div>
+      <button class="top-btn notif-dot">
+        <svg class="i" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </button>
+      <button class="top-btn">
+        <svg class="i" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Quick add
+      </button>
+      <button class="top-btn primary">Start practice</button>
+    </header>
+
+    <div class="content">
+      <div class="hub-head">
+        <div>
+          <span class="today-pill">Tuesday · Apr 21</span>
+          <h1 style="margin-top:10px;">Afternoon, Coach.</h1>
+          <div class="sub">Practice at 3:30. Game Friday vs Central Hawks. 2 parent messages need a reply.</div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="top-btn" style="border:1px solid var(--hair); background:var(--card);">
+            <svg class="i" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+            Sync
+          </button>
+          <button class="top-btn" style="border:1px solid var(--hair); background:var(--card);">
+            <svg class="i" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export week
+          </button>
+        </div>
+      </div>
+
+      <div class="hub-grid">
+        <!-- MAIN COL -->
+        <div class="col-main">
+          <!-- TODAY HERO -->
+          <div class="today-card">
+            <div class="today-lbl">Next up · in 2h 14m</div>
+            <div class="today-ev">Practice · Situational hitting & pitching</div>
+            <div class="today-meta">
+              <span>
+                <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                3:30 – 5:30 PM
+              </span>
+              <span>
+                <svg class="i" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                Field A
+              </span>
+              <span>
+                <svg class="i" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                22 avail · 2 Q · 1 out
+              </span>
+            </div>
+            <div class="today-actions">
+              <button class="btn primary">Open practice plan →</button>
+              <button class="btn ghost">Field runner mode</button>
+              <button class="btn ghost">Edit</button>
+            </div>
+          </div>
+
+          <!-- STAT ROW -->
+          <div class="stat-row">
+            <div class="stat">
+              <div class="lbl">Record</div>
+              <div class="v">12–4</div>
+              <div class="d up">+3 vs last season</div>
+            </div>
+            <div class="stat">
+              <div class="lbl">Team BA</div>
+              <div class="v">.298</div>
+              <div class="d up">+.014 last 5</div>
+            </div>
+            <div class="stat">
+              <div class="lbl">ERA</div>
+              <div class="v">3.42</div>
+              <div class="d dn">+0.21 last 5</div>
+            </div>
+            <div class="stat">
+              <div class="lbl">Conf. rank</div>
+              <div class="v">2nd</div>
+              <div class="d">of 8</div>
+            </div>
+          </div>
+
+          <!-- AVAILABILITY -->
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Today's availability</h3>
+              <div class="actions">
+                <button class="tab active">All</button>
+                <button class="tab">Questionable (2)</button>
+                <button class="tab">Out (1)</button>
+                <button class="more">···</button>
+              </div>
+            </div>
+            <div class="avail-table">
+              <div class="avail-row">
+                <div class="num">#21</div>
+                <div class="name"><span class="av" style="background:var(--ink);">MJ</span>Marcus Johnson</div>
+                <div class="mono">Sr · CF</div>
+                <div><span class="badge-status badge-ok">AVAILABLE</span></div>
+                <div class="mono" style="color:var(--ink3); font-size:11px;">.372 BA</div>
+              </div>
+              <div class="avail-row">
+                <div class="num">#12</div>
+                <div class="name"><span class="av" style="background:var(--sky);">JK</span>Jordan Kim</div>
+                <div class="mono">Jr · SS</div>
+                <div><span class="badge-status badge-q">HAMSTRING Q</span></div>
+                <div class="mono" style="color:var(--red); font-size:11px;">limited reps</div>
+              </div>
+              <div class="avail-row">
+                <div class="num">#7</div>
+                <div class="name"><span class="av" style="background:var(--dirt);">AR</span>Alex Riggs</div>
+                <div class="mono">Sr · P/1B</div>
+                <div><span class="badge-status badge-ok">AVAILABLE</span></div>
+                <div class="mono" style="color:var(--ink3); font-size:11px;">bullpen day</div>
+              </div>
+              <div class="avail-row">
+                <div class="num">#33</div>
+                <div class="name"><span class="av" style="background:var(--grass);">DB</span>DeAndre Brooks</div>
+                <div class="mono">Jr · 2B/3B</div>
+                <div><span class="badge-status badge-out">ACADEMIC</span></div>
+                <div class="mono" style="color:var(--red); font-size:11px;">tutoring until 4</div>
+              </div>
+              <div class="avail-row">
+                <div class="num">#44</div>
+                <div class="name"><span class="av" style="background:var(--amber);">TM</span>Tre Mbeki</div>
+                <div class="mono">So · C</div>
+                <div><span class="badge-status badge-ok">AVAILABLE</span></div>
+                <div class="mono" style="color:var(--ink3); font-size:11px;">full reps</div>
+              </div>
+              <div class="avail-row">
+                <div class="num">#8</div>
+                <div class="name"><span class="av" style="background:var(--red);">NP</span>Noah Patel</div>
+                <div class="mono">Sr · RF</div>
+                <div><span class="badge-status badge-q">WRIST TIGHT</span></div>
+                <div class="mono" style="color:var(--ink3); font-size:11px;">no BP</div>
+              </div>
+              <div class="avail-row">
+                <div class="num">#27</div>
+                <div class="name"><span class="av" style="background:var(--ink2);">SH</span>Sean Hale</div>
+                <div class="mono">Jr · SS/3B</div>
+                <div><span class="badge-status badge-ok">AVAILABLE</span></div>
+                <div class="mono" style="color:var(--ink3); font-size:11px;">full reps</div>
+              </div>
+            </div>
+            <div style="padding:10px 18px; border-top:1px solid var(--hair2); font-size:12px; color:var(--ink3); display:flex; align-items:center;">
+              +15 more · <a style="color:var(--red); font-weight:600; margin-left:6px;" href="#">View full roster →</a>
+            </div>
+          </div>
+
+          <!-- SCHEDULE + PLAN -->
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 22px;">
+            <div class="panel">
+              <div class="panel-head">
+                <h3>This week</h3>
+                <button class="more">View all →</button>
+              </div>
+              <div>
+                <div class="sch-item">
+                  <div class="sch-date"><div class="d">21</div><div class="m">Tue</div></div>
+                  <div class="sch-body">
+                    <div class="sch-title">Practice · Situational hitting</div>
+                    <div class="sch-sub">3:30 PM · Field A · 2h</div>
+                  </div>
+                  <span class="sch-tag prac">PRAC</span>
+                </div>
+                <div class="sch-item">
+                  <div class="sch-date"><div class="d">22</div><div class="m">Wed</div></div>
+                  <div class="sch-body">
+                    <div class="sch-title">Practice · Defense & baserunning</div>
+                    <div class="sch-sub">3:30 PM · Field A · 2h</div>
+                  </div>
+                  <span class="sch-tag prac">PRAC</span>
+                </div>
+                <div class="sch-item">
+                  <div class="sch-date"><div class="d">23</div><div class="m">Thu</div></div>
+                  <div class="sch-body">
+                    <div class="sch-title">Light BP + pregame prep</div>
+                    <div class="sch-sub">3:30 PM · Field A · 90 min</div>
+                  </div>
+                  <span class="sch-tag prac">PRAC</span>
+                </div>
+                <div class="sch-item">
+                  <div class="sch-date"><div class="d">24</div><div class="m">Fri</div></div>
+                  <div class="sch-body">
+                    <div class="sch-title">vs Central Hawks <span style="color:var(--red);">· conference</span></div>
+                    <div class="sch-sub">5:00 PM · Home · Bus: none</div>
+                  </div>
+                  <span class="sch-tag game">GAME</span>
+                </div>
+                <div class="sch-item">
+                  <div class="sch-date"><div class="d">26</div><div class="m">Sat</div></div>
+                  <div class="sch-body">
+                    <div class="sch-title">@ Ridgewood Prep</div>
+                    <div class="sch-sub">11:00 AM · Away · Bus 9:15 AM</div>
+                  </div>
+                  <span class="sch-tag trv">AWAY</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- PLAYER SPOTLIGHT -->
+            <div class="panel">
+              <div class="panel-head">
+                <h3>Player spotlight</h3>
+                <div class="actions">
+                  <button class="tab active">Hot</button>
+                  <button class="tab">Cold</button>
+                  <button class="tab">Dev</button>
+                </div>
+              </div>
+              <div class="spot">
+                <div class="spot-head">
+                  <div class="spot-av">MJ</div>
+                  <div style="flex:1;">
+                    <div class="spot-name">Marcus Johnson</div>
+                    <div class="spot-meta">Sr · CF · #21 · .372 / .458 / .521</div>
+                  </div>
+                </div>
+                <div class="spot-reason">
+                  <b>🔥 7-game hit streak.</b> Exit velo up 3.2 mph since mid-March — longest streak on roster. Consider moving up to leadoff Friday.
+                </div>
+                <div class="spot-stats">
+                  <div class="spot-stat"><div class="v">94<span style="font-size:9px; color:var(--ink3);">mph</span></div><div class="l">EV AVG</div></div>
+                  <div class="spot-stat"><div class="v">6.74</div><div class="l">60YD</div></div>
+                  <div class="spot-stat"><div class="v">.412</div><div class="l">vs FB</div></div>
+                </div>
+                <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--hair2); display:flex; gap:8px;">
+                  <button class="top-btn" style="flex:1; border:1px solid var(--hair); background:var(--card); justify-content:center;">Profile →</button>
+                  <button class="top-btn" style="flex:1; background:var(--ink); color:#fff; justify-content:center;">Add to lineup</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ACTIVITY -->
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Recent activity</h3>
+              <div class="actions">
+                <button class="tab active">All</button>
+                <button class="tab">Roster</button>
+                <button class="tab">Evals</button>
+                <button class="tab">Practice</button>
+                <button class="tab">Profiles</button>
+              </div>
+            </div>
+            <div class="feed">
+              <div class="feed-item">
+                <div class="feed-ic" style="background:var(--grass);">✓</div>
+                <div class="feed-body"><b>Coach Park</b> logged bullpen session for <b>4 pitchers</b> · avg velo 82.4 mph, high 87 (Riggs)<div class="meta">12 min ago</div></div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-ic" style="background:var(--sky);">P</div>
+                <div class="feed-body"><b>Jordan Kim</b> updated his profile · new highlight clip from 4/19 vs Eastside<div class="meta">1h ago</div></div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-ic" style="background:var(--amber);">!</div>
+                <div class="feed-body"><b>Mrs. Patel</b> flagged Noah out of Wed practice · wrist check-up<div class="meta">2h ago</div></div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-ic" style="background:var(--red);">★</div>
+                <div class="feed-body"><b>47 tryout scores</b> submitted by Coach Hendricks across 3 stations<div class="meta">Yesterday · 6:42 PM</div></div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-ic" style="background:var(--ink);">L</div>
+                <div class="feed-body">Lineup <b>vs Central Hawks (Fri)</b> saved as draft · 9 positions set, 9 still to confirm<div class="meta">Yesterday · 4:10 PM</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SIDE COL -->
+        <div class="col-side">
+          <!-- AI ASSIST -->
+          <div class="ai-card">
+            <div class="ai-lbl">AI co-coach</div>
+            <h4>3 things I'd do before Friday.</h4>
+            <div class="ai-chip"><span class="mono">→</span>Move Johnson to leadoff (7-game streak)</div>
+            <div class="ai-chip"><span class="mono">→</span>Plan Hale at SS as backup — Kim's hamstring Q</div>
+            <div class="ai-chip"><span class="mono">→</span>Cole (Central #23) is L/L · stack righties 3–6</div>
+            <div style="position:relative; margin-top:10px; display:flex; gap:6px;">
+              <button style="flex:1; padding:9px; background:var(--red); color:#fff; border-radius:7px; font-size:12px; font-weight:600;">Ask anything</button>
+              <button style="padding:9px 11px; background:rgba(255,255,255,.08); color:#fff; border-radius:7px; font-size:12px; font-weight:600;">⟳</button>
+            </div>
+          </div>
+
+          <!-- QUICK ACTIONS -->
+          <div class="panel">
+            <div class="panel-head"><h3>Quick actions</h3></div>
+            <div class="qa-grid">
+              <div class="qa"><div class="qa-ic">+</div><div class="qa-t">New practice</div><div class="qa-s">90 min default</div></div>
+              <div class="qa"><div class="qa-ic">⚾</div><div class="qa-t">Start lineup</div><div class="qa-s">for Friday's game</div></div>
+              <div class="qa"><div class="qa-ic">📋</div><div class="qa-t">Log game</div><div class="qa-s">post-game stats</div></div>
+              <div class="qa"><div class="qa-ic">💬</div><div class="qa-t">Broadcast</div><div class="qa-s">team / parents</div></div>
+              <div class="qa"><div class="qa-ic">★</div><div class="qa-t">New tryout</div><div class="qa-s">setup stations</div></div>
+              <div class="qa"><div class="qa-ic">↑</div><div class="qa-t">Import roster</div><div class="qa-s">CSV / list</div></div>
+            </div>
+          </div>
+
+          <!-- MESSAGES -->
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Messages</h3>
+              <button class="more">All →</button>
+            </div>
+            <div>
+              <div class="msg-item">
+                <div class="msg-av" style="background:var(--dirt);">PR</div>
+                <div class="msg-body">
+                  <div class="msg-head"><b>Mrs. Patel</b><span class="time">18m</span></div>
+                  <div class="msg-preview">Noah has a dentist appt at 3, will be 20 min late…</div>
+                </div>
+                <div class="msg-unread"></div>
+              </div>
+              <div class="msg-item">
+                <div class="msg-av" style="background:var(--sky);">JP</div>
+                <div class="msg-body">
+                  <div class="msg-head"><b>Coach Park</b><span class="time">1h</span></div>
+                  <div class="msg-preview">Bullpen went long — 4 arms done, Riggs hit 87…</div>
+                </div>
+                <div class="msg-unread"></div>
+              </div>
+              <div class="msg-item">
+                <div class="msg-av" style="background:var(--ink);">TM</div>
+                <div class="msg-body">
+                  <div class="msg-head"><b>Team · Varsity</b><span class="time">3h</span></div>
+                  <div class="msg-preview">Alex: "Anyone else seeing the Hawks in bullpens today?"</div>
+                </div>
+              </div>
+              <div class="msg-item">
+                <div class="msg-av" style="background:var(--grass);">AD</div>
+                <div class="msg-body">
+                  <div class="msg-head"><b>AD · Washburn</b><span class="time">Mon</span></div>
+                  <div class="msg-preview">Friday field lights confirmed, gates open 4:30.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TRYOUT PROGRESS -->
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Spring tryout</h3>
+              <span class="today-pill" style="background:var(--grass-dim); color:var(--grass);">Day 2 of 3</span>
+            </div>
+            <div style="padding:18px;">
+              <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--ink3); font-weight:600; text-transform:uppercase; letter-spacing:.8px; margin-bottom:8px;">
+                <span>Scored</span>
+                <span class="mono" style="color:var(--ink);">47 / 52</span>
+              </div>
+              <div style="height:8px; background:var(--paper-deep); border-radius:4px; overflow:hidden;">
+                <div style="width:90%; height:100%; background:var(--red);"></div>
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px;">
+                <div style="padding:10px 12px; background:var(--paper); border-radius:8px;">
+                  <div class="mono" style="font-size:16px; font-weight:600;">6.74s</div>
+                  <div style="font-size:10px; font-weight:700; color:var(--ink3); text-transform:uppercase; letter-spacing:.5px; margin-top:2px;">Fastest 60yd</div>
+                </div>
+                <div style="padding:10px 12px; background:var(--paper); border-radius:8px;">
+                  <div class="mono" style="font-size:16px; font-weight:600;">94<span style="font-size:10px; color:var(--ink3);">mph</span></div>
+                  <div style="font-size:10px; font-weight:700; color:var(--ink3); text-transform:uppercase; letter-spacing:.5px; margin-top:2px;">Top exit velo</div>
+                </div>
+              </div>
+              <button class="top-btn" style="margin-top:14px; width:100%; background:var(--ink); color:#fff; justify-content:center; padding:10px;">Open live rankings →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+</body>
+</html>

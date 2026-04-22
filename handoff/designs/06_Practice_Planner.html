@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Practice Planner — Rostr</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f5f2ec; --paper-deep:#ebe6db; --card:#fff;
+    --ink:#0e1116; --ink2:#3a3f47; --ink3:#6b7280; --ink4:#9ca3af;
+    --hair:#e5e0d4; --hair2:#efeadf;
+    --red:#c83a3a; --red-dim:#e8c9c4; --red-soft:#f8dedc;
+    --grass:#2f7d4f; --grass-dim:#cfe3d4;
+    --dirt:#b37a4c; --sky:#3a6ea8; --gold:#d4a23a; --amber:#d68620;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;font-size:14px;line-height:1.5}
+  .mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+  button{font-family:inherit;cursor:pointer;border:none;background:none}
+  a{color:inherit;text-decoration:none}
+  .i{display:inline-block;width:15px;height:15px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+  header.bar{background:var(--ink);color:#fff;padding:12px 28px;display:flex;align-items:center;gap:16px}
+  .brand{display:flex;align-items:center;gap:8px;font-family:'Space Grotesk';font-weight:700}
+  .brand-m{width:24px;height:24px;border-radius:6px;background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:13px}
+  .bar .ctx{font-size:12.5px;color:rgba(255,255,255,.6)}
+  .bar .ctx b{color:#fff}
+  .bar-actions{margin-left:auto;display:flex;gap:8px}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:7px;font-size:12.5px;font-weight:500}
+  .bar .btn.ghost{color:rgba(255,255,255,.8);background:rgba(255,255,255,.08)}
+  .bar .btn.primary{background:var(--red);color:#fff}
+
+  .content{max-width:1400px;margin:0 auto;padding:24px 28px 60px}
+
+  .th{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px}
+  .th h1{font-family:'Space Grotesk';font-size:30px;font-weight:600;letter-spacing:-.03em;line-height:1.1}
+  .th .sub{font-size:13.5px;color:var(--ink3);margin-top:4px}
+  .th .meta{display:flex;gap:12px;align-items:center;font-size:12.5px;color:var(--ink3);margin-top:8px}
+  .th .meta .pill{padding:3px 9px;border-radius:999px;background:var(--card);border:1px solid var(--hair);font-family:'JetBrains Mono';font-size:11px;font-weight:600;color:var(--ink2)}
+
+  /* LAYOUT */
+  .layout{display:grid;grid-template-columns:260px 1fr 320px;gap:22px}
+
+  .panel{background:var(--card);border:1px solid var(--hair);border-radius:14px}
+  .phead{padding:14px 18px;border-bottom:1px solid var(--hair2);display:flex;align-items:center;gap:10px}
+  .phead h3{font-family:'Space Grotesk';font-size:14px;font-weight:600;letter-spacing:-.01em}
+  .phead .ct{margin-left:auto;font-family:'JetBrains Mono';font-size:10.5px;color:var(--ink3);font-weight:600}
+
+  /* LEFT: DRILL LIBRARY */
+  .lib-search{padding:12px 16px 8px}
+  .lib-search input{width:100%;padding:8px 11px;border:1px solid var(--hair);border-radius:7px;background:var(--paper);font-family:inherit;font-size:12.5px;outline:none}
+  .lib-cat{padding:6px 14px 2px;font-size:10px;font-weight:700;letter-spacing:1px;color:var(--ink3);text-transform:uppercase}
+  .drill{margin:0 8px 4px;padding:9px 10px;border-radius:8px;cursor:grab;border:1px solid transparent}
+  .drill:hover{background:var(--paper);border-color:var(--hair)}
+  .drill-top{display:flex;align-items:center;gap:7px}
+  .drill-dot{width:6px;height:6px;border-radius:3px;flex-shrink:0}
+  .drill-t{font-size:12.5px;font-weight:600;flex:1;line-height:1.3}
+  .drill-dur{font-family:'JetBrains Mono';font-size:10.5px;color:var(--ink3);font-weight:600}
+  .drill-m{font-size:10.5px;color:var(--ink3);margin-top:3px;margin-left:13px;line-height:1.3}
+  .d-hit{background:var(--red)} .d-fld{background:var(--grass)} .d-thr{background:var(--sky)} .d-run{background:var(--amber)} .d-cond{background:var(--dirt)} .d-game{background:var(--ink)}
+
+  /* CENTER: TIMELINE */
+  .plan-head{padding:18px 20px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--hair2)}
+  .plan-title{font-family:'Space Grotesk';font-size:20px;font-weight:600;letter-spacing:-.02em}
+  .plan-when{font-size:12.5px;color:var(--ink3);font-family:'JetBrains Mono';margin-top:2px}
+  .plan-badges{display:flex;gap:5px;margin-top:6px}
+  .plan-badge{padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700;letter-spacing:.4px}
+  .badge-ai{background:var(--ink);color:#fff}
+  .badge-pub{background:var(--grass-dim);color:var(--grass)}
+  .plan-head .act{margin-left:auto;display:flex;gap:6px}
+  .plan-head .btn{padding:7px 11px}
+  .plan-head .btn.sec{background:var(--card);border:1px solid var(--hair);color:var(--ink2)}
+  .plan-head .btn.pri{background:var(--ink);color:#fff}
+
+  .plan-totals{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-bottom:1px solid var(--hair2)}
+  .pt{padding:12px 16px;border-right:1px solid var(--hair2)}
+  .pt:last-child{border-right:none}
+  .pt .l{font-size:9.5px;font-weight:700;color:var(--ink3);letter-spacing:.8px;text-transform:uppercase}
+  .pt .v{font-family:'JetBrains Mono';font-size:17px;font-weight:600;margin-top:3px}
+  .pt .v.sub{color:var(--ink3);font-size:11px;font-weight:500;margin-left:4px}
+
+  /* TIMELINE STRIP */
+  .tl{padding:16px 20px 8px;position:relative}
+  .tl-rule{display:flex;justify-content:space-between;padding-left:68px;font-family:'JetBrains Mono';font-size:10px;color:var(--ink3);font-weight:600;margin-bottom:6px}
+  .tl-bar{position:relative;height:44px;background:var(--paper);border-radius:6px;display:grid;grid-template-columns:1.25fr 1fr 1.5fr 1.75fr 1.5fr .75fr;overflow:hidden;border:1px solid var(--hair2)}
+  .tl-seg{border-right:1px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;color:#fff;font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:0 6px;text-align:center;line-height:1.15}
+  .tl-seg:last-child{border-right:none}
+  .tl-s-warm{background:var(--amber)}
+  .tl-s-throw{background:var(--sky)}
+  .tl-s-fld{background:var(--grass)}
+  .tl-s-bat{background:var(--red)}
+  .tl-s-game{background:var(--ink)}
+  .tl-s-cool{background:var(--dirt)}
+
+  /* BLOCKS */
+  .blocks{padding:8px 20px 20px}
+  .block{display:flex;gap:12px;padding:12px 0;border-bottom:1px dashed var(--hair)}
+  .block:last-child{border:none;padding-bottom:0}
+  .blk-time{width:56px;flex-shrink:0;padding-top:6px}
+  .blk-start{font-family:'JetBrains Mono';font-size:12px;font-weight:700;color:var(--ink)}
+  .blk-dur{font-family:'JetBrains Mono';font-size:10.5px;color:var(--ink3);font-weight:600;margin-top:2px}
+  .blk-body{flex:1;padding:10px 14px;background:var(--paper);border-radius:10px;border-left:3px solid var(--ink);min-width:0}
+  .blk-body.hit{border-left-color:var(--red)}
+  .blk-body.throw{border-left-color:var(--sky)}
+  .blk-body.fld{border-left-color:var(--grass)}
+  .blk-body.warm{border-left-color:var(--amber)}
+  .blk-body.game{border-left-color:var(--ink)}
+  .blk-body.cool{border-left-color:var(--dirt)}
+  .blk-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .blk-cat{font-size:9.5px;font-weight:700;color:var(--ink3);letter-spacing:.8px;text-transform:uppercase}
+  .blk-name{font-family:'Space Grotesk';font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .blk-focus{font-size:11px;color:var(--ink3);margin-top:4px;font-style:italic}
+  .blk-meta{display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;font-size:11px;color:var(--ink2)}
+  .blk-meta b{color:var(--ink);font-weight:600}
+  .blk-meta .grp{display:flex;gap:3px}
+  .sml-av{width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:8.5px;font-weight:700;border:1.5px solid var(--card);margin-left:-4px}
+  .sml-av:first-child{margin-left:0}
+  .blk-act{margin-left:auto;display:flex;gap:4px}
+  .blk-act button{color:var(--ink3);padding:4px 6px;border-radius:5px;font-size:12px}
+  .blk-act button:hover{background:var(--card);color:var(--ink)}
+
+  .blk-add{padding:10px;text-align:center;border:2px dashed var(--hair);border-radius:10px;font-size:12px;color:var(--ink3);font-weight:500;margin-top:6px;cursor:pointer}
+  .blk-add:hover{border-color:var(--ink3);color:var(--ink2);background:var(--card)}
+
+  /* AI COMPOSER / RIGHT COL */
+  .ai{background:var(--ink);color:#fff;border-radius:14px;padding:18px;position:relative;overflow:hidden}
+  .ai::before{content:'';position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(200,58,58,.25),transparent 70%)}
+  .ai-pill{position:relative;display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.1);font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--red)}
+  .ai-pill::before{content:'';width:5px;height:5px;border-radius:3px;background:var(--red)}
+  .ai h4{position:relative;font-family:'Space Grotesk';font-size:15px;font-weight:600;margin:8px 0 10px;line-height:1.3}
+  .ai-prompt{position:relative;padding:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;font-size:12px;color:rgba(255,255,255,.85);line-height:1.5;margin-bottom:8px}
+  .ai-prompt b{color:#fff}
+  .ai-ideas{position:relative;display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+  .ai-idea{padding:8px 10px;background:rgba(255,255,255,.04);border-radius:7px;font-size:11.5px;color:rgba(255,255,255,.8);cursor:pointer}
+  .ai-idea:hover{background:rgba(255,255,255,.09);color:#fff}
+  .ai input{position:relative;width:100%;padding:9px 11px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#fff;font-family:inherit;font-size:12px;outline:none}
+
+  .avail-list{display:flex;flex-direction:column}
+  .avail{display:flex;align-items:center;gap:9px;padding:9px 16px;font-size:12.5px;border-bottom:1px solid var(--hair2)}
+  .avail:last-child{border:none}
+  .avail .av{width:24px;height:24px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:9.5px;font-weight:700;flex-shrink:0}
+  .avail .n{flex:1;font-weight:500}
+  .avail .pos{font-family:'JetBrains Mono';font-size:10.5px;color:var(--ink3)}
+  .avail .dot{width:7px;height:7px;border-radius:4px}
+  .dot-ok{background:var(--grass)} .dot-q{background:var(--amber)} .dot-out{background:var(--red)}
+  .avail.out{opacity:.55}
+
+  .c-red{background:var(--red)} .c-sky{background:var(--sky)} .c-grass{background:var(--grass)} .c-dirt{background:var(--dirt)} .c-gold{background:var(--gold)} .c-amber{background:var(--amber)} .c-ink{background:var(--ink)} .c-ink2{background:var(--ink2)}
+
+  /* FIELD MAP */
+  .field{padding:14px}
+  .field-svg{width:100%;aspect-ratio:1;background:radial-gradient(ellipse at 50% 70%, var(--grass-dim), var(--paper-deep));border-radius:10px;position:relative;overflow:hidden}
+  .fz{position:absolute;padding:5px 8px;background:rgba(255,255,255,.92);border-radius:6px;font-size:10px;font-weight:700;color:var(--ink);line-height:1.3;border-left:3px solid;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .fz .s{font-family:'JetBrains Mono';font-size:9px;color:var(--ink3);font-weight:600}
+
+  /* PHONE (field runner) */
+  .phone-wrap{margin-top:22px;padding:26px;background:linear-gradient(135deg,var(--ink),#191e26);border-radius:16px;display:flex;gap:30px;align-items:center;position:relative;overflow:hidden}
+  .phone-wrap::before{content:'';position:absolute;top:-60px;right:-30px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(200,58,58,.2),transparent 70%)}
+  .phone-copy{flex:1;color:#fff;position:relative}
+  .phone-copy .pill{display:inline-block;padding:4px 10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:999px;font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--red);margin-bottom:12px}
+  .phone-copy h3{font-family:'Space Grotesk';font-size:22px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px;line-height:1.2}
+  .phone-copy p{color:rgba(255,255,255,.7);font-size:13px;line-height:1.6;max-width:420px}
+  .phone-copy ul{list-style:none;display:flex;flex-direction:column;gap:6px;font-size:12px;color:rgba(255,255,255,.72);margin-top:14px}
+  .phone-copy ul li{display:flex;gap:8px;align-items:flex-start}
+  .phone-copy ul li::before{content:'';width:5px;height:5px;border-radius:3px;background:var(--red);margin-top:7px;flex-shrink:0}
+
+  .phone{width:260px;background:#000;border-radius:36px;padding:8px;box-shadow:0 24px 60px rgba(0,0,0,.4);flex-shrink:0;position:relative}
+  .phone-screen{background:var(--paper);border-radius:30px;overflow:hidden;aspect-ratio:9/19.5;position:relative}
+  .ph-st{height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-family:'JetBrains Mono';font-size:11px;font-weight:600}
+  .ph-st .notch{position:absolute;left:50%;transform:translateX(-50%);width:78px;height:22px;background:#000;border-radius:0 0 14px 14px}
+
+  .fr-head{padding:12px 16px 14px;background:var(--card);border-bottom:1px solid var(--hair)}
+  .fr-pre{font-size:10px;font-weight:700;color:var(--ink3);letter-spacing:.8px;text-transform:uppercase}
+  .fr-t{font-family:'Space Grotesk';font-size:17px;font-weight:600;line-height:1.15;margin-top:3px}
+  .fr-sub{font-size:10.5px;color:var(--ink3);font-family:'JetBrains Mono';margin-top:3px}
+
+  .fr-timer{padding:18px;background:linear-gradient(135deg,var(--red-soft),var(--paper));text-align:center;position:relative}
+  .fr-timer .l{font-size:9.5px;font-weight:700;color:var(--red);letter-spacing:.8px;text-transform:uppercase}
+  .fr-timer .v{font-family:'Space Grotesk';font-size:48px;font-weight:700;letter-spacing:-.04em;line-height:1;margin-top:4px;color:var(--ink)}
+  .fr-timer .sub{font-size:10.5px;color:var(--ink3);font-family:'JetBrains Mono';margin-top:3px}
+  .fr-bar{height:4px;background:rgba(200,58,58,.15);border-radius:2px;margin-top:10px;overflow:hidden}
+  .fr-bar .fill{height:100%;background:var(--red);border-radius:2px;width:58%}
+
+  .fr-nowup{padding:12px 16px;background:var(--card)}
+  .fr-l{font-size:9px;font-weight:700;color:var(--ink3);letter-spacing:.8px;text-transform:uppercase;margin-bottom:7px}
+  .fr-groups{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .fr-g{padding:8px;background:var(--paper);border-radius:7px;border-left:2.5px solid var(--red)}
+  .fr-g.b{border-left-color:var(--sky)}
+  .fr-g .gh{font-size:9.5px;font-weight:700;color:var(--ink3);letter-spacing:.4px;text-transform:uppercase}
+  .fr-g .gp{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
+  .fr-g .gp .av{width:18px;height:18px;border-radius:9px;font-size:8px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center}
+
+  .fr-notes{padding:12px 16px;background:var(--paper)}
+  .fr-notes .txt{font-size:11.5px;color:var(--ink2);line-height:1.45;padding:8px;background:var(--card);border-radius:7px;border-left:2px solid var(--ink)}
+  .fr-next{padding:12px 16px;background:var(--card);border-top:1px solid var(--hair);display:flex;align-items:center;gap:9px}
+  .fr-next-ic{width:22px;height:22px;border-radius:11px;background:var(--paper-deep);display:flex;align-items:center;justify-content:center;color:var(--ink3);font-size:11px;flex-shrink:0}
+  .fr-next .n{font-size:10.5px;color:var(--ink3);font-weight:600}
+  .fr-next .nv{font-family:'Space Grotesk';font-size:13px;font-weight:600}
+  .fr-next .when{margin-left:auto;font-family:'JetBrains Mono';font-size:11px;font-weight:700;color:var(--ink)}
+
+  .fr-btns{padding:10px 16px 14px;display:flex;gap:6px;background:var(--card)}
+  .fr-btn{flex:1;padding:10px 8px;border-radius:8px;font-size:11.5px;font-weight:700;text-align:center;letter-spacing:.3px}
+  .fr-btn.sec{background:var(--paper);border:1px solid var(--hair);color:var(--ink2)}
+  .fr-btn.pri{background:var(--red);color:#fff;flex:2}
+
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <a href="Rostr Coach Hub.html" class="brand"><span class="brand-m">R</span><span style="font-size:16px">rostr</span></a>
+  <div class="ctx"><span>Lincoln HS · Varsity</span> <span style="color:rgba(255,255,255,.3)">›</span> <b>Practice</b> <span style="color:rgba(255,255,255,.3)">·</span> <span class="mono" style="font-size:11.5px">Wed Apr 22</span></div>
+  <div class="bar-actions">
+    <button class="btn ghost">Duplicate</button>
+    <button class="btn ghost">Templates</button>
+    <button class="btn primary">Publish to team</button>
+  </div>
+</header>
+
+<div class="content">
+  <div class="th">
+    <div>
+      <h1>Practice planner</h1>
+      <div class="sub">Build today's practice. Drag drills from the library, rearrange blocks, assign groups.</div>
+      <div class="meta">
+        <span class="pill">● DRAFT</span>
+        <span>Last edited 12m ago · Coach Ruiz</span>
+        <span style="color:var(--ink4)">·</span>
+        <span>2 coaches viewing</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn" style="background:var(--card);border:1px solid var(--hair);color:var(--ink2)">← Previous: Apr 19</button>
+      <button class="btn" style="background:var(--card);border:1px solid var(--hair);color:var(--ink2)">Next: Apr 24 →</button>
+    </div>
+  </div>
+
+  <div class="layout">
+
+    <!-- LEFT: DRILL LIBRARY -->
+    <div class="panel" style="align-self:start">
+      <div class="phead"><h3>Drill library</h3><span class="ct">214 DRILLS</span></div>
+      <div class="lib-search">
+        <input placeholder="Search drills, focus…" />
+      </div>
+      <div style="display:flex;gap:3px;padding:4px 14px 10px;flex-wrap:wrap">
+        <button style="padding:4px 8px;border-radius:999px;background:var(--ink);color:#fff;font-size:10.5px;font-weight:600">All</button>
+        <button style="padding:4px 8px;border-radius:999px;background:var(--paper);color:var(--ink2);font-size:10.5px;font-weight:600">Hitting</button>
+        <button style="padding:4px 8px;border-radius:999px;background:var(--paper);color:var(--ink2);font-size:10.5px;font-weight:600">Fielding</button>
+        <button style="padding:4px 8px;border-radius:999px;background:var(--paper);color:var(--ink2);font-size:10.5px;font-weight:600">Throwing</button>
+        <button style="padding:4px 8px;border-radius:999px;background:var(--paper);color:var(--ink2);font-size:10.5px;font-weight:600">Base run</button>
+      </div>
+
+      <div class="lib-cat">Hitting · 42</div>
+      <div class="drill">
+        <div class="drill-top"><span class="drill-dot d-hit"></span><span class="drill-t">Tee work — inside/outside</span><span class="drill-dur">15m</span></div>
+        <div class="drill-m">3 stations · 30 reps/ea</div>
+      </div>
+      <div class="drill">
+        <div class="drill-top"><span class="drill-dot d-hit"></span><span class="drill-t">Front toss — two strikes</span><span class="drill-dur">20m</span></div>
+        <div class="drill-m">Focus: shorten up, battle</div>
+      </div>
+      <div class="drill">
+        <div class="drill-top"><span class="drill-dot d-hit"></span><span class="drill-t">Machine BP — offspeed</span><span class="drill-dur">25m</span></div>
+        <div class="drill-m">Cage 2 · 60 mph · slider</div>
+      </div>
+
+      <div class="lib-cat">Fielding · 58</div>
+      <div class="drill">
+        <div class="drill-top"><span class="drill-dot d-fld"></span><span class="drill-t">Infield groundballs</span><span class="drill-dur">20m</span></div>
+        <div class="drill-m">Short hop, backhand, slow roller</div>
+      </div>
+      <div class="drill">
+        <div class="drill-top"><span class="drill-dot d-fld"></span><span class="drill-t">Double play turn — 6 to 4</span><span class="drill-dur">15m</span></div>
+        <div class="drill-m">Footwork + exchange</div>
+      </div>
+      <div class="drill">
+        <div class="drill-top"><span class="drill-dot d-fld"></span><span class="drill-t">Outfield crossover + read</span><span class="drill-dur">15m</span></div>
+        <div class="drill-m">Fly ball reads, tracking</div>
+      </div>
+
+      <div class="lib-cat">Throwing / pitching · 34</div>
+      <div class="drill">
+        <div class="drill-top"><span class="drill-dot d-thr"></span><span class="drill-t">Long toss progression</span><span class="drill-dur">12m</span></div>
+        <div class="drill-m">45 → 90 → 120 ft</div>
+      </div>
+      <div class="drill">
+        <div class="drill-top"><span class="drill-dot d-thr"></span><span class="drill-t">Bullpen — 25 pitch</span><span class="drill-dur">15m</span></div>
+        <div class="drill-m">Peña, Riggs, Washington</div>
+      </div>
+
+      <div class="lib-cat">Base running · 18</div>
+      <div class="drill">
+        <div class="drill-top"><span class="drill-dot d-run"></span><span class="drill-t">Secondary leads + read</span><span class="drill-dur">10m</span></div>
+        <div class="drill-m">1st → 2nd on contact</div>
+      </div>
+
+      <div class="lib-cat">Conditioning · 12</div>
+      <div class="drill">
+        <div class="drill-top"><span class="drill-dot d-cond"></span><span class="drill-t">Pole to pole x 4</span><span class="drill-dur">8m</span></div>
+        <div class="drill-m">50% · 75% · 90% · 100%</div>
+      </div>
+    </div>
+
+    <!-- CENTER: PLAN -->
+    <div style="display:flex;flex-direction:column;gap:22px">
+      <div class="panel">
+        <div class="plan-head">
+          <div>
+            <div class="plan-title">Wed · Apr 22 · Full practice</div>
+            <div class="plan-when">3:30 PM – 5:30 PM · Main field + Cage 2 · 22 players</div>
+            <div class="plan-badges">
+              <span class="plan-badge badge-ai">● AI DRAFTED</span>
+              <span class="plan-badge badge-pub">READY TO PUBLISH</span>
+            </div>
+          </div>
+          <div class="act">
+            <button class="btn sec">Preview</button>
+            <button class="btn pri">Save plan</button>
+          </div>
+        </div>
+
+        <div class="plan-totals">
+          <div class="pt"><div class="l">Total time</div><div class="v">2:00 <span class="sub">hrs</span></div></div>
+          <div class="pt"><div class="l">Swings</div><div class="v">~450</div></div>
+          <div class="pt"><div class="l">Ground balls</div><div class="v">~180</div></div>
+          <div class="pt"><div class="l">Throws logged</div><div class="v">~220</div></div>
+        </div>
+
+        <div class="tl">
+          <div class="tl-rule"><span>3:30</span><span>4:00</span><span>4:30</span><span>5:00</span><span>5:30</span></div>
+          <div class="tl-bar" style="margin-left:68px">
+            <div class="tl-seg tl-s-warm">Warm</div>
+            <div class="tl-seg tl-s-throw">Throw</div>
+            <div class="tl-seg tl-s-fld">Fielding</div>
+            <div class="tl-seg tl-s-bat">Hitting</div>
+            <div class="tl-seg tl-s-game">Situational</div>
+            <div class="tl-seg tl-s-cool">Cool</div>
+          </div>
+        </div>
+
+        <div class="blocks">
+          <div class="block">
+            <div class="blk-time"><div class="blk-start">3:30</div><div class="blk-dur">15 min</div></div>
+            <div class="blk-body warm">
+              <div class="blk-head">
+                <span class="blk-cat">WARM-UP</span>
+                <span class="blk-name">Dynamic warm + band work</span>
+                <div class="blk-act"><button>⋯</button></div>
+              </div>
+              <div class="blk-focus">J-bands, hip openers, leg swings. Then 3 laps at 60%.</div>
+              <div class="blk-meta">
+                <span><b>Whole team</b></span>
+                <span>Field: <b>Main</b></span>
+                <span>Lead: <b>Coach Park</b></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <div class="blk-time"><div class="blk-start">3:45</div><div class="blk-dur">12 min</div></div>
+            <div class="blk-body throw">
+              <div class="blk-head">
+                <span class="blk-cat">THROWING</span>
+                <span class="blk-name">Long toss progression — 45/90/120 ft</span>
+                <div class="blk-act"><button>⋯</button></div>
+              </div>
+              <div class="blk-focus">Crisp rotations. Build intent. Short arm slot on low tosses.</div>
+              <div class="blk-meta">
+                <span><b>Whole team, partners</b></span>
+                <span>Reps: <b>~35 throws each</b></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <div class="blk-time"><div class="blk-start">3:57</div><div class="blk-dur">20 min</div></div>
+            <div class="blk-body fld">
+              <div class="blk-head">
+                <span class="blk-cat">FIELDING · SPLIT</span>
+                <span class="blk-name">Infield groundballs / Outfield crossover + read</span>
+                <div class="blk-act"><button>⋯</button></div>
+              </div>
+              <div class="blk-focus">Focus on the short hop + backhand for IF. Fly ball tracking for OF.</div>
+              <div class="blk-meta">
+                <span>Group A (IF):
+                  <span class="grp"><span class="sml-av c-sky">JK</span><span class="sml-av c-grass">DB</span><span class="sml-av c-ink2">SH</span><span class="sml-av c-red">EL</span></span>
+                </span>
+                <span>Group B (OF):
+                  <span class="grp"><span class="sml-av c-ink">MJ</span><span class="sml-av c-red">NP</span><span class="sml-av c-gold">JB</span></span>
+                </span>
+                <span>Lead: <b>Ruiz + Park</b></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <div class="blk-time"><div class="blk-start">4:17</div><div class="blk-dur">28 min</div></div>
+            <div class="blk-body hit">
+              <div class="blk-head">
+                <span class="blk-cat">HITTING · 3 STATIONS ROTATING</span>
+                <span class="blk-name">Tee inside/out → Front toss 2K → Machine BP</span>
+                <div class="blk-act"><button>⋯</button></div>
+              </div>
+              <div class="blk-focus">Each group 9 min per station. Reinforce 2-strike approach — shorten up.</div>
+              <div class="blk-meta">
+                <span>Station 1 tee · <b>Main cage</b></span>
+                <span>Station 2 front toss · <b>Cage 2</b></span>
+                <span>Station 3 machine · <b>60mph slider</b></span>
+                <span style="width:100%;color:var(--ink3);margin-top:4px">Pitchers excluded — bullpen runs parallel</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <div class="blk-time"><div class="blk-start">4:45</div><div class="blk-dur">15 min</div></div>
+            <div class="blk-body throw">
+              <div class="blk-head">
+                <span class="blk-cat">BULLPEN (PARALLEL)</span>
+                <span class="blk-name">25-pitch bullpen — Peña, Riggs, Washington</span>
+                <div class="blk-act"><button>⋯</button></div>
+              </div>
+              <div class="blk-focus">Mix FB/CH/SL 60/25/15. Log pitch count in Rostr.</div>
+              <div class="blk-meta">
+                <span class="grp"><span class="sml-av c-sky">CP</span><span class="sml-av c-dirt">AR</span><span class="sml-av c-grass">MW</span></span>
+                <span>Catcher: <b>Mbeki</b></span>
+                <span>Lead: <b>Coach Vega</b></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <div class="blk-time"><div class="blk-start">5:00</div><div class="blk-dur">22 min</div></div>
+            <div class="blk-body game">
+              <div class="blk-head">
+                <span class="blk-cat">SITUATIONAL</span>
+                <span class="blk-name">Live defense — 1st &amp; 3rd, runner at 2nd</span>
+                <div class="blk-act"><button>⋯</button></div>
+              </div>
+              <div class="blk-focus">Working the problem we saw vs. Westside — cutoffs + relay reads.</div>
+              <div class="blk-meta">
+                <span><b>Whole team</b> · 3 innings</span>
+                <span>Scoreboard: <b>OFF</b> (teaching)</span>
+                <span>Lead: <b>Coach Ruiz</b></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <div class="blk-time"><div class="blk-start">5:22</div><div class="blk-dur">8 min</div></div>
+            <div class="blk-body cool">
+              <div class="blk-head">
+                <span class="blk-cat">COOL-DOWN</span>
+                <span class="blk-name">Pole to pole x4 + stretch</span>
+                <div class="blk-act"><button>⋯</button></div>
+              </div>
+              <div class="blk-focus">50 / 75 / 90 / 100% intent. Team huddle to close.</div>
+            </div>
+          </div>
+
+          <div class="blk-add">＋ Drop a drill here, or type a block</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div style="display:flex;flex-direction:column;gap:22px">
+      <div class="ai">
+        <div class="ai-pill">AI co-coach</div>
+        <h4>Draft a practice for me.</h4>
+        <div class="ai-prompt">
+          Generated this plan from: "<b>We lost 4-2 to Westside. Struggled with cutoffs. Peña and Riggs need bullpen.</b>"
+        </div>
+        <div class="ai-ideas">
+          <div class="ai-idea">→ Add more 2-strike situational hitting?</div>
+          <div class="ai-idea">→ Cut the cool-down to 5m, add a run-down block?</div>
+          <div class="ai-idea">→ Shift to Tue–Thu split practice?</div>
+        </div>
+        <input placeholder="Ask or adjust the plan…" />
+      </div>
+
+      <div class="panel">
+        <div class="phead"><h3>Availability</h3><span class="ct">19 / 22</span></div>
+        <div class="avail-list">
+          <div class="avail"><div class="av c-ink">MJ</div><div class="n">Marcus Johnson</div><div class="pos">CF</div><div class="dot dot-ok"></div></div>
+          <div class="avail"><div class="av c-sky">JK</div><div class="n">Jordan Kim</div><div class="pos">SS</div><div class="dot dot-q"></div></div>
+          <div class="avail"><div class="av c-dirt">AR</div><div class="n">Alex Riggs</div><div class="pos">P/1B</div><div class="dot dot-ok"></div></div>
+          <div class="avail out"><div class="av c-grass">DB</div><div class="n">DeAndre Brooks</div><div class="pos">2B</div><div class="dot dot-out"></div></div>
+          <div class="avail"><div class="av c-amber">TM</div><div class="n">Tre Mbeki</div><div class="pos">C</div><div class="dot dot-ok"></div></div>
+          <div class="avail"><div class="av c-red">NP</div><div class="n">Noah Patel</div><div class="pos">RF</div><div class="dot dot-q"></div></div>
+          <div class="avail"><div class="av c-sky">CP</div><div class="n">Carlos Peña</div><div class="pos">P</div><div class="dot dot-ok"></div></div>
+          <div class="avail out"><div class="av c-ink2">SH</div><div class="n">Sean Hale</div><div class="pos">3B</div><div class="dot dot-out"></div></div>
+        </div>
+        <div style="padding:10px 16px;border-top:1px solid var(--hair2);font-size:11.5px;color:var(--ink3);display:flex;justify-content:space-between">
+          <span><b style="color:var(--grass)">●</b> 17 available · <b style="color:var(--amber)">●</b> 2 limited · <b style="color:var(--red)">●</b> 3 out</span>
+          <a style="color:var(--ink);font-weight:600">All →</a>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="phead"><h3>Field usage</h3><span class="ct">5 ZONES</span></div>
+        <div class="field">
+          <div class="field-svg">
+            <svg width="100%" height="100%" viewBox="0 0 300 300" preserveAspectRatio="none">
+              <path d="M 150 270 L 40 160 L 150 50 L 260 160 Z" fill="rgba(47,125,79,.2)" stroke="rgba(255,255,255,.3)" stroke-width="1"/>
+              <circle cx="150" cy="200" r="32" fill="rgba(179,122,76,.35)"/>
+              <circle cx="150" cy="220" r="3" fill="var(--ink)"/>
+            </svg>
+            <div class="fz" style="top:62%;left:39%;border-color:var(--grass)">IF work<div class="s">20m · 4 players</div></div>
+            <div class="fz" style="top:20%;left:45%;border-color:var(--red)">OF reads<div class="s">20m · 3 players</div></div>
+            <div class="fz" style="top:75%;left:8%;border-color:var(--sky)">Bullpen<div class="s">15m · 3 P</div></div>
+            <div class="fz" style="top:78%;right:6%;border-color:var(--amber)">Cage 1/2<div class="s">28m · rotating</div></div>
+            <div class="fz" style="top:10%;left:12%;border-color:var(--dirt)">Foul pole<div class="s">8m · cool-down</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FIELD RUNNER MOBILE -->
+  <div class="phone-wrap">
+    <div class="phone-copy">
+      <span class="pill">Field runner</span>
+      <h3>On the field, your phone is the practice plan.</h3>
+      <p>When a practice is active, every coach's phone follows along: current block with countdown, who's in which group, notes for the drill, next block queued up.</p>
+      <ul>
+        <li>Big countdown timer you can see from across the outfield</li>
+        <li>Tap to advance to the next block — everyone's screen updates</li>
+        <li>Dictate a mid-drill note; auto-tagged to the player or block</li>
+        <li>Roster breakouts — each group shows only the kids they need to watch</li>
+      </ul>
+    </div>
+
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="ph-st" style="background:var(--card);position:relative"><span>4:23</span><div class="notch"></div><span>●●●●</span></div>
+        <div class="fr-head">
+          <div class="fr-pre">BLOCK 4 OF 7 · HITTING</div>
+          <div class="fr-t">Tee → Front toss → Machine</div>
+          <div class="fr-sub">3 stations · 9m each · Cage 2</div>
+        </div>
+
+        <div class="fr-timer">
+          <div class="l">ROTATE IN</div>
+          <div class="v">3:47</div>
+          <div class="sub">station 2 of 3 · group B hitting</div>
+          <div class="fr-bar"><div class="fill"></div></div>
+        </div>
+
+        <div class="fr-nowup">
+          <div class="fr-l">NOW UP</div>
+          <div class="fr-groups">
+            <div class="fr-g"><div class="gh">Group A · tee</div><div class="gp"><span class="av c-ink">MJ</span><span class="av c-sky">JK</span><span class="av c-dirt">AR</span><span class="av c-amber">TM</span></div></div>
+            <div class="fr-g b"><div class="gh">Group B · toss</div><div class="gp"><span class="av c-red">NP</span><span class="av c-grass">DB</span><span class="av c-ink2">SH</span><span class="av c-gold">JB</span></div></div>
+          </div>
+        </div>
+
+        <div class="fr-notes">
+          <div class="fr-l">COACH NOTE</div>
+          <div class="txt">2-strike approach — shorten up, foul off the pitcher's pitch until you get yours.</div>
+        </div>
+
+        <div class="fr-next">
+          <div class="fr-next-ic">⏭</div>
+          <div><div class="n">NEXT</div><div class="nv">Bullpen · 25-pitch</div></div>
+          <div class="when">4:45</div>
+        </div>
+
+        <div class="fr-btns">
+          <button class="fr-btn sec">＋ Note</button>
+          <button class="fr-btn pri">Advance →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
