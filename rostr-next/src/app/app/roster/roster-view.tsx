@@ -19,6 +19,7 @@ import { Chip } from "@/components/atoms/chip";
 import { comingSoon } from "@/lib/coming-soon";
 import { LevelPill } from "@/components/atoms/level-pill";
 import { cn } from "@/lib/utils";
+import { AddPlayerModal } from "@/components/organisms/add-player-modal";
 import {
   type AvailabilityStatus,
   type ProfileStatus,
@@ -35,6 +36,7 @@ export function RosterView({ players: MOCK_PLAYERS }: { players: MockPlayer[] })
   const router = useRouter();
   const [levelFilter, setLevelFilter] = useState<"all" | RosterLevel>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [addOpen, setAddOpen] = useState(false);
   const [filters] = useState([
     { key: "class", label: "Class: Any" },
     { key: "position", label: "Position: Any" },
@@ -74,7 +76,7 @@ export function RosterView({ players: MOCK_PLAYERS }: { players: MockPlayer[] })
           { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
           { kind: "ghost", label: "Export", icon: <Download className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Export roster", "GameChanger + MaxPreps CSV out — next sprint.") },
           { kind: "ghost", label: "Import", icon: <Upload className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Import wizard", "Upload → map → levels → invite → review modal — next sprint.") },
-          { kind: "primary", label: "Add player", icon: <Plus className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Add player", "Manual-add form — next sprint.") },
+          { kind: "primary", label: "Add player", icon: <Plus className="w-[15px] h-[15px]" />, onClick: () => setAddOpen(true) },
         ]}
       />
       <div className="flex-1 overflow-auto px-8 pt-7 pb-12">
@@ -262,6 +264,8 @@ export function RosterView({ players: MOCK_PLAYERS }: { players: MockPlayer[] })
           </div>
         </div>
       </div>
+
+      <AddPlayerModal open={addOpen} onOpenChange={setAddOpen} />
     </>
   );
 }

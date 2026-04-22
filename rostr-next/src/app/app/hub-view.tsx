@@ -29,6 +29,8 @@ import {
   type MockScheduleItem,
   type MockPlayer,
 } from "@/lib/mock-data";
+import { useState } from "react";
+import { AddPlayerModal } from "@/components/organisms/add-player-modal";
 
 interface HubViewProps {
   greetingName: string;
@@ -61,6 +63,7 @@ export function HubView({
 }: HubViewProps) {
   const MOCK_WEEK = weekItems;
   const PLAYERS_FOR_AVAIL = availabilityPlayers;
+  const [addPlayerOpen, setAddPlayerOpen] = useState(false);
 
   function greeting() {
     const h = new Date().getHours();
@@ -155,13 +158,15 @@ export function HubView({
             {/* SIDE COLUMN */}
             <div className="flex flex-col gap-[18px]">
               <AICoachCard />
-              <QuickActionsPanel />
+              <QuickActionsPanel onAddPlayer={() => setAddPlayerOpen(true)} />
               <MessagesPanel />
               <PlayerSpotlightPanel />
             </div>
           </div>
         </div>
       </div>
+
+      <AddPlayerModal open={addPlayerOpen} onOpenChange={setAddPlayerOpen} />
     </>
   );
 }
@@ -459,9 +464,12 @@ function AICoachCard() {
   );
 }
 
-function QuickActionsPanel() {
-  const actions = [
-    { ic: "+", t: "Add player", s: "Manual entry", href: "/app/roster" },
+function QuickActionsPanel({ onAddPlayer }: { onAddPlayer: () => void }) {
+  const actions: Array<
+    | { ic: string; t: string; s: string; href: string; onClick?: never }
+    | { ic: string; t: string; s: string; onClick: () => void; href?: never }
+  > = [
+    { ic: "+", t: "Add player", s: "Manual entry", onClick: onAddPlayer },
     { ic: "↑", t: "Import CSV", s: "GC / MaxPreps", href: "/app/roster?import=1" },
     { ic: "◼", t: "New tryout", s: "Spring '26", href: "/app/tryouts" },
     { ic: "✎", t: "Post update", s: "Team · Parents", href: "/app/messages" },
@@ -470,17 +478,29 @@ function QuickActionsPanel() {
     <Panel>
       <PanelHead title="Quick actions" />
       <div className="grid grid-cols-2 gap-2 p-[14px]">
-        {actions.map((q, i) => (
-          <Link
-            key={i}
-            href={q.href}
-            className="flex flex-col gap-1 p-[14px_12px] border border-hair rounded-md bg-card text-left hover:border-ink hover:-translate-y-px transition-all"
-          >
-            <span className="font-display text-[18px] font-bold text-red leading-none">{q.ic}</span>
-            <span className="mt-1 text-[12.5px] font-semibold">{q.t}</span>
-            <span className="text-[10.5px] text-ink-3">{q.s}</span>
-          </Link>
-        ))}
+        {actions.map((q, i) => {
+          const klass =
+            "flex flex-col gap-1 p-[14px_12px] border border-hair rounded-md bg-card text-left hover:border-ink hover:-translate-y-px transition-all";
+          const inner = (
+            <>
+              <span className="font-display text-[18px] font-bold text-red leading-none">{q.ic}</span>
+              <span className="mt-1 text-[12.5px] font-semibold">{q.t}</span>
+              <span className="text-[10.5px] text-ink-3">{q.s}</span>
+            </>
+          );
+          if (q.href) {
+            return (
+              <Link key={i} href={q.href} className={klass}>
+                {inner}
+              </Link>
+            );
+          }
+          return (
+            <button key={i} onClick={q.onClick} className={klass}>
+              {inner}
+            </button>
+          );
+        })}
       </div>
     </Panel>
   );
