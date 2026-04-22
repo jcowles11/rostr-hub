@@ -10,11 +10,11 @@ import {
   Settings,
 } from "lucide-react";
 import { AppSidebar, type NavSection } from "@/components/organisms/app-sidebar";
+import { getSessionUser, displayName, initialsFrom } from "@/lib/auth";
 
 /**
  * /app layout — authenticated coach workspace.
  * Sidebar nav structure lives here so every /app/* route inherits it.
- * Real team/user data will come from Supabase; this is placeholder.
  */
 const SECTIONS: NavSection[] = [
   {
@@ -43,21 +43,31 @@ const SECTIONS: NavSection[] = [
   },
 ];
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const user = await getSessionUser();
+  const name = displayName(user) || "Coach";
+  const programName =
+    (user?.user_metadata?.program_name as string | undefined) ?? "Lincoln HS";
+
   return (
     <div className="grid grid-cols-[220px_1fr] h-screen bg-paper">
       <AppSidebar
         team={{
-          name: "Lincoln HS",
+          name: programName,
           sport: "Baseball",
           level: "Varsity",
           playerCount: 28,
         }}
         sections={SECTIONS}
         user={{
-          name: "Coach Martinez",
-          role: "Head Coach",
-          initials: "CM",
+          name,
+          role:
+            ((user?.user_metadata?.role as string | undefined) === "player"
+              ? "Player"
+              : (user?.user_metadata?.role as string | undefined) === "recruiter"
+                ? "Recruiter"
+                : "Head Coach"),
+          initials: initialsFrom(name),
         }}
       />
       <main className="flex flex-col overflow-hidden">{children}</main>

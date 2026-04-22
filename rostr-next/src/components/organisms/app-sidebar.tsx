@@ -1,8 +1,9 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, LogOut, User as UserIcon, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/atoms/avatar";
 
@@ -122,16 +123,73 @@ export function AppSidebar({ team, sections, user }: AppSidebarProps) {
         ))}
       </nav>
 
-      {/* User card */}
-      <div className="mt-auto pt-3 border-t border-white/10">
-        <div className="flex items-center gap-2.5 p-2">
-          <Avatar size="md" color="dirt" initials={user.initials} />
-          <div className="min-w-0">
-            <div className="text-[13px] font-semibold truncate">{user.name}</div>
-            <div className="text-[10.5px] text-white/55 truncate">{user.role}</div>
-          </div>
-        </div>
-      </div>
+      {/* User menu */}
+      <UserMenu user={user} />
     </aside>
+  );
+}
+
+function UserMenu({ user }: { user: UserContext }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="mt-auto pt-3 border-t border-white/10 relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2.5 p-2 rounded-sm hover:bg-white/5 text-left"
+      >
+        <Avatar size="md" color="dirt" initials={user.initials} />
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-semibold truncate">{user.name}</div>
+          <div className="text-[10.5px] text-white/55 truncate">{user.role}</div>
+        </div>
+        <ChevronDown
+          className={cn(
+            "w-3.5 h-3.5 text-white/55 transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 bottom-full mb-2 bg-card text-ink border border-hair rounded-md shadow-modal overflow-hidden">
+          <Link
+            href="/me"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 px-3 py-2.5 text-[13px] hover:bg-paper"
+          >
+            <UserIcon className="w-3.5 h-3.5 text-ink-3" /> My profile
+          </Link>
+          <Link
+            href="/"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 px-3 py-2.5 text-[13px] hover:bg-paper border-t border-hair-2"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-ink-3" /> Marketing site
+          </Link>
+          <form action="/auth/signout" method="post">
+            <button
+              type="submit"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] hover:bg-red-soft hover:text-red text-left border-t border-hair-2"
+            >
+              <LogOut className="w-3.5 h-3.5" /> Log out
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
   );
 }

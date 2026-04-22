@@ -339,7 +339,7 @@ function Tour() {
     },
   ];
   return (
-    <section className="py-20 bg-card border-y border-hair">
+    <section id="tour" className="py-20 bg-card border-y border-hair scroll-mt-16">
       <div className="max-w-[1240px] mx-auto px-8">
         <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-red mb-3">
           Product tour
@@ -380,7 +380,7 @@ function Audiences() {
     { label: "Recruiters", title: "Source talent from the source", bullets: ["Filter by measurables + class year + region", "Coach-verified data, not self-reported", "Compliance-aware contact routing"] },
   ];
   return (
-    <section className="py-20">
+    <section id="audiences" className="py-20 scroll-mt-16">
       <div className="max-w-[1240px] mx-auto px-8">
         <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-red mb-3">
           Who it&apos;s for
@@ -415,7 +415,7 @@ function Audiences() {
 
 function Flywheel() {
   return (
-    <section className="py-20 bg-card border-y border-hair">
+    <section id="flywheel" className="py-20 bg-card border-y border-hair scroll-mt-16">
       <div className="max-w-[1240px] mx-auto px-8 grid md:grid-cols-[1fr_auto] gap-12 items-center">
         <div className="max-w-[620px]">
           <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-red mb-3">

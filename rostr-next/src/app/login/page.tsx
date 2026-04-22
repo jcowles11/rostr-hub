@@ -1,18 +1,39 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Mail, Lock, ArrowRight } from "lucide-react";
+import { Mail, Lock, ArrowRight, AlertCircle } from "lucide-react";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 /**
- * /login — Auth stub.
- * Wires to "/app" on submit so you can click through. Real auth later.
+ * /login — real Supabase email/password sign-in.
+ * On success redirects to ?next=... or /app.
  */
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next") ?? "/app";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
+    // Full navigation so middleware re-reads the cookie
+    window.location.href = next;
+  };
 
   return (
     <div className="min-h-screen bg-paper flex items-center justify-center p-8">
@@ -32,13 +53,14 @@ export default function LoginPage() {
             Coach, player, or recruiter — one login.
           </p>
 
-          <form
-            className="mt-7 space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              router.push("/app");
-            }}
-          >
+          {error && (
+            <div className="mt-5 flex items-start gap-2 p-3 rounded-sm bg-red-soft text-red text-[12.5px]">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
             <div>
               <label className="type-label mb-1.5 block">Email</label>
               <div className="flex items-center gap-2 bg-paper border border-hair rounded-sm px-3 py-2.5 focus-within:border-red">
@@ -50,6 +72,7 @@ export default function LoginPage() {
                   required
                   placeholder="coach@yourteam.edu"
                   className="flex-1 bg-transparent outline-none text-[13.5px]"
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -64,14 +87,16 @@ export default function LoginPage() {
                   required
                   placeholder="••••••••"
                   className="flex-1 bg-transparent outline-none text-[13.5px]"
+                  autoComplete="current-password"
                 />
               </div>
             </div>
             <button
               type="submit"
-              className="w-full inline-flex items-center justify-center gap-2 h-[44px] bg-ink hover:bg-red text-white rounded-sm text-[14px] font-semibold transition-colors"
+              disabled={loading}
+              className="w-full inline-flex items-center justify-center gap-2 h-[44px] bg-ink hover:bg-red text-white rounded-sm text-[14px] font-semibold transition-colors disabled:opacity-60"
             >
-              Sign in <ArrowRight className="w-4 h-4" />
+              {loading ? "Signing in…" : <>Sign in <ArrowRight className="w-4 h-4" /></>}
             </button>
           </form>
 
@@ -89,7 +114,7 @@ export default function LoginPage() {
           </Link>
         </div>
         <div className="mt-3 text-center text-[12px] text-ink-4">
-          Or claim your player profile with a coach-sent invite link.
+          Players: claim your profile with the invite link your coach sent.
         </div>
       </div>
     </div>
