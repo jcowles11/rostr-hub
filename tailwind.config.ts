@@ -72,11 +72,15 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       boxShadow: {
-        "card": "0 1px 3px 0 hsl(var(--foreground) / 0.04), 0 1px 2px -1px hsl(var(--foreground) / 0.04)",
-        "card-hover": "0 8px 24px -4px hsl(var(--foreground) / 0.1), 0 2px 8px -2px hsl(var(--foreground) / 0.06)",
-        "elevated": "0 12px 32px -6px hsl(var(--foreground) / 0.12), 0 4px 12px -2px hsl(var(--foreground) / 0.06)",
-        "nav": "0 -2px 16px 0 hsl(var(--foreground) / 0.08)",
-        "glow": "0 0 20px 4px hsl(var(--primary) / 0.15)",
+        // Muted, restrained shadows consistent with Direction D aesthetic.
+        // Former `elevated` and `glow` utilities are neutralized — retained as
+        // named classes so existing usages keep compiling, but they no longer
+        // produce showy effects.
+        "card": "0 1px 2px 0 hsl(var(--foreground) / 0.04)",
+        "card-hover": "0 2px 6px -2px hsl(var(--foreground) / 0.08)",
+        "elevated": "none",
+        "nav": "0 -2px 16px 0 hsl(var(--foreground) / 0.06)",
+        "glow": "none",
       },
       keyframes: {
         "accordion-down": {

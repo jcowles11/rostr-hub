@@ -191,49 +191,47 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-lg px-4 pt-4 pb-24 space-y-5 animate-fade-in">
-      {/* Hero */}
-      <div className="page-hero">
-        <div className="flex items-center gap-3">
-          {coach?.logo_url ? (
-            <img src={coach.logo_url} alt="Program logo" className="h-12 w-12 rounded-2xl object-cover" />
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-5">
+        {coach?.logo_url ? (
+          <img src={coach.logo_url} alt="Program logo" className="h-11 w-11 rounded-xl object-cover shrink-0" />
+        ) : (
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
+            <User className="h-5 w-5" />
+          </div>
+        )}
+        <div className="min-w-0">
+          {editingName ? (
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={programName}
+                onChange={(e) => setProgramName(e.target.value)}
+                className="h-8 w-44 text-sm font-bold rounded-lg"
+                autoFocus
+                disabled={savingName}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSaveName();
+                  if (e.key === "Escape") { setEditingName(false); setProgramName(coach?.program_name || ""); }
+                }}
+              />
+              <button onClick={handleSaveName} disabled={savingName} className="p-1 rounded-md text-accent hover:bg-muted">
+                <Check className="h-4 w-4" />
+              </button>
+              <button onClick={() => { setEditingName(false); setProgramName(coach?.program_name || ""); }} className="p-1 rounded-md text-muted-foreground hover:bg-muted">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           ) : (
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 text-white">
-              <User className="h-6 w-6" />
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-[20px] font-extrabold tracking-tight leading-tight truncate">{coach?.program_name || coach?.full_name}</h1>
+              <button onClick={() => setEditingName(true)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
             </div>
           )}
-          <div>
-            {editingName ? (
-              <div className="flex items-center gap-1.5">
-                <Input
-                  value={programName}
-                  onChange={(e) => setProgramName(e.target.value)}
-                  className="h-8 w-40 bg-white/20 border-white/30 text-white placeholder:text-white/50 text-sm font-bold rounded-lg"
-                  autoFocus
-                  disabled={savingName}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleSaveName();
-                    if (e.key === "Escape") { setEditingName(false); setProgramName(coach?.program_name || ""); }
-                  }}
-                />
-                <button onClick={handleSaveName} disabled={savingName} className="p-1 rounded-md hover:bg-white/20 text-white">
-                  <Check className="h-4 w-4" />
-                </button>
-                <button onClick={() => { setEditingName(false); setProgramName(coach?.program_name || ""); }} className="p-1 rounded-md hover:bg-white/20 text-white/70">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-xl font-extrabold text-white">{coach?.program_name || coach?.full_name}</h1>
-                <button onClick={() => setEditingName(true)} className="p-1 rounded-md hover:bg-white/20 text-white/60 hover:text-white transition-colors">
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-            <div className="flex items-center gap-1.5">
-              <Shield className="h-3 w-3 text-white/70" />
-              <span className="text-white/70 text-sm">{coach?.role === "head_coach" ? "Head Coach" : "Assistant Coach"} · {coach?.full_name}</span>
-            </div>
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Shield className="h-3 w-3" />
+            <span className="truncate">{coach?.role === "head_coach" ? "Head Coach" : "Assistant Coach"} · {coach?.full_name}</span>
           </div>
         </div>
       </div>

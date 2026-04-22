@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isAfter, isBefore, startOfDay, addDays } from "date-fns";
+import { PageHeader } from "@/components/ui/layout";
 
 interface PracticePlan {
   id: string;
@@ -161,37 +162,34 @@ export default function SchedulePage() {
 
   return (
     <div className="mx-auto max-w-lg px-4 pt-4 pb-8 animate-fade-in space-y-5">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Schedule</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {upcomingGameCount} game{upcomingGameCount !== 1 ? "s" : ""} · {upcomingPracticeCount} practice{upcomingPracticeCount !== 1 ? "s" : ""} upcoming
-          </p>
-        </div>
-        {isHead && (
-          <div className="flex gap-1.5">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 rounded-xl text-xs font-bold"
-              onClick={() => navigate("/teams")}
-            >
-              <CalendarPlus className="h-3.5 w-3.5 mr-1" />
-              Game
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 rounded-xl text-xs font-bold"
-              onClick={() => navigate("/practices")}
-            >
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              Practice
-            </Button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="Schedule"
+        subtitle={`${upcomingGameCount} game${upcomingGameCount !== 1 ? "s" : ""} · ${upcomingPracticeCount} practice${upcomingPracticeCount !== 1 ? "s" : ""} upcoming`}
+        right={
+          isHead ? (
+            <div className="flex gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-xl text-xs font-bold"
+                onClick={() => navigate("/teams")}
+              >
+                <CalendarPlus className="h-3.5 w-3.5 mr-1" />
+                Game
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-xl text-xs font-bold"
+                onClick={() => navigate("/practices")}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Practice
+              </Button>
+            </div>
+          ) : null
+        }
+      />
 
       {/* View toggle */}
       <div className="flex gap-1 bg-muted/50 rounded-xl p-1">

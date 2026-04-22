@@ -277,41 +277,42 @@ export default function PracticePlanDetail() {
   return (
     <div className="mx-auto max-w-2xl px-4 pt-6 pb-24">
       {/* Header */}
-      <div className="page-hero mb-6">
-        <div className="flex items-center gap-3">
+      <div className="mb-6 flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0 h-9 w-9 p-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+          onClick={() => navigate("/practices")}
+          aria-label="Back"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-[20px] font-extrabold tracking-tight leading-tight truncate">{plan.title}</h1>
+          <p className="text-[11px] text-muted-foreground truncate">
+            {formatDate(plan.practice_date)}
+            {plan.team_level && ` · ${plan.team_level}`}
+          </p>
+        </div>
+        <div className="flex gap-1 shrink-0">
           <Button
             variant="ghost"
             size="sm"
-            className="text-white/80 hover:text-white hover:bg-white/10 shrink-0"
-            onClick={() => navigate("/practices")}
+            className="h-9 w-9 p-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+            onClick={() => navigate(`/practice/${planId}/print`)}
+            aria-label="Print"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <Printer className="h-4 w-4" />
           </Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-extrabold tracking-tight text-white truncate">{plan.title}</h1>
-            <p className="text-sm text-white/70">
-              {formatDate(plan.practice_date)}
-              {plan.team_level && ` • ${plan.team_level}`}
-            </p>
-          </div>
-          <div className="flex gap-1.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white/80 hover:text-white hover:bg-white/10"
-              onClick={() => navigate(`/practice/${planId}/print`)}
-            >
-              <Printer className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white/80 hover:text-white hover:bg-white/10"
-              onClick={startEditHeader}
-            >
-              <Edit2 className="h-4 w-4" />
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 p-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+            onClick={startEditHeader}
+            aria-label="Edit"
+          >
+            <Edit2 className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 

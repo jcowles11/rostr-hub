@@ -125,12 +125,17 @@
     @apply min-h-[48px] min-w-[48px];
   }
 
+  /* Former gradient backgrounds now render as solid primary/secondary.
+     Keeps all existing `.gradient-primary`/`gradient-warm` usages working
+     while matching the clean Direction D aesthetic. */
   .gradient-primary {
-    background: var(--gradient-primary);
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
   }
 
   .gradient-warm {
-    background: var(--gradient-warm);
+    background-color: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
   }
 
   .text-gradient {
@@ -143,36 +148,49 @@
 
 /* Component styles */
 @layer components {
-  /* Player card with hover lift */
+  /* Player card with subtle hover */
   .player-card {
-    @apply flex w-full items-center justify-between rounded-xl border bg-card px-4 py-3.5 text-left
-           shadow-sm transition-all duration-200 ease-out
-           hover:shadow-md hover:border-primary/20 hover:-translate-y-[1px]
-           active:scale-[0.99] active:shadow-sm;
+    @apply flex w-full items-center justify-between rounded-xl border bg-card px-3 py-2.5 text-left
+           transition-colors duration-150 ease-out
+           hover:bg-muted/30;
   }
 
-  /* Elevated section card */
+  /* Clean section card — no shadow */
   .section-card {
-    @apply rounded-2xl border bg-card shadow-sm overflow-hidden;
+    @apply rounded-2xl border bg-card overflow-hidden;
   }
 
-  /* Page header with gradient option */
+  /* Compact page title (used alongside PageHeader component) */
   .page-header {
-    @apply text-2xl font-extrabold tracking-tight;
+    @apply text-[20px] font-extrabold tracking-tight leading-tight;
   }
 
-  /* Gradient hero header for pages */
+  /* Former gradient hero is now a no-op container. Kept as a class
+     so existing usages degrade gracefully; new code should use the
+     PageHeader primitive from components/ui/layout.tsx instead. */
   .page-hero {
-    @apply relative overflow-hidden rounded-2xl p-5 mb-5;
-    background: var(--gradient-primary);
+    @apply mb-5;
   }
-  .page-hero * {
-    @apply relative z-10;
+  .page-hero [class*="text-white"] {
+    color: hsl(var(--foreground));
   }
-  .page-hero::before {
-    content: '';
-    @apply absolute inset-0 opacity-20;
-    background: radial-gradient(circle at 80% 20%, rgba(255,255,255,0.3) 0%, transparent 60%);
+  .page-hero [class*="bg-white/"] {
+    background-color: hsl(var(--muted));
+  }
+  .page-hero [class*="border-white/"] {
+    border-color: hsl(var(--border));
+  }
+  /* Muted supporting text inside former hero blocks */
+  .page-hero p[class*="text-white"],
+  .page-hero span[class*="text-white"] {
+    color: hsl(var(--muted-foreground));
+  }
+  /* Scoped: restore primary-foreground on primary-colored buttons that live
+     inside .page-hero ancestors — otherwise our [class*="text-white"] rule
+     would turn them grey. */
+  .page-hero .bg-primary [class*="text-white"],
+  .page-hero [class*="bg-primary"][class*="text-white"] {
+    color: hsl(var(--primary-foreground));
   }
 
   /* Score indicator colors */

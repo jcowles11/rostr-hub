@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Plus, UserPlus, Share2, Users, X, Upload, Database, Globe, Trash2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PageHeader, StatusPill } from "@/components/ui/layout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -255,14 +256,21 @@ export default function Roster() {
   return (
     <div className="mx-auto max-w-lg px-4 pt-4 pb-8 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Roster</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {players.length} player{players.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <div className="flex items-center gap-1">
+      <PageHeader
+        className="mb-4"
+        title="Roster"
+        subtitle={
+          players.length > 0
+            ? `${players.length} player${players.length !== 1 ? "s" : ""}${levelCounts.unassigned > 0 ? ` · ${levelCounts.unassigned} unassigned` : ""}`
+            : "Build your program roster"
+        }
+        right={
+          <div className="flex items-center gap-1">
+            {levelCounts.unassigned > 0 && (
+              <StatusPill tone="attention" className="mr-1">
+                {levelCounts.unassigned} open
+              </StatusPill>
+            )}
           <button
             className="flex items-center justify-center h-9 w-9 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             title="Import roster"
@@ -348,14 +356,15 @@ export default function Roster() {
                     </div>
                   </div>
                 )}
-                <Button type="submit" disabled={adding} className="w-full h-11 font-bold rounded-xl gradient-primary border-0">
+                <Button type="submit" disabled={adding} className="w-full h-11 font-bold rounded-xl">
                   {adding ? "Adding..." : "Add Player"}
                 </Button>
               </form>
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       {/* Search */}
       <div className="relative mb-3">

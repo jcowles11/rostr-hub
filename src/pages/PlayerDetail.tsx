@@ -390,8 +390,8 @@ export default function PlayerDetail() {
         )}
       </div>
 
-      {/* Player hero card */}
-      <div className="page-hero mb-5">
+      {/* Player hero — clean, not gradient */}
+      <div className="mb-5">
         <div className="flex items-center gap-4">
           <div className="relative">
             <PlayerPhotoUpload
@@ -403,7 +403,7 @@ export default function PlayerDetail() {
                 else { setPlayer({ ...player, photo_url: url }); toast.success("Photo updated"); }
               }}
               size="lg"
-              className="border-2 border-white/30 rounded-full"
+              className="border-2 border-border rounded-full"
             />
             <button
               onClick={async () => {
@@ -415,36 +415,37 @@ export default function PlayerDetail() {
                 if (error) toast.error("Failed to update");
                 else { setPlayer({ ...player, player_number: parsed }); toast.success("Player number updated"); }
               }}
-              className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-[11px] font-extrabold text-white hover:bg-primary/80 transition-colors cursor-pointer shadow-md"
+              className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-[11px] font-extrabold text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer shadow-sm"
               title="Tap to edit player number"
             >
               {player.player_number ?? "#"}
             </button>
           </div>
-          <div>
-            <h1 className="text-2xl font-extrabold text-white">
+          <div className="min-w-0">
+            <h1 className="text-[22px] font-extrabold tracking-tight leading-tight truncate">
               {player.last_name}, {player.first_name}
             </h1>
-            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
               {teamLevel && (() => {
                 const l = teamLevel.toLowerCase();
                 const styles: Record<string, string> = {
-                  varsity: "bg-blue-500/30 text-blue-100",
-                  jv: "bg-orange-500/30 text-orange-100",
-                  freshman: "bg-green-500/30 text-green-100",
+                  varsity: "bg-primary/10 text-primary",
+                  jv: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+                  freshman: "bg-green-500/10 text-green-600 dark:text-green-400",
+                  cut: "bg-destructive/10 text-destructive",
                 };
-                const labels: Record<string, string> = { varsity: "Varsity", jv: "JV", freshman: "Freshman" };
-                return <span className={`rounded-lg px-2 py-0.5 text-xs font-extrabold ${styles[l] || "bg-white/20 text-white"}`}>{labels[l] || teamLevel}</span>;
+                const labels: Record<string, string> = { varsity: "Varsity", jv: "JV", freshman: "Freshman", cut: "Cut" };
+                return <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${styles[l] || "bg-muted text-muted-foreground"}`}>{labels[l] || teamLevel}</span>;
               })()}
-              {player.grade && <span className="rounded-lg bg-white/20 px-2 py-0.5 text-xs font-semibold text-white">Grade {player.grade}</span>}
-              {player.positions?.map((p) => <span key={p} className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">{p}</span>)}
-              {player.jersey_number_preference && <span className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">Jersey #{player.jersey_number_preference}</span>}
-              {player.bats && player.throws && <span className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">B/T: {player.bats}/{player.throws}</span>}
-              {player.bats && !player.throws && <span className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">Bats: {player.bats}</span>}
-              {!player.bats && player.throws && <span className="rounded-lg bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">Throws: {player.throws}</span>}
+              {player.grade && <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">Grade {player.grade}</span>}
+              {player.positions?.map((p) => <span key={p} className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{p}</span>)}
+              {player.jersey_number_preference && <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Jersey #{player.jersey_number_preference}</span>}
+              {player.bats && player.throws && <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">B/T: {player.bats}/{player.throws}</span>}
+              {player.bats && !player.throws && <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Bats: {player.bats}</span>}
+              {!player.bats && player.throws && <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Throws: {player.throws}</span>}
               <button
                 onClick={() => setEditingProfile(!editingProfile)}
-                className="rounded-lg bg-white/10 hover:bg-white/20 px-2 py-0.5 text-xs font-medium text-white/70 hover:text-white transition-colors"
+                className="rounded-md bg-muted hover:bg-muted/80 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors"
               >
                 <Pencil className="h-3 w-3 inline mr-0.5" /> Edit
               </button>
@@ -458,15 +459,15 @@ export default function PlayerDetail() {
               href={`/p/${player.profile_slug}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-white/20 hover:bg-white/30 px-2.5 py-1 text-xs font-semibold text-white transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-muted hover:bg-muted/80 px-2.5 py-1 text-[11px] font-semibold text-foreground transition-colors"
             >
               <ExternalLink className="h-3 w-3" /> View Public Profile
             </a>
           ) : (
-            <span className="text-xs text-white/40 italic">Public profile not enabled</span>
+            <span className="text-[11px] text-muted-foreground italic">Public profile not enabled</span>
           )}
         </div>
-        {player.travel_ball_experience && <p className="text-sm text-white/60 mt-2">Travel: {player.travel_ball_experience}</p>}
+        {player.travel_ball_experience && <p className="text-[12px] text-muted-foreground mt-2">Travel: {player.travel_ball_experience}</p>}
       </div>
 
       {/* Editable profile section */}

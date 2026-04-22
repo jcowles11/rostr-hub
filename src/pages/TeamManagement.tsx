@@ -51,6 +51,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import { PageHeader } from "@/components/ui/layout";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -270,15 +271,11 @@ export default function TeamManagement() {
 
   return (
     <div className="mx-auto max-w-lg px-4 pt-4 animate-fade-in">
-      {/* Hero */}
-      <div className="page-hero mb-5">
-        <h1 className="text-2xl font-extrabold text-white tracking-tight">
-          Team Management
-        </h1>
-        <p className="text-white/70 text-sm mt-0.5">
-          {players.length} players • {games.length} game{games.length !== 1 ? "s" : ""}
-        </p>
-      </div>
+      <PageHeader
+        className="mb-5"
+        title="Team Management"
+        subtitle={`${players.length} players · ${games.length} game${games.length !== 1 ? "s" : ""}`}
+      />
 
       {/* Level filter pills */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -287,7 +284,7 @@ export default function TeamManagement() {
           className={cn(
             "rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200",
             selectedLevel === "all"
-              ? "gradient-primary text-white"
+              ? "bg-foreground text-background"
               : "bg-card border text-muted-foreground hover:text-foreground"
           )}
         >

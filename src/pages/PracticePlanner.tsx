@@ -23,6 +23,7 @@ import {
   deletePracticePlan,
   type PracticePlan,
 } from "@/services/practiceService";
+import { PageHeader } from "@/components/ui/layout";
 
 export default function PracticePlanner() {
   const { coach, user } = useAuth();
@@ -101,26 +102,16 @@ export default function PracticePlanner() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 pt-6 pb-24">
-      <div className="page-hero mb-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ClipboardList className="h-7 w-7 text-white/80" />
-            <div>
-              <h1 className="text-xl font-extrabold text-white">Practice Plans</h1>
-              <p className="text-sm text-white/70">
-                {plans.length} plan{plans.length !== 1 ? "s" : ""}
-              </p>
-            </div>
-          </div>
-          <Button
-            size="sm"
-            className="bg-white/20 text-white border-0 hover:bg-white/30"
-            onClick={() => setShowCreate(true)}
-          >
-            <Plus className="h-4 w-4 mr-1" /> New Plan
+      <PageHeader
+        className="mb-6"
+        title="Practice Plans"
+        subtitle={`${plans.length} plan${plans.length !== 1 ? "s" : ""}`}
+        right={
+          <Button size="sm" className="h-9 rounded-xl text-xs font-bold" onClick={() => setShowCreate(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> New Plan
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {loading ? (
         <div className="flex items-center justify-center py-20">

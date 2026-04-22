@@ -423,13 +423,14 @@ export default function GameDetail() {
       <div className="flex items-center gap-2 mb-4">
         <button
           onClick={() => safeNavigate("/teams")}
-          className="p-2 rounded-xl hover:bg-muted transition-colors"
+          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          aria-label="Back"
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft className="h-4 w-4" />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-extrabold tracking-tight truncate">{game.name}</h1>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <h1 className="text-[20px] font-extrabold tracking-tight leading-tight truncate">{game.name}</h1>
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
             <span>{format(new Date(game.game_date + "T00:00:00"), "EEEE, MMM d, yyyy")}</span>
             {game.team_level && <Badge variant="outline" className="text-[10px]">{game.team_level}</Badge>}
           </div>

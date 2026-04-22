@@ -25,6 +25,7 @@ import { fetchMetricsForDashboard, type MetricForDashboard } from "@/services/me
 import { fetchPlayerFlags } from "@/services/noteService";
 import { fetchProgramCoaches, type CoachSummary } from "@/services/coachService";
 import { track } from "@/services/analyticsService";
+import { PageHeader } from "@/components/ui/layout";
 
 type MetricInfo = MetricForDashboard;
 
@@ -270,24 +271,21 @@ export default function Dashboard() {
 
   return (
     <div className="mx-auto max-w-lg px-4 pt-4 pb-8 animate-fade-in space-y-5">
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Stats & Rankings</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {totalEvals} evaluation{totalEvals !== 1 ? "s" : ""} · {metrics.length} metric{metrics.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 rounded-xl text-xs font-bold"
-          onClick={() => navigate("/score")}
-        >
-          <ClipboardList className="h-3.5 w-3.5 mr-1" />
-          Score
-        </Button>
-      </div>
+      <PageHeader
+        title="Stats & Rankings"
+        subtitle={`${totalEvals} evaluation${totalEvals !== 1 ? "s" : ""} · ${metrics.length} metric${metrics.length !== 1 ? "s" : ""}`}
+        right={
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 rounded-xl text-xs font-bold"
+            onClick={() => navigate("/score")}
+          >
+            <ClipboardList className="h-3.5 w-3.5 mr-1" />
+            Score
+          </Button>
+        }
+      />
 
       {/* ── Overview Cards ─────────────────────────────────────── */}
       <section>
