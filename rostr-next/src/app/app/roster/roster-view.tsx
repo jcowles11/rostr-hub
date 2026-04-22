@@ -17,9 +17,9 @@ import { Avatar } from "@/components/atoms/avatar";
 import { Checkbox } from "@/components/atoms/checkbox";
 import { Chip } from "@/components/atoms/chip";
 import { comingSoon } from "@/lib/coming-soon";
-import { LevelPill } from "@/components/atoms/level-pill";
 import { cn } from "@/lib/utils";
 import { AddPlayerModal } from "@/components/organisms/add-player-modal";
+import { LevelPicker } from "@/components/molecules/level-picker";
 import {
   type AvailabilityStatus,
   type ProfileStatus,
@@ -211,7 +211,11 @@ export function RosterView({ players: MOCK_PLAYERS }: { players: MockPlayer[] })
                         </div>
                       </Td>
                       <Td>
-                        <LevelPill level={p.level} />
+                        <LevelPicker
+                          playerId={p.id}
+                          playerName={`${p.firstName} ${p.lastName}`}
+                          level={p.level}
+                        />
                       </Td>
                       <Td mono>{p.positions.join("/")}</Td>
                       <Td mono>{p.classYear}</Td>

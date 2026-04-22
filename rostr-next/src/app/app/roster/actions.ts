@@ -56,6 +56,44 @@ export async function createPlayerAction(
 }
 
 /**
+ * setPlayerLevelAction — upsert a roster_assignments row.
+ * Used by the inline level pill on the roster table.
+ */
+export async function setPlayerLevelAction(
+  playerId: string,
+  level: "varsity" | "jv" | "freshman" | "cut" | null,
+): Promise<{ error: string | null }> {
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program." };
+  const supabase = createSupabaseServerClient();
+
+  // null = remove any existing assignment (unassigned)
+  if (level === null) {
+    const { error } = await supabase
+      .from("roster_assignments")
+      .delete()
+      .eq("player_id", playerId)
+      .eq("program_id", coach.program_id);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase
+      .from("roster_assignments")
+      .upsert(
+        {
+          player_id: playerId,
+          program_id: coach.program_id,
+          assignment: level,
+        },
+        { onConflict: "player_id,program_id" },
+      );
+    if (error) return { error: error.message };
+  }
+  revalidatePath("/app/roster");
+  revalidatePath("/app");
+  return { error: null };
+}
+
+/**
  * deleteAllPlayersAction — wipes every player on the coach's program.
  * Used by the roster footer's "clear" action (future).
  */
