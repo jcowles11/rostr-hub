@@ -4,6 +4,9 @@ import {
   MOCK_TEAM,
   MOCK_COACH,
   MOCK_SPOTLIGHT,
+  MOCK_BATTING_BY_PLAYER,
+  MOCK_PITCHING_BY_PLAYER,
+  MOCK_MEASURABLES_BY_PLAYER,
   getMockWeek,
 } from "@/lib/mock-data";
 
@@ -42,6 +45,23 @@ export default function DemoHubPage() {
     return d;
   })();
   const nextGameDate = friDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+  // Project the full mock batting/pitching maps down to the flat shape
+  // PlayerSlideover wants. Same projection used by /demo/roster + /demo/today
+  // so the same player shows the same numbers everywhere.
+  const battingByPlayer = Object.fromEntries(
+    Object.entries(MOCK_BATTING_BY_PLAYER).map(([id, l]) => [
+      id,
+      { games: l.games, ba: l.ba, obp: l.obp, slg: l.slg, ops: l.ops, hr: l.hr, rbi: l.rbi },
+    ]),
+  );
+  const pitchingByPlayer = Object.fromEntries(
+    Object.entries(MOCK_PITCHING_BY_PLAYER).map(([id, l]) => [
+      id,
+      { games: l.games, era: l.era, whip: l.whip, ip: l.ip, k: l.k, bb: l.bb },
+    ]),
+  );
+
   // Build a small synthetic activity feed so the demo Hub doesn't show
   // "no activity yet" — uses real player names + plausible coach actions.
   return (
@@ -93,6 +113,9 @@ export default function DemoHubPage() {
           { teamLevel: "Varsity", wins: 8, losses: 3, ties: 0, gamesCompleted: 11, runsFor: 64, runsAgainst: 38 },
         ],
       }}
+      battingByPlayer={battingByPlayer}
+      pitchingByPlayer={pitchingByPlayer}
+      measurablesByPlayer={MOCK_MEASURABLES_BY_PLAYER}
     />
   );
 }

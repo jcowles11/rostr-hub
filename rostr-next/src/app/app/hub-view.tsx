@@ -35,6 +35,11 @@ import { AddPlayerModal } from "@/components/organisms/add-player-modal";
 import { ImportRosterModal } from "@/components/organisms/import-roster-modal";
 import { AddEventModal } from "@/components/organisms/add-event-modal";
 import { AICoachCard as LiveAICoachCard } from "@/components/organisms/ai-coach-card";
+import {
+  PlayerSlideover,
+  type PlayerSlideoverStats,
+  type PlayerSlideoverMeasurable,
+} from "@/components/organisms/player-slideover";
 
 interface HubViewProps {
   greetingName: string;
@@ -53,6 +58,15 @@ interface HubViewProps {
   spotlight: SpotlightPlayer | null;
   inboxThreads: InboxThread[];
   record: ProgramRecord | null;
+  /** Optional pre-computed stat maps for the player slideover preview.
+   *  Demo passes these from MOCK_*; real /app currently passes nothing
+   *  and the slideover Metrics tab shows its empty state. */
+  battingByPlayer?: Record<string, PlayerSlideoverStats>;
+  measurablesByPlayer?: Record<string, PlayerSlideoverMeasurable[]>;
+  pitchingByPlayer?: Record<
+    string,
+    { games: number; era: number; whip: number; ip: number; k: number; bb: number }
+  >;
 }
 
 /**
@@ -72,12 +86,16 @@ export function HubView({
   spotlight,
   inboxThreads,
   record,
+  battingByPlayer,
+  measurablesByPlayer,
+  pitchingByPlayer,
 }: HubViewProps) {
   const MOCK_WEEK = weekItems;
   const PLAYERS_FOR_AVAIL = availabilityPlayers;
   const [addPlayerOpen, setAddPlayerOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [addEventOpen, setAddEventOpen] = useState<"game" | "practice" | null>(null);
+  const [slideoverPlayer, setSlideoverPlayer] = useState<MockPlayer | null>(null);
 
   function greeting() {
     const h = new Date().getHours();
@@ -226,7 +244,11 @@ export function HubView({
               </div>
 
               {/* Availability */}
-              <AvailabilityPanel players={PLAYERS_FOR_AVAIL} extraCount={extraCount} />
+              <AvailabilityPanel
+                players={PLAYERS_FOR_AVAIL}
+                extraCount={extraCount}
+                onSelectPlayer={(p) => setSlideoverPlayer(p)}
+              />
 
               {/* Schedule + Plan row */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-[22px]">
@@ -260,6 +282,32 @@ export function HubView({
         open={addEventOpen !== null}
         onOpenChange={(o) => !o && setAddEventOpen(null)}
         initialKind={addEventOpen ?? "game"}
+      />
+      {/* Quick player preview — opens when a row in the availability
+          panel is tapped. Same component the Roster uses, so coaches
+          get one mental model for "preview a player" anywhere in the
+          app. */}
+      <PlayerSlideover
+        player={slideoverPlayer}
+        players={PLAYERS_FOR_AVAIL}
+        stats={
+          slideoverPlayer && battingByPlayer
+            ? battingByPlayer[slideoverPlayer.id] ?? null
+            : null
+        }
+        measurables={
+          slideoverPlayer && measurablesByPlayer
+            ? measurablesByPlayer[slideoverPlayer.id] ?? null
+            : null
+        }
+        pitching={
+          slideoverPlayer && pitchingByPlayer
+            ? pitchingByPlayer[slideoverPlayer.id] ?? null
+            : null
+        }
+        open={slideoverPlayer !== null}
+        onOpenChange={(o) => !o && setSlideoverPlayer(null)}
+        onEdit={(p) => setSlideoverPlayer(p)}
       />
     </>
   );
@@ -334,74 +382,150 @@ function TodayHeroCard({
   );
 }
 
+/**
+ * AvailabilityPanel — Hub view of today's roster status.
+ *
+ * Three things this fixes vs. the previous implementation:
+ *   1. Filter pills (All / Questionable / Out) actually filter the list.
+ *   2. Year + position render in a fixed-width gutter that lines up
+ *      across every row at every breakpoint.
+ *   3. Each row is a button that opens the PlayerSlideover preview —
+ *      coaches can scan-and-preview without losing their place in the
+ *      Hub. (The previous version linked to the public profile page,
+ *      which kicked them all the way out of the app.)
+ */
+type AvailFilter = "all" | "questionable" | "out";
+
 function AvailabilityPanel({
   players: PLAYERS_FOR_AVAIL,
   extraCount,
+  onSelectPlayer,
 }: {
   players: MockPlayer[];
   extraCount: number;
+  onSelectPlayer: (player: MockPlayer) => void;
 }) {
+  const [filter, setFilter] = useState<AvailFilter>("all");
+  const questionableCount = PLAYERS_FOR_AVAIL.filter(
+    (p) => p.availabilityStatus === "questionable",
+  ).length;
+  const outCount = PLAYERS_FOR_AVAIL.filter((p) => p.availabilityStatus === "out").length;
+
+  // Sort order: out → questionable → ok, then by jersey for stability.
+  const sortKey = (p: MockPlayer) =>
+    p.availabilityStatus === "out" ? 0 : p.availabilityStatus === "questionable" ? 1 : 2;
+  const sorted = [...PLAYERS_FOR_AVAIL].sort(
+    (a, b) => sortKey(a) - sortKey(b) || a.jerseyNumber - b.jerseyNumber,
+  );
+  const filtered = sorted.filter((p) => {
+    if (filter === "all") return true;
+    if (filter === "questionable") return p.availabilityStatus === "questionable";
+    if (filter === "out") return p.availabilityStatus === "out";
+    return true;
+  });
+  // Empty roster guard — show a helpful empty state instead of "+X more".
+  const hasAny = sorted.length > 0;
+  const visible = filtered.slice(0, 7);
+  const hiddenInFilter = Math.max(0, filtered.length - visible.length);
+
   return (
     <Panel>
       <PanelHead
         title="Today’s availability"
         actions={
           <>
-            <PanelTab active>All</PanelTab>
-            <PanelTab>Questionable (2)</PanelTab>
-            <PanelTab>Out (1)</PanelTab>
-            <button className="p-1 text-ink-3 hover:text-ink rounded-[5px]">
+            <PanelTab active={filter === "all"} onClick={() => setFilter("all")}>
+              All
+            </PanelTab>
+            <PanelTab
+              active={filter === "questionable"}
+              onClick={() => setFilter("questionable")}
+            >
+              Questionable ({questionableCount})
+            </PanelTab>
+            <PanelTab active={filter === "out"} onClick={() => setFilter("out")}>
+              Out ({outCount})
+            </PanelTab>
+            <button
+              className="p-1 text-ink-3 hover:text-ink rounded-[5px]"
+              onClick={() => comingSoon("Roster export", "Coming with the v2 messaging release.")}
+              aria-label="More options"
+            >
               <MoreHorizontal className="w-4 h-4" />
             </button>
           </>
         }
       />
       <div>
-        {PLAYERS_FOR_AVAIL.slice(0, 7).map((p) => (
-          <Link
-            key={p.id}
-            href={`/p/${p.handle}`}
-            className="flex items-center gap-3 px-3 sm:px-[18px] py-2.5 border-b border-hair-2 last:border-b-0 hover:bg-paper transition-colors text-[13px]"
-          >
-            <div className="font-mono text-[11px] text-ink-3 w-[28px] shrink-0 hidden sm:block">
-              #{p.jerseyNumber}
-            </div>
-            <div className="flex items-center gap-2 font-semibold flex-1 min-w-0">
-              <Avatar size="sm" color={p.avatarColor} initials={p.initials} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate">
-                  {p.firstName} {p.lastName}
-                </div>
-                <div className="font-mono text-[10.5px] text-ink-3 sm:hidden">
-                  #{p.jerseyNumber} · {p.classYear} · {p.positions.join("/")}
-                </div>
-              </div>
-            </div>
-            <div className="hidden md:block w-[90px] font-mono text-[11.5px] text-ink-3 shrink-0">
-              {p.classYear} · {p.positions.join("/")}
-            </div>
-            <div className="shrink-0">
-              {p.availabilityStatus === "ok" && <Badge variant="keep">Available</Badge>}
-              {p.availabilityStatus === "questionable" && (
-                <Badge variant="bubble">{p.availabilityNote ?? "Q"}</Badge>
-              )}
-              {p.availabilityStatus === "out" && (
-                <Badge variant="cut">{p.availabilityNote ?? "Out"}</Badge>
-              )}
-            </div>
-            <div
-              className={cn(
-                "hidden sm:block w-[80px] font-mono text-[11px] text-right shrink-0",
-                p.statEmphasis === "attention" ? "text-red" : "text-ink-3",
-              )}
+        {!hasAny ? (
+          <div className="px-[18px] py-8 text-center text-[12.5px] text-ink-3">
+            No players on roster yet.
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="px-[18px] py-8 text-center text-[12.5px] text-ink-3">
+            {filter === "questionable"
+              ? "Nobody questionable — everyone's good to go."
+              : "Nobody out today."}
+          </div>
+        ) : (
+          visible.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onSelectPlayer(p)}
+              className="w-full flex items-center gap-2.5 sm:gap-3 px-3 sm:px-[18px] py-2.5 border-b border-hair-2 last:border-b-0 hover:bg-paper active:bg-paper-deep transition-colors text-[13px] text-left"
             >
-              {p.stat}
-            </div>
-          </Link>
-        ))}
+              {/* Jersey — fixed width, mono, right-aligned so #s line up. */}
+              <div className="font-mono text-[11px] text-ink-3 w-7 shrink-0 text-right tabular-nums">
+                #{p.jerseyNumber}
+              </div>
+              {/* Avatar — same size at every breakpoint. */}
+              <Avatar size="sm" color={p.avatarColor} initials={p.initials} />
+              {/* Name — flex-1, single line truncate. No secondary
+                  metadata stuffed inline; year/pos live in their own
+                  fixed columns on the right so they line up. */}
+              <div className="min-w-0 flex-1 font-semibold truncate">
+                {p.firstName} {p.lastName}
+              </div>
+              {/* Year — fixed-width column, uppercase tracking. */}
+              <div className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.04em] text-ink-3 w-7 shrink-0 text-center tabular-nums">
+                {p.classYearShort}
+              </div>
+              {/* Position — fixed-width column. Truncate at the column
+                  boundary so multi-position players don't push others. */}
+              <div className="font-mono text-[10.5px] text-ink-3 w-12 sm:w-14 shrink-0 truncate">
+                {p.positions.join("/")}
+              </div>
+              {/* Status pill — fixed slot so all pills stack vertically. */}
+              <div className="shrink-0 w-[78px] sm:w-[88px] flex justify-end">
+                {p.availabilityStatus === "ok" && <Badge variant="keep">Available</Badge>}
+                {p.availabilityStatus === "questionable" && (
+                  <Badge variant="bubble">{p.availabilityNote ?? "Q"}</Badge>
+                )}
+                {p.availabilityStatus === "out" && (
+                  <Badge variant="cut">{p.availabilityNote ?? "Out"}</Badge>
+                )}
+              </div>
+              {/* Stat — far right, hidden on small phones to keep the
+                  row scannable. */}
+              <div
+                className={cn(
+                  "hidden md:block w-[72px] font-mono text-[11px] text-right shrink-0 tabular-nums",
+                  p.statEmphasis === "attention" ? "text-red" : "text-ink-3",
+                )}
+              >
+                {p.stat}
+              </div>
+            </button>
+          ))
+        )}
       </div>
       <div className="px-[18px] py-2.5 border-t border-hair-2 text-[12px] text-ink-3 flex items-center">
-        {extraCount > 0 ? `+${extraCount} more · ` : ""}
+        {hiddenInFilter > 0 && filter !== "all"
+          ? `+${hiddenInFilter} more in this filter · `
+          : extraCount > 0
+            ? `+${extraCount} more · `
+            : ""}
         <Link href="/app/roster" className="ml-1.5 text-red font-semibold">
           View full roster →
         </Link>
