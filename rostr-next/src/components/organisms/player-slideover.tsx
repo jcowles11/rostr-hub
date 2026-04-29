@@ -61,10 +61,28 @@ export interface PlayerSlideoverStats {
   rbi: number;
 }
 
+/**
+ * One verified measurable for the Metrics tab. Mirrors the
+ * `PlayerMeasurable` shape from /lib/services/tryouts.ts so callers
+ * can pass either real (from tryout_scores) or mock data without
+ * adapter logic.
+ */
+export interface PlayerSlideoverMeasurable {
+  shortCode: string;
+  stationName: string;
+  unit: string | null;
+  bestValue: number;
+  scoreType: "lower_better" | "higher_better" | "rating";
+  latestAt: string | null;
+  verifiedByCoachName: string | null;
+}
+
 export function PlayerSlideover({
   player,
   players,
   stats,
+  measurables,
+  pitching,
   onEdit,
   onOpenChange,
   open,
@@ -72,6 +90,10 @@ export function PlayerSlideover({
   player: MockPlayer | null;
   players: MockPlayer[];
   stats?: PlayerSlideoverStats | null;
+  /** Verified combine measurables — populates the Metrics tab. */
+  measurables?: PlayerSlideoverMeasurable[] | null;
+  /** Pitching line, when the player pitches. Shown alongside batting in Overview. */
+  pitching?: { games: number; era: number; whip: number; ip: number; k: number; bb: number } | null;
   onEdit?: (player: MockPlayer) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
@@ -431,14 +453,57 @@ export function PlayerSlideover({
             )}
 
             {tab === "Metrics" && (
-              <div className="py-10 text-center">
-                <div className="font-display text-[18px] font-semibold tracking-tight mb-1">
-                  Verified measurables
+              <div className="space-y-3">
+                <div className="text-[11.5px] text-ink-3 leading-relaxed">
+                  Verified measurables — captured from tryouts + games. Exit
+                  velo, 60-yard, pop time, vert jump, fastball velocity.
                 </div>
-                <div className="text-[12.5px] text-ink-3 max-w-[280px] mx-auto">
-                  Exit velo, 60-yard, pop time — captured from tryouts + games. Pipeline lands
-                  with the tryout scoring flow.
-                </div>
+                {measurables && measurables.length > 0 ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      {measurables.map((m) => (
+                        <div key={m.shortCode} className="bg-paper rounded-md p-3">
+                          <div className="font-mono text-[20px] font-semibold tracking-[-0.02em]">
+                            {formatMeasurableValue(m)}
+                            {m.unit && (
+                              <span className="text-[11px] text-ink-3 ml-0.5 font-normal">
+                                {m.unit}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] font-bold text-ink-3 uppercase tracking-[0.05em] mt-1">
+                            {m.stationName}
+                          </div>
+                          {m.verifiedByCoachName && (
+                            <div className="text-[10px] text-grass mt-0.5 font-semibold">
+                              ✓ {m.verifiedByCoachName.split(" ")[0]}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {pitching && pitching.games > 0 && (
+                      <div className="mt-4 pt-3 border-t border-hair-2">
+                        <div className="type-label mb-2">Pitching</div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <StatBig label="ERA" value={pitching.era.toFixed(2)} highlight={pitching.era < 3} />
+                          <StatBig label="WHIP" value={pitching.whip.toFixed(2)} highlight={pitching.whip < 1.2} />
+                          <StatBig label="IP" value={pitching.ip.toFixed(1)} />
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 mt-2 text-[11.5px] text-ink-3 font-mono">
+                          <div>K <b className="text-ink">{pitching.k}</b></div>
+                          <div>BB <b className="text-ink">{pitching.bb}</b></div>
+                          <div>G <b className="text-ink">{pitching.games}</b></div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="bg-paper border border-dashed border-hair-2 rounded-md p-4 text-center text-[12px] text-ink-3">
+                    No verified measurables yet. Run a tryout or use the
+                    Combine workflow to capture them.
+                  </div>
+                )}
               </div>
             )}
 
@@ -634,6 +699,17 @@ function StatBig({
       </div>
     </div>
   );
+}
+
+/**
+ * formatMeasurableValue — render a measurable's bestValue per its
+ * scoreType. Mirrors the formatter used on /p/[handle] so the
+ * slideover and the public profile show identical numbers.
+ */
+function formatMeasurableValue(m: PlayerSlideoverMeasurable): string {
+  if (m.scoreType === "rating") return m.bestValue.toFixed(1);
+  if (m.unit === "s") return m.bestValue.toFixed(2);
+  return m.bestValue.toFixed(1).replace(/\.0$/, "");
 }
 
 function formatAvgInline(n: number | null | undefined): string {

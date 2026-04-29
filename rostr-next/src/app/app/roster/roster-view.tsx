@@ -52,6 +52,8 @@ export function RosterView({
   players,
   levels = ["Varsity", "JV", "Freshman"],
   battingByPlayer = {},
+  measurablesByPlayer = {},
+  pitchingByPlayer = {},
   programName = "Rostr",
 }: {
   players: MockPlayer[];
@@ -59,6 +61,24 @@ export function RosterView({
   battingByPlayer?: Record<
     string,
     { games: number; ba: number; obp: number; slg: number; ops: number; hr: number; rbi: number }
+  >;
+  /** Per-player measurables (combine + tryout data) for the slideover Metrics tab. */
+  measurablesByPlayer?: Record<
+    string,
+    Array<{
+      shortCode: string;
+      stationName: string;
+      unit: string | null;
+      bestValue: number;
+      scoreType: "lower_better" | "higher_better" | "rating";
+      latestAt: string | null;
+      verifiedByCoachName: string | null;
+    }>
+  >;
+  /** Per-player pitching line for the slideover Metrics tab. */
+  pitchingByPlayer?: Record<
+    string,
+    { games: number; era: number; whip: number; ip: number; k: number; bb: number }
   >;
   programName?: string;
 }) {
@@ -469,6 +489,8 @@ export function RosterView({
         player={slideoverPlayer}
         players={filtered}
         stats={slideoverPlayer ? battingByPlayer[slideoverPlayer.id] ?? null : null}
+        measurables={slideoverPlayer ? measurablesByPlayer[slideoverPlayer.id] ?? null : null}
+        pitching={slideoverPlayer ? pitchingByPlayer[slideoverPlayer.id] ?? null : null}
         open={slideoverPlayer !== null}
         onOpenChange={(o) => !o && setSlideoverPlayer(null)}
         onEdit={(p) => {
