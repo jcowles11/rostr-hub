@@ -4,16 +4,99 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  * Player profile extras: media (avatar/header/video), commitment status,
  * and announcement feed. All fields land on the public /p/[handle]
  * profile and on the coach-facing roster.
+ *
+ * Types live in `./player-profile-types` (framework-free) so client
+ * components can import them without dragging `next/headers` along.
  */
 
-export interface PlayerProfileMedia {
-  avatarUrl: string | null;
-  headerUrl: string | null;
-  highlightVideoUrl: string | null;
-  commitmentStatus: "uncommitted" | "committed" | "decommitted" | "decided" | null;
-  commitmentSchool: string | null;
-  commitmentYear: number | null;
-  commitmentNote: string | null;
+// Re-export the public types so existing callers keep working without
+// having to update import paths.
+export type {
+  PlayerProfileMedia,
+  PlayerAcademics,
+  PlayerHighlight,
+  PlayerAnnouncement,
+  IntendedLevel,
+  VideoEmbed,
+} from "./player-profile-types";
+export { resolveVideoEmbed } from "./player-profile-types";
+
+import type {
+  PlayerAcademics,
+  PlayerHighlight,
+  PlayerProfileMedia,
+  IntendedLevel,
+  PlayerAnnouncement,
+} from "./player-profile-types";
+
+/**
+ * Reads the academic / recruiting block. Used by both the player's
+ * own /me/profile editor and the public /p/[handle] page (which
+ * application-layer-gates contact-info visibility on `show_contact_info`).
+ */
+export async function fetchPlayerAcademics(
+  playerId: string,
+): Promise<PlayerAcademics | null> {
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("players")
+    .select(
+      "gpa, sat_score, act_score, class_rank_numerator, class_rank_denominator, intended_level, school_logo_url, bio",
+    )
+    .eq("id", playerId)
+    .maybeSingle();
+  if (error || !data) {
+    // Migration-resilience: if any new column doesn't exist (e.g. the
+    // /demo path or a stale env), fall back to nulls instead of erroring.
+    if (error && /column .* does not exist/i.test(error.message)) {
+      return {
+        gpa: null,
+        satScore: null,
+        actScore: null,
+        classRankNumerator: null,
+        classRankDenominator: null,
+        intendedLevel: null,
+        schoolLogoUrl: null,
+        bio: null,
+      };
+    }
+    return null;
+  }
+  return {
+    gpa: data.gpa ?? null,
+    satScore: data.sat_score ?? null,
+    actScore: data.act_score ?? null,
+    classRankNumerator: data.class_rank_numerator ?? null,
+    classRankDenominator: data.class_rank_denominator ?? null,
+    intendedLevel: (data.intended_level ?? null) as IntendedLevel | null,
+    schoolLogoUrl: data.school_logo_url ?? null,
+    bio: data.bio ?? null,
+  };
+}
+
+/**
+ * Reads all highlight rows for a player, ordered by sort_order asc.
+ * Empty array on error — callers handle the empty-state UI.
+ */
+export async function fetchPlayerHighlights(
+  playerId: string,
+): Promise<PlayerHighlight[]> {
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("player_highlights")
+    .select("id, player_id, url, caption, thumbnail_url, sort_order, created_at")
+    .eq("player_id", playerId)
+    .order("sort_order", { ascending: true });
+  if (error || !data) return [];
+  return data.map((r) => ({
+    id: r.id,
+    playerId: r.player_id,
+    url: r.url,
+    caption: r.caption,
+    thumbnailUrl: r.thumbnail_url,
+    sortOrder: r.sort_order,
+    createdAt: r.created_at,
+  }));
 }
 
 export async function fetchPlayerProfileMedia(
@@ -38,25 +121,6 @@ export async function fetchPlayerProfileMedia(
     commitmentYear: data.commitment_year ?? null,
     commitmentNote: data.commitment_note ?? null,
   };
-}
-
-export interface PlayerAnnouncement {
-  id: string;
-  playerId: string;
-  postedBy: string | null;
-  kind:
-    | "commitment"
-    | "milestone"
-    | "update"
-    | "video"
-    | "achievement"
-    | "offer";
-  title: string;
-  body: string | null;
-  imageUrl: string | null;
-  linkUrl: string | null;
-  pinned: boolean;
-  createdAt: string;
 }
 
 export async function fetchPlayerAnnouncements(
@@ -88,65 +152,5 @@ export async function fetchPlayerAnnouncements(
   }));
 }
 
-/**
- * Given a highlight video URL, figure out which provider and build
- * the correct embed URL. Supports YouTube, Hudl, Vimeo. Returns null
- * for unrecognized URLs — the caller should fall back to showing the
- * link as plain text.
- */
-export interface VideoEmbed {
-  provider: "youtube" | "hudl" | "vimeo" | "unknown";
-  embedUrl: string | null;
-  thumbnailUrl: string | null;
-}
-
-export function resolveVideoEmbed(url: string | null): VideoEmbed | null {
-  if (!url) return null;
-  try {
-    const u = new URL(url);
-    const host = u.hostname.replace(/^www\./, "");
-
-    // YouTube: https://youtube.com/watch?v=XXX or https://youtu.be/XXX
-    if (host === "youtube.com" || host === "m.youtube.com") {
-      const id = u.searchParams.get("v");
-      if (!id) return { provider: "youtube", embedUrl: null, thumbnailUrl: null };
-      return {
-        provider: "youtube",
-        embedUrl: `https://www.youtube.com/embed/${id}`,
-        thumbnailUrl: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
-      };
-    }
-    if (host === "youtu.be") {
-      const id = u.pathname.replace(/^\//, "");
-      if (!id) return { provider: "youtube", embedUrl: null, thumbnailUrl: null };
-      return {
-        provider: "youtube",
-        embedUrl: `https://www.youtube.com/embed/${id}`,
-        thumbnailUrl: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
-      };
-    }
-
-    // Hudl: https://www.hudl.com/video/3/xxxx/yyyy — use their embed hostname
-    if (host === "hudl.com" || host.endsWith(".hudl.com")) {
-      return {
-        provider: "hudl",
-        embedUrl: url.replace("/video/", "/embed/video/"),
-        thumbnailUrl: null,
-      };
-    }
-
-    // Vimeo
-    if (host === "vimeo.com") {
-      const id = u.pathname.replace(/^\//, "").split("/")[0];
-      return {
-        provider: "vimeo",
-        embedUrl: `https://player.vimeo.com/video/${id}`,
-        thumbnailUrl: null,
-      };
-    }
-
-    return { provider: "unknown", embedUrl: null, thumbnailUrl: null };
-  } catch {
-    return { provider: "unknown", embedUrl: null, thumbnailUrl: null };
-  }
-}
+// resolveVideoEmbed and VideoEmbed are now sourced from
+// ./player-profile-types so client components can use them too.

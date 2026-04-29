@@ -784,6 +784,46 @@ function PlayerCard({
         </div>
       )}
 
+      {/* Player-entered academics + recruiting (migration 30). Render
+          chips only for fields the player chose to share. Empty row
+          stays hidden — we never reveal "GPA: not entered" to a
+          recruiter, since that's just inviting bias. */}
+      {(player.gpa != null ||
+        player.satScore != null ||
+        player.actScore != null ||
+        player.intendedLevel) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {player.intendedLevel && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-soft text-red text-[10.5px] font-bold uppercase tracking-[0.06em]"
+              title="Player's target college level"
+            >
+              {player.intendedLevel}
+            </span>
+          )}
+          {player.gpa != null && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-grass-dim text-grass text-[10.5px] font-mono font-semibold">
+              GPA {player.gpa.toFixed(2)}
+            </span>
+          )}
+          {player.satScore != null && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-soft text-sky text-[10.5px] font-mono font-semibold">
+              SAT {player.satScore}
+            </span>
+          )}
+          {player.actScore != null && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-soft text-amber text-[10.5px] font-mono font-semibold">
+              ACT {player.actScore}
+            </span>
+          )}
+        </div>
+      )}
+      {player.bio && (
+        <p className="mt-2 text-[12px] text-ink-2 leading-snug line-clamp-2">
+          {player.bio}
+        </p>
+      )}
+
       <div className="mt-4 flex gap-2">
         <Link
           href={`/p/${player.profileSlug}`}

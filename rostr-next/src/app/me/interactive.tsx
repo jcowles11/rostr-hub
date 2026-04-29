@@ -9,6 +9,7 @@ import {
   TrendingUp,
   Share2,
   ExternalLink,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { comingSoon } from "@/lib/coming-soon";
@@ -29,10 +30,17 @@ export function MeHeaderActions({ handle }: { handle: string }) {
     }
   };
   return (
-    <div className="ml-auto flex gap-2">
+    <div className="ml-auto flex flex-wrap gap-2">
+      <Link
+        href="/me/profile"
+        className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-hair hover:border-ink text-ink rounded-sm text-[13px] font-semibold transition-colors active:scale-[0.97]"
+      >
+        <Pencil className="w-3.5 h-3.5" />
+        Edit profile
+      </Link>
       <Link
         href={`/p/${handle}`}
-        className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-hair hover:border-ink text-ink rounded-sm text-[13px] font-semibold transition-colors"
+        className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-hair hover:border-ink text-ink rounded-sm text-[13px] font-semibold transition-colors active:scale-[0.97]"
       >
         <ExternalLink className="w-3.5 h-3.5" />
         View public profile

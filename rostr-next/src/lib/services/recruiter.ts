@@ -89,6 +89,14 @@ export interface SearchFilters {
   maxERA?: number | null;
   maxWHIP?: number | null;
   minK9?: number | null;
+  /** Player-entered academic filters (migration 30).
+   *  All NULL-tolerant by default (i.e. players with no entered value
+   *  pass through unless the recruiter opts into strict-mode via a
+   *  "must have GPA" toggle — future work). */
+  minGPA?: number | null;
+  minSAT?: number | null;
+  minACT?: number | null;
+  intendedLevels?: Array<"D1" | "D2" | "D3" | "NAIA" | "Juco" | "Open" | "Other">;
   /** Optional sort preset. Defaults to best_ev desc. */
   sort?:
     | "best_ev_desc"
@@ -99,7 +107,10 @@ export interface SearchFilters {
     | "ba_desc"
     | "ops_desc"
     | "era_asc"
-    | "k9_desc";
+    | "k9_desc"
+    | "gpa_desc"
+    | "sat_desc"
+    | "act_desc";
   /** Pagination. Defaults to 50. */
   limit?: number;
   offset?: number;
@@ -133,6 +144,13 @@ export interface PlayerSearchResult {
   era: number | null;
   whip: number | null;
   k9: number | null;
+  // Player-entered academics + recruiting (migration 30). All optional;
+  // null means "not entered" rather than "zero."
+  gpa: number | null;
+  satScore: number | null;
+  actScore: number | null;
+  intendedLevel: "D1" | "D2" | "D3" | "NAIA" | "Juco" | "Open" | "Other" | null;
+  bio: string | null;
 }
 
 /**
@@ -247,8 +265,21 @@ export async function searchPlayers(
     string,
     { games: number; ip: number; era: number; whip: number; k9: number; outs: number }
   >();
+  // Academic profile fields live on the players table directly (added
+  // in migration 30). We pull them in the same enrichment round-trip
+  // for matched ids — avoids touching the player_search view.
+  const academicsByPlayer = new Map<
+    string,
+    {
+      gpa: number | null;
+      satScore: number | null;
+      actScore: number | null;
+      intendedLevel: PlayerSearchResult["intendedLevel"];
+      bio: string | null;
+    }
+  >();
   if (playerIds.length > 0) {
-    const [battingRes, pitchingRes, importedBatRes, importedPitRes] = await Promise.all([
+    const [battingRes, pitchingRes, importedBatRes, importedPitRes, acadRes] = await Promise.all([
       supabase
         .from("player_season_batting")
         .select("player_id, games, ba, ops, hr")
@@ -267,7 +298,26 @@ export async function searchPlayers(
         .select("player_id, games, ip, era, whip, k9, outs, season_year")
         .in("player_id", playerIds)
         .order("season_year", { ascending: false }),
+      supabase
+        .from("players")
+        .select("id, gpa, sat_score, act_score, intended_level, bio")
+        .in("id", playerIds),
     ]);
+
+    // Academics — migration-resilient: an old DB without the new columns
+    // returns an error; we no-op rather than crashing the whole search.
+    if (!acadRes.error && acadRes.data) {
+      for (const r of acadRes.data) {
+        const gpaNum = r.gpa != null && r.gpa !== "" ? Number(r.gpa) : null;
+        academicsByPlayer.set(r.id, {
+          gpa: gpaNum != null && Number.isFinite(gpaNum) ? gpaNum : null,
+          satScore: r.sat_score ?? null,
+          actScore: r.act_score ?? null,
+          intendedLevel: (r.intended_level ?? null) as PlayerSearchResult["intendedLevel"],
+          bio: r.bio ?? null,
+        });
+      }
+    }
     // Fill with imported first (most recent season), then overwrite with
     // live data where it exists. Latest-season-first ordering means the
     // first row per player is the most recent.
@@ -324,6 +374,11 @@ export async function searchPlayers(
     filters.maxERA != null ||
     filters.maxWHIP != null ||
     filters.minK9 != null;
+  const hasAcademicFilter =
+    filters.minGPA != null ||
+    filters.minSAT != null ||
+    filters.minACT != null ||
+    (filters.intendedLevels && filters.intendedLevels.length > 0);
 
   const withStatsFilter = (data ?? []).filter((p) => {
     if (hasBattingFilter) {
@@ -340,6 +395,22 @@ export async function searchPlayers(
       if (filters.maxERA != null && s.era > filters.maxERA) return false;
       if (filters.maxWHIP != null && s.whip > filters.maxWHIP) return false;
       if (filters.minK9 != null && s.k9 < filters.minK9) return false;
+    }
+    if (hasAcademicFilter) {
+      const a = academicsByPlayer.get(p.id);
+      // STRICT for academics — if the recruiter is filtering on GPA
+      // ≥ 3.5 we don't include players who haven't entered a GPA. Same
+      // for SAT, ACT, intended level. A future "lenient" toggle can
+      // flip this if real-world recruiters complain — but the LinkedIn
+      // / Handshake / NCSA pattern is "I want kids who match my bar."
+      if (!a) return false;
+      if (filters.minGPA != null && (a.gpa == null || a.gpa < filters.minGPA)) return false;
+      if (filters.minSAT != null && (a.satScore == null || a.satScore < filters.minSAT)) return false;
+      if (filters.minACT != null && (a.actScore == null || a.actScore < filters.minACT)) return false;
+      if (filters.intendedLevels && filters.intendedLevels.length > 0) {
+        if (!a.intendedLevel) return false;
+        if (!filters.intendedLevels.includes(a.intendedLevel)) return false;
+      }
     }
     return true;
   });
@@ -374,15 +445,34 @@ export async function searchPlayers(
       const sb = pitchingByPlayer.get(b.id)?.k9 ?? -1;
       return sb - sa;
     });
+  } else if (filters.sort === "gpa_desc") {
+    withStatsFilter.sort((a, b) => {
+      const sa = academicsByPlayer.get(a.id)?.gpa ?? -1;
+      const sb = academicsByPlayer.get(b.id)?.gpa ?? -1;
+      return sb - sa;
+    });
+  } else if (filters.sort === "sat_desc") {
+    withStatsFilter.sort((a, b) => {
+      const sa = academicsByPlayer.get(a.id)?.satScore ?? -1;
+      const sb = academicsByPlayer.get(b.id)?.satScore ?? -1;
+      return sb - sa;
+    });
+  } else if (filters.sort === "act_desc") {
+    withStatsFilter.sort((a, b) => {
+      const sa = academicsByPlayer.get(a.id)?.actScore ?? -1;
+      const sb = academicsByPlayer.get(b.id)?.actScore ?? -1;
+      return sb - sa;
+    });
   }
 
-  const hasAnyStatsFilter = hasBattingFilter || hasPitchingFilter;
+  const hasAnyStatsFilter = hasBattingFilter || hasPitchingFilter || hasAcademicFilter;
 
   return {
     total: hasAnyStatsFilter ? withStatsFilter.length : count ?? 0,
     players: withStatsFilter.map((r) => {
       const batting = battingByPlayer.get(r.id);
       const pitching = pitchingByPlayer.get(r.id);
+      const academics = academicsByPlayer.get(r.id);
       return {
         id: r.id,
         firstName: r.first_name,
@@ -408,6 +498,11 @@ export async function searchPlayers(
         era: pitching?.era ?? null,
         whip: pitching?.whip ?? null,
         k9: pitching?.k9 ?? null,
+        gpa: academics?.gpa ?? null,
+        satScore: academics?.satScore ?? null,
+        actScore: academics?.actScore ?? null,
+        intendedLevel: academics?.intendedLevel ?? null,
+        bio: academics?.bio ?? null,
       };
     }),
   };
@@ -555,6 +650,13 @@ export async function fetchListDetail(
         era: pitching?.era ?? null,
         whip: pitching?.whip ?? null,
         k9: pitching?.k9 ?? null,
+        // List-detail callers don't fetch academics today; keep null.
+        // (Future: add an enrichment round-trip here too.)
+        gpa: null,
+        satScore: null,
+        actScore: null,
+        intendedLevel: null,
+        bio: null,
       });
     }
   }

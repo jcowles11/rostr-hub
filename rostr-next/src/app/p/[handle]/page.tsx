@@ -43,9 +43,13 @@ import { formatIP, formatERA, formatWHIP } from "@/lib/format";
 import {
   fetchPlayerProfileMedia,
   fetchPlayerAnnouncements,
+  fetchPlayerAcademics,
+  fetchPlayerHighlights,
   resolveVideoEmbed,
   type PlayerProfileMedia,
   type PlayerAnnouncement,
+  type PlayerAcademics,
+  type PlayerHighlight,
 } from "@/lib/services/player-profile";
 import {
   getCurrentRecruiter,
@@ -102,7 +106,16 @@ export default async function PlayerProfilePage({
   // numbers (single-season demo).
   const mockBatting = !real ? MOCK_BATTING_BY_PLAYER[player.id] ?? null : null;
   const mockPitching = !real ? MOCK_PITCHING_BY_PLAYER[player.id] ?? null : null;
-  const [seasonLine, careerLine, pitchingSeason, pitchingCareer, profileMedia, announcements] = real
+  const [
+    seasonLine,
+    careerLine,
+    pitchingSeason,
+    pitchingCareer,
+    profileMedia,
+    announcements,
+    realAcademics,
+    realHighlights,
+  ] = real
     ? await Promise.all([
         fetchPlayerSeasonBatting(real.id),
         fetchPlayerCareerBatting(real.id),
@@ -110,6 +123,8 @@ export default async function PlayerProfilePage({
         fetchPlayerCareerPitching(real.id),
         fetchPlayerProfileMedia(real.id),
         fetchPlayerAnnouncements(real.id, 10),
+        fetchPlayerAcademics(real.id),
+        fetchPlayerHighlights(real.id),
       ])
     : [
         mockBatting as unknown as SeasonBattingLine | null,
@@ -118,6 +133,8 @@ export default async function PlayerProfilePage({
         mockPitching as unknown as PlayerPitchingLine | null,
         null,
         [],
+        null as PlayerAcademics | null,
+        [] as PlayerHighlight[],
       ];
 
   // Recruiter overlay context — if the viewer is a recruiter, show
@@ -205,6 +222,8 @@ export default async function PlayerProfilePage({
           mockBio={mockBio}
           mockRecruiting={mockRecruiting}
           mockAcademic={mockAcademic}
+          realAcademics={realAcademics}
+          realHighlights={realHighlights}
         />
         {recruiter && similarPlayers.length > 0 && (
           <SimilarPlayersSection
@@ -423,6 +442,8 @@ function Layout({
   mockBio,
   mockRecruiting,
   mockAcademic,
+  realAcademics,
+  realHighlights,
 }: {
   player: (typeof MOCK_PLAYERS)[number];
   measurables: PlayerMeasurable[];
@@ -436,6 +457,8 @@ function Layout({
   mockBio: MockBio | null;
   mockRecruiting: MockRecruiting | null;
   mockAcademic: MockAcademic | null;
+  realAcademics: PlayerAcademics | null;
+  realHighlights: PlayerHighlight[];
 }) {
   const hasBatting = Boolean(seasonLine && seasonLine.games > 0);
   const hasPitching = Boolean(pitchingSeason && pitchingSeason.games > 0);
@@ -506,6 +529,13 @@ function Layout({
             </p>
           </div>
         )}
+        {/* Real highlights for claimed profiles — multiple ordered clips
+            from /me/profile editor. Falls back to the mock card on demo. */}
+        {isRealProfile && realHighlights.length > 0 && (
+          <section id="highlights" className="scroll-mt-28">
+            <RealHighlightsCard highlights={realHighlights} />
+          </section>
+        )}
         {showMockSections && (
           <section id="highlights" className="scroll-mt-28">
             <Highlights />
@@ -522,6 +552,15 @@ function Layout({
         {showMockSections && (
           <section id="recruiting" className="scroll-mt-28">
             <RecruitingCard recruiting={mockRecruiting} />
+          </section>
+        )}
+        {/* Academics: real values for claimed profiles, mock for demo.
+            Render even if values are sparse — recruiters value any
+            data point ("GPA 3.85, intended D2") more than they value
+            a hidden card. We omit empty rows inside the card itself. */}
+        {isRealProfile && realAcademics && hasAnyRealAcademics(realAcademics) && (
+          <section id="academic" className="scroll-mt-28">
+            <RealAcademicsCard academics={realAcademics} />
           </section>
         )}
         {showMockSections && (
@@ -1690,6 +1729,158 @@ function MockProfileBanner() {
           </Link>
         </span>
       </div>
+    </div>
+  );
+}
+
+// ── Real player profile additions (migration 30) ────────────────────
+
+/** Decide whether to render the academics card. We hide it when every
+ *  field is null — coaches don't need an empty card on the page. */
+function hasAnyRealAcademics(a: PlayerAcademics): boolean {
+  return Boolean(
+    a.gpa ||
+      a.satScore != null ||
+      a.actScore != null ||
+      (a.classRankNumerator != null && a.classRankDenominator != null) ||
+      a.intendedLevel ||
+      a.bio,
+  );
+}
+
+/**
+ * Real academics card — renders only the fields the player chose to
+ * share. Mirrors the visual rhythm of the mock AcademicsCard so the
+ * profile feels consistent regardless of demo vs. real.
+ */
+function RealAcademicsCard({ academics }: { academics: PlayerAcademics }) {
+  const rows: Array<[string, string]> = [];
+  if (academics.gpa) rows.push(["GPA", academics.gpa]);
+  if (academics.satScore != null) rows.push(["SAT", String(academics.satScore)]);
+  if (academics.actScore != null) rows.push(["ACT", String(academics.actScore)]);
+  if (academics.classRankNumerator != null && academics.classRankDenominator != null) {
+    rows.push([
+      "Class rank",
+      `${academics.classRankNumerator} of ${academics.classRankDenominator}`,
+    ]);
+  }
+  if (academics.intendedLevel) rows.push(["Target level", academics.intendedLevel]);
+
+  return (
+    <div className="bg-card border border-hair rounded-lg">
+      <div className="px-5 py-4 border-b border-hair-2 flex items-center gap-2">
+        <GraduationCap className="w-4 h-4 text-ink-3" />
+        <h3 className="font-display text-[15px] font-semibold tracking-tight">
+          Academic
+        </h3>
+      </div>
+      {academics.bio && (
+        <div className="px-5 py-3.5 border-b border-hair-2 text-[13px] leading-relaxed text-ink-2">
+          {academics.bio}
+        </div>
+      )}
+      {rows.length > 0 ? (
+        <div>
+          {rows.map(([label, value]) => (
+            <div
+              key={label}
+              className="flex justify-between items-center px-4 py-2.5 border-b border-hair-2 last:border-b-0 text-[13px]"
+            >
+              <span className="text-ink-3 font-medium">{label}</span>
+              <span className="font-mono font-semibold">{value}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="px-4 py-5 text-[12px] text-ink-3 italic">
+          Player-entered academic info will appear here.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Real highlights card — embedded video grid for claimed profiles.
+ * Renders a grid of 1–3 columns depending on how many clips the player
+ * has uploaded (up to 6 max from the editor). Each tile auto-plays the
+ * preview thumbnail and clicks through to the full provider page.
+ */
+function RealHighlightsCard({ highlights }: { highlights: PlayerHighlight[] }) {
+  // First clip gets the full-width "hero" treatment with embed; subsequent
+  // clips render as smaller cards. iOS Photos / LinkedIn pattern.
+  const [hero, ...rest] = highlights;
+  if (!hero) return null;
+  const heroEmbed = resolveVideoEmbed(hero.url);
+  return (
+    <div className="bg-card border border-hair rounded-lg overflow-hidden">
+      <div className="px-5 py-4 border-b border-hair-2 flex items-center gap-2">
+        <Trophy className="w-4 h-4 text-red" />
+        <h3 className="font-display text-[15px] font-semibold tracking-tight">
+          Highlights
+        </h3>
+        <span className="ml-auto font-mono text-[10.5px] text-ink-3 font-semibold">
+          {highlights.length}
+        </span>
+      </div>
+      {/* Hero embed */}
+      <div className="bg-ink">
+        {heroEmbed?.embedUrl ? (
+          <div className="relative w-full" style={{ aspectRatio: "16 / 9" }}>
+            <iframe
+              src={heroEmbed.embedUrl}
+              title={hero.caption ?? "Highlight"}
+              className="absolute inset-0 w-full h-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        ) : (
+          <a
+            href={hero.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block px-5 py-8 text-center text-white/85 underline text-[13px]"
+          >
+            Open highlight →
+          </a>
+        )}
+      </div>
+      {hero.caption && (
+        <div className="px-5 py-2.5 text-[12.5px] text-ink-2">{hero.caption}</div>
+      )}
+
+      {rest.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 bg-paper-deep border-t border-hair-2">
+          {rest.map((h) => {
+            const e = resolveVideoEmbed(h.url);
+            return (
+              <a
+                key={h.id}
+                href={h.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group block rounded-md overflow-hidden bg-ink relative"
+              >
+                <div
+                  className="w-full bg-cover bg-center"
+                  style={{
+                    aspectRatio: "16 / 9",
+                    backgroundImage: e?.thumbnailUrl
+                      ? `url("${e.thumbnailUrl}")`
+                      : "linear-gradient(135deg, #14181f, #0a0d12)",
+                  }}
+                />
+                {h.caption && (
+                  <div className="absolute bottom-0 left-0 right-0 px-2 py-1 text-[10.5px] text-white bg-black/60 truncate">
+                    {h.caption}
+                  </div>
+                )}
+              </a>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
