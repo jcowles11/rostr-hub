@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { AppSidebar, type NavSection } from "@/components/organisms/app-sidebar";
 import { MobileAppBar } from "@/components/organisms/mobile-app-bar";
+import { BottomNav, DEMO_BOTTOM_TABS } from "@/components/organisms/bottom-nav";
 import { initialsFrom } from "@/lib/auth";
 import { MOCK_TEAM, MOCK_COACH, MOCK_PLAYERS } from "@/lib/mock-data";
 
@@ -99,6 +100,9 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
         <MobileAppBar team={team} sections={DEMO_SECTIONS} user={userCtx} />
         <DemoBanner />
         {children}
+        {/* Mobile-only bottom tab bar — mirrors the /app version but
+            points at /demo destinations. */}
+        <BottomNav tabs={DEMO_BOTTOM_TABS} moreSections={DEMO_SECTIONS} />
       </main>
     </div>
   );

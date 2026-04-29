@@ -42,6 +42,50 @@
     font-size: 14px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    /* Native-app feel — kill the browser bounce + the long-press
+       text-selection callout on iOS. Keeps the experience feeling
+       like an installed app instead of a webpage. */
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    /* iOS Safari address bar can shrink/grow as the user scrolls;
+       100dvh respects the dynamic viewport so layouts don't jump. */
+    min-height: 100dvh;
+  }
+
+  /* Disable text selection on UI chrome by default (buttons, nav,
+     headings) — but let it work on real text content (paragraphs,
+     stat values, message bodies) so coaches can copy a player's
+     name or a recap. */
+  button,
+  [role="button"],
+  nav,
+  header,
+  aside,
+  .type-label {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Inputs always allow selection + the system zoom prevention. */
+  input,
+  textarea,
+  select {
+    -webkit-user-select: text;
+    user-select: text;
+    /* iOS Safari zooms the viewport when an input has font-size <16px.
+       Force ≥16px on focus to prevent that jarring zoom-in. */
+    font-size: max(16px, 1rem);
+  }
+  /* Restore the 13px scale we use elsewhere — only the iOS-zoom-trigger
+     threshold matters, which is 16px on touch devices. Above that,
+     anything is fine. */
+  @media (min-width: 768px) {
+    input,
+    textarea,
+    select {
+      font-size: inherit;
+    }
   }
 
   * {

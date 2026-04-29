@@ -11,9 +11,13 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { TopBar } from "@/components/organisms/top-bar";
+import { AvailabilityList } from "@/components/organisms/availability-list";
 import {
   MOCK_PLAYERS,
   MOCK_TEAM,
+  MOCK_BATTING_BY_PLAYER,
+  MOCK_MEASURABLES_BY_PLAYER,
+  MOCK_PITCHING_BY_PLAYER,
   getMockWeek,
   prettyToday,
   daysUntilLabel,
@@ -244,16 +248,57 @@ export default function DemoTodayPage() {
                 icon={<AlertCircle className="w-4 h-4" />}
                 count={questionable.length}
                 label="Questionable"
-                names={questionable.map((p) => `${p.firstName} ${p.lastName}`)}
               />
               <AvailabilityTile
                 tone="red"
                 icon={<Clock className="w-4 h-4" />}
                 count={out.length}
                 label="Out"
-                names={out.map((p) => `${p.firstName} ${p.lastName}`)}
               />
             </div>
+
+            {(out.length > 0 || questionable.length > 0) && (
+              <div className="mt-3 bg-card border border-hair rounded-lg p-3">
+                <AvailabilityList
+                  rows={[
+                    ...out.map((p) => ({
+                      id: p.id,
+                      jerseyNumber: p.jerseyNumber,
+                      firstName: p.firstName,
+                      lastName: p.lastName,
+                      classYearShort: p.classYearShort,
+                      positions: p.positions,
+                      availabilityStatus: p.availabilityStatus,
+                      availabilityNote: p.availabilityNote,
+                    })),
+                    ...questionable.map((p) => ({
+                      id: p.id,
+                      jerseyNumber: p.jerseyNumber,
+                      firstName: p.firstName,
+                      lastName: p.lastName,
+                      classYearShort: p.classYearShort,
+                      positions: p.positions,
+                      availabilityStatus: p.availabilityStatus,
+                      availabilityNote: p.availabilityNote,
+                    })),
+                  ]}
+                  fullRoster={MOCK_PLAYERS}
+                  battingByPlayer={Object.fromEntries(
+                    Object.entries(MOCK_BATTING_BY_PLAYER).map(([id, l]) => [
+                      id,
+                      { games: l.games, ba: l.ba, obp: l.obp, slg: l.slg, ops: l.ops, hr: l.hr, rbi: l.rbi },
+                    ]),
+                  )}
+                  measurablesByPlayer={MOCK_MEASURABLES_BY_PLAYER}
+                  pitchingByPlayer={Object.fromEntries(
+                    Object.entries(MOCK_PITCHING_BY_PLAYER).map(([id, l]) => [
+                      id,
+                      { games: l.games, era: l.era, whip: l.whip, ip: l.ip, k: l.k, bb: l.bb },
+                    ]),
+                  )}
+                />
+              </div>
+            )}
           </div>
 
           {/* Prep checklist */}
@@ -303,13 +348,11 @@ function AvailabilityTile({
   icon,
   count,
   label,
-  names,
 }: {
   tone: "grass" | "amber" | "red";
   icon: React.ReactNode;
   count: number;
   label: string;
-  names?: string[];
 }) {
   const toneClasses = {
     grass: "bg-grass-dim text-grass",
@@ -332,11 +375,6 @@ function AvailabilityTile({
         </div>
         <div className="type-label ml-auto">{label}</div>
       </div>
-      {names && names.length > 0 && (
-        <div className="mt-2 text-[12px] text-ink-3 leading-snug">
-          {names.join(" · ")}
-        </div>
-      )}
     </div>
   );
 }

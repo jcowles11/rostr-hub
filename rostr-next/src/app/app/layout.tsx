@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { AppSidebar, type NavSection } from "@/components/organisms/app-sidebar";
 import { MobileAppBar } from "@/components/organisms/mobile-app-bar";
+import { BottomNav, APP_BOTTOM_TABS } from "@/components/organisms/bottom-nav";
 import { NavigationProgress } from "@/components/atoms/navigation-progress";
 import { SetupBanner } from "@/components/molecules/setup-banner";
 import { getSessionUser, displayName, initialsFrom } from "@/lib/auth";
@@ -149,6 +150,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <MobileAppBar team={team} sections={sections} user={userCtx} />
         {!coach && <SetupBanner />}
         {children}
+        {/* Mobile-only bottom tab bar — primary nav for thumb reach.
+            Sits at the end of main's flex column so pages' internal
+            `flex-1 overflow-auto` regions automatically reserve space
+            for it. The "More" drawer surfaces every section that
+            doesn't fit in the 5-tab bar, so coaches still have one-tap
+            access to every workspace. */}
+        <BottomNav tabs={APP_BOTTOM_TABS} moreSections={sections} />
       </main>
     </div>
   );

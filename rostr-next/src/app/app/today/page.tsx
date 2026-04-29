@@ -12,6 +12,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { TopBar } from "@/components/organisms/top-bar";
+import { AvailabilityList } from "@/components/organisms/availability-list";
 import { getCurrentCoach } from "@/lib/services/coach";
 import { fetchRoster } from "@/lib/services/players";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -249,19 +250,32 @@ export default async function TodayPage() {
                     icon={<AlertCircle className="w-3.5 h-3.5" />}
                   />
                   {(out.length > 0 || questionable.length > 0) && (
-                    <div className="pt-2 mt-2 border-t border-hair-2 space-y-1.5 text-[11.5px] text-ink-3">
-                      {out.slice(0, 5).map((p) => (
-                        <div key={p.id}>
-                          <b className="text-ink">{p.firstName} {p.lastName}</b> — out
-                          {p.availabilityNote ? ` (${p.availabilityNote})` : ""}
-                        </div>
-                      ))}
-                      {questionable.slice(0, 3).map((p) => (
-                        <div key={p.id}>
-                          <b className="text-ink">{p.firstName} {p.lastName}</b> — questionable
-                          {p.availabilityNote ? ` (${p.availabilityNote})` : ""}
-                        </div>
-                      ))}
+                    <div className="pt-2 mt-2 border-t border-hair-2">
+                      <AvailabilityList
+                        rows={[
+                          ...out.slice(0, 5).map((p) => ({
+                            id: p.id,
+                            jerseyNumber: p.jerseyNumber,
+                            firstName: p.firstName,
+                            lastName: p.lastName,
+                            classYearShort: p.classYearShort,
+                            positions: p.positions,
+                            availabilityStatus: p.availabilityStatus,
+                            availabilityNote: p.availabilityNote,
+                          })),
+                          ...questionable.slice(0, 3).map((p) => ({
+                            id: p.id,
+                            jerseyNumber: p.jerseyNumber,
+                            firstName: p.firstName,
+                            lastName: p.lastName,
+                            classYearShort: p.classYearShort,
+                            positions: p.positions,
+                            availabilityStatus: p.availabilityStatus,
+                            availabilityNote: p.availabilityNote,
+                          })),
+                        ]}
+                        fullRoster={roster as never}
+                      />
                     </div>
                   )}
                 </div>
