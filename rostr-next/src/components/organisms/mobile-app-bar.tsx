@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Menu, X, LogOut, User as UserIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { tapHaptic } from "@/lib/haptic";
 import { Avatar } from "@/components/atoms/avatar";
 import { LogoMark } from "@/components/atoms/logo";
 import type { NavSection, TeamContext, UserContext } from "./app-sidebar";
@@ -34,40 +35,68 @@ export function MobileAppBar({
 
   return (
     <>
-      <header className="lg:hidden h-12 px-3 bg-ink text-white flex items-center gap-2 shrink-0 sticky top-0 z-topbar">
+      {/* iOS UINavigationBar pattern: translucent ink chrome with
+          backdrop blur. Content scrolls *under* the bar via the blur,
+          which reads as iOS-native instantly. The bar height is 48px
+          (close to native 44pt UINavigationBar). */}
+      <header
+        className={cn(
+          "lg:hidden h-12 px-3 flex items-center gap-2 shrink-0 sticky top-0 z-topbar",
+          "bg-ink/85 backdrop-blur-xl backdrop-saturate-150 text-white",
+          "border-b border-white/[0.06]",
+        )}
+      >
         <Dialog.Root open={open} onOpenChange={setOpen}>
           <Dialog.Trigger asChild>
             <button
               type="button"
               aria-label="Open menu"
-              className="w-9 h-9 inline-flex items-center justify-center rounded-sm hover:bg-white/10"
+              onPointerDown={() => tapHaptic(6)}
+              className={cn(
+                "w-9 h-9 inline-flex items-center justify-center rounded-full",
+                "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                "hover:bg-white/10 active:bg-white/15 active:scale-[0.88]",
+              )}
             >
-              <Menu className="w-[18px] h-[18px]" />
+              <Menu className="w-[18px] h-[18px]" strokeWidth={2.25} />
             </button>
           </Dialog.Trigger>
 
           <div className="flex items-center gap-2 ml-1 flex-1 min-w-0">
             <LogoMark size="sm" variant="light" />
-            <div className="min-w-0 truncate font-display text-[13px] font-semibold tracking-tight">
+            <div className="min-w-0 truncate font-display text-[14px] font-semibold tracking-tight">
               {team.name}
             </div>
           </div>
 
           <Link
             href="/me"
-            className="w-9 h-9 inline-flex items-center justify-center rounded-sm hover:bg-white/10"
+            onPointerDown={() => tapHaptic(6)}
+            className={cn(
+              "w-9 h-9 inline-flex items-center justify-center rounded-full",
+              "transition-transform duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+              "hover:bg-white/10 active:scale-[0.88]",
+            )}
             aria-label="My profile"
           >
             <Avatar size="sm" color="dirt" initials={user.initials} />
           </Link>
 
           <Dialog.Portal>
-            <Dialog.Overlay className="lg:hidden fixed inset-0 bg-black/50 z-[95] data-[state=open]:animate-in data-[state=open]:fade-in-0" />
-            <Dialog.Content className="lg:hidden fixed left-0 top-0 bottom-0 w-[82vw] max-w-[300px] bg-ink text-white z-[96] flex flex-col shadow-[6px_0_30px_rgba(0,0,0,0.3)] data-[state=open]:animate-slide-in-left">
+            <Dialog.Overlay className="lg:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[95] data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+            <Dialog.Content
+              className={cn(
+                "lg:hidden fixed left-0 top-0 bottom-0 w-[82vw] max-w-[320px] z-[96] flex flex-col",
+                "bg-ink/95 backdrop-blur-xl text-white",
+                "shadow-[6px_0_40px_rgba(0,0,0,0.4)]",
+                "data-[state=open]:animate-slide-in-left",
+                "pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
+              )}
+            >
               <div className="flex items-center justify-between px-3 py-3 border-b border-white/10">
                 <div className="flex items-center gap-2">
                   <LogoMark size="md" variant="light" />
-                  <Dialog.Title className="font-display text-[15px] font-bold tracking-tight">
+                  <Dialog.Title className="font-display text-[16px] font-bold tracking-tight">
                     rostr
                   </Dialog.Title>
                 </div>
@@ -75,9 +104,13 @@ export function MobileAppBar({
                   <button
                     type="button"
                     aria-label="Close menu"
-                    className="w-9 h-9 inline-flex items-center justify-center rounded-sm hover:bg-white/10"
+                    className={cn(
+                      "w-9 h-9 inline-flex items-center justify-center rounded-full",
+                      "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                      "hover:bg-white/10 active:scale-[0.88]",
+                    )}
                   >
-                    <X className="w-[18px] h-[18px]" />
+                    <X className="w-[18px] h-[18px]" strokeWidth={2.25} />
                   </button>
                 </Dialog.Close>
               </div>
@@ -85,12 +118,16 @@ export function MobileAppBar({
               {/* Team switcher */}
               <button
                 type="button"
-                className="m-3 p-3 bg-white/5 border border-white/10 rounded-md text-left hover:bg-white/10 transition-colors"
+                className={cn(
+                  "m-3 p-3.5 bg-white/5 border border-white/10 rounded-xl text-left",
+                  "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                  "hover:bg-white/10 active:scale-[0.98]",
+                )}
               >
                 <div className="text-[9.5px] font-bold uppercase tracking-[0.08em] text-white/50 mb-1">
                   Active team
                 </div>
-                <div className="font-display text-[14px] font-semibold">
+                <div className="font-display text-[15px] font-semibold">
                   {team.name}
                 </div>
                 <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/55">
@@ -117,12 +154,17 @@ export function MobileAppBar({
                         <Link
                           key={item.href}
                           href={item.href}
-                          onClick={() => setOpen(false)}
+                          onClick={() => {
+                            tapHaptic(6);
+                            setOpen(false);
+                          }}
                           className={cn(
-                            "flex items-center gap-2.5 px-2.5 py-2.5 rounded-sm text-[14px] font-medium transition-colors",
+                            "flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[14.5px] font-medium",
+                            "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                            "active:scale-[0.97]",
                             isActive
                               ? "bg-red text-white"
-                              : "text-white/80 hover:bg-white/5 hover:text-white",
+                              : "text-white/85 hover:bg-white/5 hover:text-white",
                           )}
                         >
                           <span className="w-4 h-4 inline-flex items-center justify-center shrink-0">

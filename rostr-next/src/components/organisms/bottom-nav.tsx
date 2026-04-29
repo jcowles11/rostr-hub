@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { cloneElement, isValidElement, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -13,24 +13,28 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { tapHaptic } from "@/lib/haptic";
 import type { NavSection } from "./app-sidebar";
 
 /**
- * BottomNav — sticky bottom tab bar for mobile.
+ * BottomNav — sticky iOS-style tab bar for mobile.
  *
- * Five tabs (Hub / Roster / Schedule / Score / More) modeled after the
- * iOS Health / Apple Sports app pattern: thumb-reach, big touch targets,
- * single-tap return to the most-used surfaces. The "More" button opens
- * a Radix Dialog drawer with the rest of the nav (Stats, Practice,
- * Tryouts, Analytics, Messages, Settings, Help, etc.) so the bar
- * stays five-wide regardless of how the sidebar grows.
+ * Design references: Apple Health, Apple Music, LinkedIn iOS, Whoop.
  *
- * Why this lives separately from MobileAppBar:
- *   - MobileAppBar is the slim TOP chrome (brand + burger + avatar).
- *   - BottomNav is the bottom tab bar (primary navigation).
- *   - Native apps almost always have both. Coaches' thumbs sit at the
- *     bottom of the phone — putting nav there is the single biggest
- *     win for "feels like an app."
+ * iOS-native cues:
+ *   - Translucent backdrop with `backdrop-blur-xl` (UITabBar look).
+ *     Content scrolls *under* the bar instead of cutting off cleanly.
+ *   - Active tab: bumped icon stroke (filled-feel), red color, and a
+ *     compact pill indicator above the icon.
+ *   - Press-down: spring scale via cubic-bezier(0.34, 1.56, 0.64, 1)
+ *     so taps feel like iOS, not like a website button.
+ *   - Haptic buzz on Android (iOS Safari blocks vibrate, so iPhone
+ *     users get the visual spring instead — it still feels right).
+ *   - Safe-area-inset padding so taps clear the iPhone home indicator.
+ *
+ * Five tabs (Hub / Roster / Schedule / Score / More). The "More" sheet
+ * slides up from the bottom and surfaces every sidebar section, so the
+ * 5-tab bar never has to grow.
  *
  * Hides itself on:
  *   - Desktop (lg+).
@@ -84,44 +88,26 @@ export function BottomNav({
     <nav
       className={cn(
         "lg:hidden shrink-0 sticky bottom-0 z-topbar",
-        "bg-card border-t border-hair",
+        // iOS UITabBar look: very-light translucent backdrop, hairline top.
+        // The blur reads "iOS" instantly — content slides under it
+        // instead of being clipped.
+        "bg-white/80 dark:bg-ink/80 backdrop-blur-xl backdrop-saturate-150",
+        "border-t border-hair/80",
         // Respect iPhone home-bar inset so taps don't land on the bezel.
         "pb-[env(safe-area-inset-bottom)]",
       )}
       aria-label="Primary"
     >
-      <div className="flex items-stretch h-14">
+      <div className="flex items-stretch h-[52px]">
         {tabs.map((tab) => {
           const active = isTabActive(tab);
           return (
-            <Link
+            <BottomNavLink
               key={tab.href}
-              href={tab.href}
-              className={cn(
-                "flex-1 flex flex-col items-center justify-center gap-0.5",
-                // Big touch target — minimum height satisfies WCAG 2.5.5.
-                "min-h-[44px] active:bg-paper-deep transition-colors",
-                active ? "text-red" : "text-ink-3",
-              )}
-              aria-current={active ? "page" : undefined}
-            >
-              <span
-                className={cn(
-                  "inline-flex items-center justify-center w-5 h-5",
-                  active && "drop-shadow-[0_0_0.5px_rgba(200,58,58,0.3)]",
-                )}
-              >
-                {tab.icon}
-              </span>
-              <span
-                className={cn(
-                  "text-[10px] leading-none tracking-tight",
-                  active ? "font-bold" : "font-semibold",
-                )}
-              >
-                {tab.label}
-              </span>
-            </Link>
+              tab={tab}
+              active={active}
+              onTap={() => tapHaptic(6)}
+            />
           );
         })}
 
@@ -130,16 +116,27 @@ export function BottomNav({
             <Dialog.Trigger asChild>
               <button
                 type="button"
+                onPointerDown={() => tapHaptic(6)}
                 className={cn(
-                  "flex-1 flex flex-col items-center justify-center gap-0.5",
-                  "min-h-[44px] active:bg-paper-deep transition-colors",
+                  "group flex-1 flex flex-col items-center justify-center gap-0.5 relative",
+                  "min-h-[44px] select-none",
+                  "transition-transform duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                  "active:scale-[0.88]",
                   moreActive ? "text-red" : "text-ink-3",
                 )}
                 aria-label="More"
               >
-                <span className="inline-flex items-center justify-center w-5 h-5">
-                  <MoreHorizontal className="w-5 h-5" />
-                </span>
+                {/* iOS-style indicator pill — only visible when active */}
+                <span
+                  className={cn(
+                    "absolute top-1 left-1/2 -translate-x-1/2 h-[3px] rounded-full bg-red transition-all duration-[200ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                    moreActive ? "w-6 opacity-100" : "w-0 opacity-0",
+                  )}
+                />
+                <MoreHorizontal
+                  className="w-[22px] h-[22px]"
+                  strokeWidth={moreActive ? 2.5 : 1.75}
+                />
                 <span
                   className={cn(
                     "text-[10px] leading-none tracking-tight",
@@ -152,37 +149,37 @@ export function BottomNav({
             </Dialog.Trigger>
             <Dialog.Portal>
               <Dialog.Overlay
-                className="lg:hidden fixed inset-0 bg-black/50 z-[95] data-[state=open]:animate-in data-[state=open]:fade-in-0"
+                className="lg:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[95] data-[state=open]:animate-in data-[state=open]:fade-in-0"
               />
               <Dialog.Content
                 className={cn(
                   "lg:hidden fixed left-0 right-0 bottom-0 z-[96]",
-                  "bg-card rounded-t-xl shadow-modal",
+                  "bg-card rounded-t-2xl shadow-modal",
                   "max-h-[80vh] flex flex-col",
                   "pb-[env(safe-area-inset-bottom)]",
                   "data-[state=open]:animate-slide-up",
                 )}
               >
-                {/* Drag handle for affordance — taps anywhere on it close */}
+                {/* iOS-style drag handle */}
                 <Dialog.Close asChild>
                   <button
                     type="button"
-                    className="w-full flex justify-center pt-2 pb-1"
+                    className="w-full flex justify-center pt-2.5 pb-1.5"
                     aria-label="Close menu"
                   >
-                    <span className="w-10 h-1 rounded-full bg-hair" />
+                    <span className="w-9 h-[5px] rounded-full bg-hair" />
                   </button>
                 </Dialog.Close>
 
                 <div className="flex items-center justify-between px-4 pt-1 pb-2">
-                  <Dialog.Title className="font-display text-[16px] font-bold tracking-tight text-ink">
+                  <Dialog.Title className="font-display text-[17px] font-bold tracking-tight text-ink">
                     More
                   </Dialog.Title>
                   <Dialog.Close asChild>
                     <button
                       type="button"
                       aria-label="Close"
-                      className="w-9 h-9 inline-flex items-center justify-center rounded-sm text-ink-3 hover:text-ink hover:bg-paper-deep"
+                      className="w-9 h-9 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-paper-deep active:scale-90 transition-transform"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -205,9 +202,13 @@ export function BottomNav({
                           <Link
                             key={item.href}
                             href={item.href}
-                            onClick={() => setMoreOpen(false)}
+                            onClick={() => {
+                              tapHaptic(6);
+                              setMoreOpen(false);
+                            }}
                             className={cn(
-                              "flex items-center gap-3 px-3 py-3 rounded-md text-[14px] font-medium transition-colors",
+                              "flex items-center gap-3 px-3 py-3 rounded-xl text-[14.5px] font-medium",
+                              "transition-all duration-[120ms] active:scale-[0.98]",
                               isActive
                                 ? "bg-red-soft text-red"
                                 : "text-ink-2 hover:bg-paper-deep hover:text-ink",
@@ -243,23 +244,82 @@ export function BottomNav({
 }
 
 /**
+ * Single tab link. Pulled out so we can clone the icon and bump its
+ * strokeWidth for the "filled" active state (Lucide icons accept
+ * strokeWidth as a prop).
+ */
+function BottomNavLink({
+  tab,
+  active,
+  onTap,
+}: {
+  tab: BottomNavTab;
+  active: boolean;
+  onTap: () => void;
+}) {
+  // Bump icon stroke + size on active for that "filled SF Symbol" feel.
+  const styledIcon = isValidElement(tab.icon)
+    ? cloneElement(tab.icon as React.ReactElement, {
+        strokeWidth: active ? 2.5 : 1.75,
+      })
+    : tab.icon;
+
+  return (
+    <Link
+      href={tab.href}
+      onPointerDown={onTap}
+      className={cn(
+        "group flex-1 flex flex-col items-center justify-center gap-0.5 relative",
+        "min-h-[44px] select-none",
+        // iOS spring on tap. cubic-bezier(0.34, 1.56, 0.64, 1) is the
+        // overshoot curve UIKit uses for press-and-release feedback.
+        "transition-transform duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+        "active:scale-[0.88]",
+        active ? "text-red" : "text-ink-3",
+      )}
+      aria-current={active ? "page" : undefined}
+    >
+      {/* Indicator pill at the top of the tab — UITabBar selection cue. */}
+      <span
+        className={cn(
+          "absolute top-1 left-1/2 -translate-x-1/2 h-[3px] rounded-full bg-red",
+          "transition-all duration-[200ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+          active ? "w-6 opacity-100" : "w-0 opacity-0",
+        )}
+      />
+      <span className="inline-flex items-center justify-center w-[22px] h-[22px]">
+        {styledIcon}
+      </span>
+      <span
+        className={cn(
+          "text-[10px] leading-none tracking-tight",
+          active ? "font-bold" : "font-semibold",
+        )}
+      >
+        {tab.label}
+      </span>
+    </Link>
+  );
+}
+
+/**
  * Default 5-tab config for the authenticated coach app.
  * Hub / Roster / Schedule / Score / More — matches what the original
  * Vite SPA shipped with, scaled to the Next.js feature set.
  */
 export const APP_BOTTOM_TABS: BottomNavTab[] = [
-  { label: "Hub", href: "/app", icon: <Home className="w-5 h-5" /> },
-  { label: "Roster", href: "/app/roster", matchPrefix: "/app/roster", icon: <Users className="w-5 h-5" /> },
-  { label: "Schedule", href: "/app/schedule", matchPrefix: "/app/schedule", icon: <CalendarDays className="w-5 h-5" /> },
-  { label: "Score", href: "/app/games", matchPrefix: "/app/games", icon: <Swords className="w-5 h-5" /> },
+  { label: "Hub", href: "/app", icon: <Home className="w-[22px] h-[22px]" /> },
+  { label: "Roster", href: "/app/roster", matchPrefix: "/app/roster", icon: <Users className="w-[22px] h-[22px]" /> },
+  { label: "Schedule", href: "/app/schedule", matchPrefix: "/app/schedule", icon: <CalendarDays className="w-[22px] h-[22px]" /> },
+  { label: "Score", href: "/app/games", matchPrefix: "/app/games", icon: <Swords className="w-[22px] h-[22px]" /> },
 ];
 
 /**
  * Demo-mode mirror — same 5 destinations under /demo.
  */
 export const DEMO_BOTTOM_TABS: BottomNavTab[] = [
-  { label: "Hub", href: "/demo", icon: <Home className="w-5 h-5" /> },
-  { label: "Roster", href: "/demo/roster", matchPrefix: "/demo/roster", icon: <Users className="w-5 h-5" /> },
-  { label: "Schedule", href: "/demo/schedule", matchPrefix: "/demo/schedule", icon: <CalendarDays className="w-5 h-5" /> },
-  { label: "Score", href: "/demo/games", matchPrefix: "/demo/games", icon: <Swords className="w-5 h-5" /> },
+  { label: "Hub", href: "/demo", icon: <Home className="w-[22px] h-[22px]" /> },
+  { label: "Roster", href: "/demo/roster", matchPrefix: "/demo/roster", icon: <Users className="w-[22px] h-[22px]" /> },
+  { label: "Schedule", href: "/demo/schedule", matchPrefix: "/demo/schedule", icon: <CalendarDays className="w-[22px] h-[22px]" /> },
+  { label: "Score", href: "/demo/games", matchPrefix: "/demo/games", icon: <Swords className="w-[22px] h-[22px]" /> },
 ];

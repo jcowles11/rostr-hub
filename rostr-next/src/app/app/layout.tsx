@@ -16,6 +16,7 @@ import {
 import { AppSidebar, type NavSection } from "@/components/organisms/app-sidebar";
 import { MobileAppBar } from "@/components/organisms/mobile-app-bar";
 import { BottomNav, APP_BOTTOM_TABS } from "@/components/organisms/bottom-nav";
+import { MobileFab, APP_FAB_ACTIONS } from "@/components/organisms/mobile-fab";
 import { NavigationProgress } from "@/components/atoms/navigation-progress";
 import { SetupBanner } from "@/components/molecules/setup-banner";
 import { getSessionUser, displayName, initialsFrom } from "@/lib/auth";
@@ -158,6 +159,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             access to every workspace. */}
         <BottomNav tabs={APP_BOTTOM_TABS} moreSections={sections} />
       </main>
+      {/* Floating Action Button — Twitter / LinkedIn / Apple-Notes
+          pattern. Hovers above the bottom nav, opens an iOS-style
+          bottom sheet of quick-add actions. Only renders on mobile. */}
+      <MobileFab actions={APP_FAB_ACTIONS} />
     </div>
   );
 }

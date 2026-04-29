@@ -18,6 +18,7 @@ import Link from "next/link";
 import { AppSidebar, type NavSection } from "@/components/organisms/app-sidebar";
 import { MobileAppBar } from "@/components/organisms/mobile-app-bar";
 import { BottomNav, DEMO_BOTTOM_TABS } from "@/components/organisms/bottom-nav";
+import { MobileFab, DEMO_FAB_ACTIONS } from "@/components/organisms/mobile-fab";
 import { initialsFrom } from "@/lib/auth";
 import { MOCK_TEAM, MOCK_COACH, MOCK_PLAYERS } from "@/lib/mock-data";
 
@@ -104,6 +105,8 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
             points at /demo destinations. */}
         <BottomNav tabs={DEMO_BOTTOM_TABS} moreSections={DEMO_SECTIONS} />
       </main>
+      {/* Mobile FAB — same iOS-style quick-add sheet, /demo links. */}
+      <MobileFab actions={DEMO_FAB_ACTIONS} />
     </div>
   );
 }
