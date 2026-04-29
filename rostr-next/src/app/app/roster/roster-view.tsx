@@ -92,6 +92,20 @@ export function RosterView({
   const [slideoverPlayer, setSlideoverPlayer] = useState<MockPlayer | null>(null);
   const [, startSampleTransition] = useTransition();
   const [sampling, setSampling] = useState(false);
+  // View mode toggle. Defaults to "table" but we render cards on
+  // small viewports automatically too via Tailwind responsive
+  // classes. Persisted to localStorage so the coach's preference
+  // sticks between page loads.
+  const [viewMode, setViewMode] = useState<"table" | "cards">(() => {
+    if (typeof window === "undefined") return "table";
+    return (localStorage.getItem("rostr.roster.viewMode") as "table" | "cards") ?? "table";
+  });
+  const switchViewMode = (mode: "table" | "cards") => {
+    setViewMode(mode);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("rostr.roster.viewMode", mode);
+    }
+  };
 
   const seedSample = () => {
     if (sampling) return;
@@ -200,8 +214,12 @@ export function RosterView({
             ))}
             <Chip>+ Filter</Chip>
             <div className="ml-auto flex bg-paper-deep p-[3px] rounded-sm">
-              <ViewModeButton active>Table</ViewModeButton>
-              <ViewModeButton>Cards</ViewModeButton>
+              <ViewModeButton active={viewMode === "table"} onClick={() => switchViewMode("table")}>
+                Table
+              </ViewModeButton>
+              <ViewModeButton active={viewMode === "cards"} onClick={() => switchViewMode("cards")}>
+                Cards
+              </ViewModeButton>
             </div>
           </div>
 
@@ -309,7 +327,17 @@ export function RosterView({
                 </div>
               </div>
             )}
-            {players.length > 0 && (
+            {players.length > 0 && viewMode === "cards" && (
+              <PlayerCardsGrid
+                players={filtered}
+                battingByPlayer={battingByPlayer}
+                onSelect={(p) => setSlideoverPlayer(p)}
+                selected={selected}
+                toggleRow={toggleRow}
+                levels={levels}
+              />
+            )}
+            {players.length > 0 && viewMode === "table" && (
             <div>
             <div className="overflow-x-auto">
             <table className="w-full border-collapse text-[13px] md:min-w-[720px]">
@@ -561,13 +589,16 @@ function LevelTab({
 
 function ViewModeButton({
   active,
+  onClick,
   children,
 }: {
   active?: boolean;
+  onClick?: () => void;
   children: React.ReactNode;
 }) {
   return (
     <button
+      onClick={onClick}
       className={cn(
         "px-2.5 py-1.5 rounded-xs text-[12px] font-medium transition-colors",
         active ? "bg-card text-ink shadow-card" : "text-ink-3 hover:text-ink",
@@ -724,4 +755,128 @@ function renderRealBA(
       {display}
     </span>
   );
+}
+
+/**
+ * PlayerCardsGrid — alternative to the table layout. A responsive
+ * 1-2-3 column grid of player cards. Designed for mobile-first feel
+ * (each card is touch-target-sized) but works fine on desktop too.
+ *
+ * Each card surfaces what a coach actually scans for at a glance:
+ * jersey, name, level pill, position/class, BA, availability badge.
+ * Click anywhere on the card → opens the slideover (same behavior
+ * as table rows). Checkbox in the corner is for bulk actions.
+ */
+function PlayerCardsGrid({
+  players,
+  battingByPlayer,
+  onSelect,
+  selected,
+  toggleRow,
+  levels,
+}: {
+  players: MockPlayer[];
+  battingByPlayer: Record<
+    string,
+    { games: number; ba: number; obp: number; slg: number; ops: number; hr: number; rbi: number }
+  >;
+  onSelect: (p: MockPlayer) => void;
+  selected: Set<string>;
+  toggleRow: (id: string) => void;
+  levels: string[];
+}) {
+  if (players.length === 0) {
+    return (
+      <div className="px-4 py-10 text-center text-[13px] text-ink-3">
+        No players match these filters.
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 p-3">
+      {players.map((p) => {
+        const isSelected = selected.has(p.id);
+        const stats = battingByPlayer[p.id];
+        return (
+          <button
+            key={p.id}
+            onClick={() => onSelect(p)}
+            className={cn(
+              "group text-left bg-card border rounded-lg p-3 transition-all hover:border-red active:scale-[0.99]",
+              isSelected ? "border-red bg-red-soft" : "border-hair",
+            )}
+          >
+            <div className="flex items-start gap-2.5">
+              <Avatar size="md" color={p.avatarColor} initials={p.initials} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-display font-semibold text-[14.5px] tracking-tight truncate">
+                    {p.firstName} {p.lastName}
+                  </span>
+                  {p.hot && <span className="text-[12px]" aria-label="hot">🔥</span>}
+                </div>
+                <div className="font-mono text-[11px] text-ink-3 mt-0.5 truncate">
+                  #{p.jerseyNumber} · {p.positions.join("/")} · {p.classYearShort}
+                </div>
+              </div>
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleRow(p.id);
+                }}
+                role="button"
+                tabIndex={-1}
+                className="shrink-0 -m-1 p-1"
+              >
+                <Checkbox
+                  checked={isSelected}
+                  onChange={() => toggleRow(p.id)}
+                  aria-label={`Select ${p.firstName}`}
+                />
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-3 gap-1.5">
+              <div className="bg-paper rounded-sm px-1.5 py-1.5">
+                <div className="text-[9px] font-bold text-ink-3 uppercase tracking-[0.05em]">BA</div>
+                <div className="font-mono text-[14px] font-semibold tracking-tight mt-0.5">
+                  {renderRealBA(stats) ?? p.ba ?? <span className="text-ink-4">—</span>}
+                </div>
+              </div>
+              <div className="bg-paper rounded-sm px-1.5 py-1.5">
+                <div className="text-[9px] font-bold text-ink-3 uppercase tracking-[0.05em]">OPS</div>
+                <div className="font-mono text-[14px] font-semibold tracking-tight mt-0.5">
+                  {stats?.ops ? formatAvgInline(stats.ops) : <span className="text-ink-4">—</span>}
+                </div>
+              </div>
+              <div className="bg-paper rounded-sm px-1.5 py-1.5">
+                <div className="text-[9px] font-bold text-ink-3 uppercase tracking-[0.05em]">ERA</div>
+                <div className="font-mono text-[14px] font-semibold tracking-tight mt-0.5">
+                  {p.era ?? <span className="text-ink-4">—</span>}
+                </div>
+              </div>
+            </div>
+
+            <div
+              className="mt-2.5 flex items-center justify-between gap-2"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <LevelPicker
+                playerId={p.id}
+                playerName={`${p.firstName} ${p.lastName}`}
+                level={p.levelName ?? shortToLongName(p.level)}
+                levels={levels}
+              />
+              <AvailabilityLabel status={p.availabilityStatus} note={p.availabilityNote} />
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Shared format helper used by the cards view's stat tiles. */
+function formatAvgInline(n: number): string {
+  return n.toFixed(3).replace(/^0/, "");
 }

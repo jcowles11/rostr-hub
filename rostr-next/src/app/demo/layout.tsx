@@ -12,6 +12,7 @@ import {
   Mail,
   Settings,
   HelpCircle,
+  ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
 import { AppSidebar, type NavSection } from "@/components/organisms/app-sidebar";
@@ -112,13 +113,21 @@ function DemoBanner() {
   return (
     <div className="sticky top-0 z-[40] bg-amber-soft border-b-2 border-amber">
       <div className="px-4 py-2 flex items-center gap-3 flex-wrap max-w-layout-app mx-auto">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-ink-3 hover:text-ink whitespace-nowrap"
+          title="Back to Rostr home"
+        >
+          <ArrowLeft className="w-3 h-3" />
+          Home
+        </Link>
+        <span className="text-ink-4">·</span>
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs bg-amber text-white text-[10px] font-bold uppercase tracking-[0.08em]">
           <Eye className="w-3 h-3" />
           Demo
         </span>
-        <span className="text-[12.5px] text-ink-2 leading-snug flex-1 min-w-[200px]">
-          You&apos;re exploring with fictional Lincoln HS data. Click around
-          everything — nothing here saves.
+        <span className="text-[12.5px] text-ink-2 leading-snug flex-1 min-w-[180px]">
+          Fictional Lincoln HS data — click anywhere, nothing saves.
         </span>
         <Link
           href="/signup"
