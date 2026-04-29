@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   Link2,
@@ -5,13 +6,59 @@ import {
   Star,
   CheckCircle2,
   GraduationCap,
+  Eye,
 } from "lucide-react";
 import { PublicNav } from "@/components/organisms/public-nav";
 import { Avatar } from "@/components/atoms/avatar";
 import { cn } from "@/lib/utils";
-import { MOCK_PLAYERS, type MockPlayer } from "@/lib/mock-data";
+import {
+  MOCK_PLAYERS,
+  MOCK_BATTING_BY_PLAYER,
+  MOCK_PITCHING_BY_PLAYER,
+  MOCK_BIO_BY_PLAYER,
+  MOCK_MEASURABLES_BY_PLAYER,
+  MOCK_RECRUITING_BY_PLAYER,
+  MOCK_ACADEMIC_BY_PLAYER,
+  type MockPlayer,
+  type MockBio,
+  type MockRecruiting,
+  type MockAcademic,
+} from "@/lib/mock-data";
 import { fetchPlayerBySlug } from "@/lib/services/players";
-import { PlayerProfileTabs, PlayerProfileActions } from "./interactive";
+import { fetchPlayerMeasurables, type PlayerMeasurable } from "@/lib/services/tryouts";
+import {
+  fetchPlayerSeasonBatting,
+  fetchPlayerCareerBatting,
+  formatAvg,
+  type SeasonBattingLine,
+  type PlayerBattingLine,
+} from "@/lib/services/batting-stats";
+import {
+  fetchPlayerSeasonPitching,
+  fetchPlayerCareerPitching,
+  type SeasonPitchingLine,
+  type PlayerPitchingLine,
+} from "@/lib/services/pitching-stats";
+import { formatIP, formatERA, formatWHIP } from "@/lib/format";
+import {
+  fetchPlayerProfileMedia,
+  fetchPlayerAnnouncements,
+  resolveVideoEmbed,
+  type PlayerProfileMedia,
+  type PlayerAnnouncement,
+} from "@/lib/services/player-profile";
+import {
+  getCurrentRecruiter,
+  fetchLists,
+  fetchPlayerListMembership,
+  fetchPlayerViewStats,
+} from "@/lib/services/recruiter";
+import { fetchRecruiterQuota } from "@/lib/services/messaging";
+import { findSimilarPlayers } from "@/lib/services/similar-players";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { PlayerProfileTabs, PlayerProfileActions, type PlayerProfileTab } from "./interactive";
+import { RecruiterOverlay, RecruiterViewTracker } from "./recruiter-overlay";
+import { SimilarPlayersSection } from "./similar-players";
 
 /**
  * /p/[handle] — Public player profile.
@@ -35,14 +82,136 @@ export default async function PlayerProfilePage({
     : (MOCK_PLAYERS.find((p) => p.handle === params.handle) ?? MOCK_PLAYERS[0]);
   if (!player) notFound();
 
+  // Real tryout measurables — flow from tryout_scores → player_best_measurables
+  // view. For mock fallback (demo profile), pull per-player position-
+  // appropriate measurables so the Combine card + Verification chain
+  // render with realistic, differentiated numbers (pitchers get FB
+  // velo, catchers get pop time, infielders get IF velo, etc.) instead
+  // of falling back to identical hardcoded mock values.
+  const measurables = real
+    ? await fetchPlayerMeasurables(real.id)
+    : MOCK_MEASURABLES_BY_PLAYER[player.id] ?? [];
+  const mockBio = !real ? MOCK_BIO_BY_PLAYER[player.id] ?? null : null;
+  const mockRecruiting = !real ? MOCK_RECRUITING_BY_PLAYER[player.id] ?? null : null;
+  const mockAcademic = !real ? MOCK_ACADEMIC_BY_PLAYER[player.id] ?? null : null;
+
+  // Real batting + pitching stats from the game_events log.
+  // For mock fallback (demo profile), pull plausible numbers from the
+  // pre-computed MOCK_BATTING/PITCHING maps so the cards render with
+  // realistic data instead of empty states. Career line uses the same
+  // numbers (single-season demo).
+  const mockBatting = !real ? MOCK_BATTING_BY_PLAYER[player.id] ?? null : null;
+  const mockPitching = !real ? MOCK_PITCHING_BY_PLAYER[player.id] ?? null : null;
+  const [seasonLine, careerLine, pitchingSeason, pitchingCareer, profileMedia, announcements] = real
+    ? await Promise.all([
+        fetchPlayerSeasonBatting(real.id),
+        fetchPlayerCareerBatting(real.id),
+        fetchPlayerSeasonPitching(real.id),
+        fetchPlayerCareerPitching(real.id),
+        fetchPlayerProfileMedia(real.id),
+        fetchPlayerAnnouncements(real.id, 10),
+      ])
+    : [
+        mockBatting as unknown as SeasonBattingLine | null,
+        mockBatting as unknown as PlayerBattingLine | null,
+        mockPitching as unknown as SeasonPitchingLine | null,
+        mockPitching as unknown as PlayerPitchingLine | null,
+        null,
+        [],
+      ];
+
+  // Recruiter overlay context — if the viewer is a recruiter, show
+  // save-to-list + note taking tools. Also track the view for analytics.
+  const recruiter = await getCurrentRecruiter();
+  const recruiterLists = recruiter ? await fetchLists(recruiter.id) : [];
+  const memberListIds =
+    recruiter && real ? await fetchPlayerListMembership(recruiter.id, real.id) : [];
+  const viewStats = real ? await fetchPlayerViewStats(real.id) : null;
+
+  // Similar players — only compute for recruiters viewing a real (not mock)
+  // profile, since it's a recruiter-specific signal.
+  const similarPlayers =
+    recruiter && real ? await findSimilarPlayers(real.id, 5) : [];
+
+  // Recruiter outreach state: quota + whether we've already reached out.
+  const quota = recruiter ? await fetchRecruiterQuota(recruiter.id) : null;
+  let outreachExists = false;
+  if (recruiter && real) {
+    const supabase = createSupabaseServerClient();
+    const { data: existing } = await supabase
+      .from("message_threads")
+      .select("id")
+      .eq("kind", "recruiter_outreach")
+      .eq("recruiter_id", recruiter.id)
+      .eq("target_player_id", real.id)
+      .in("outreach_status", ["pending", "accepted"])
+      .maybeSingle();
+    outreachExists = Boolean(existing);
+  }
+
+  // Trust signal: when this URL didn't match a real player and we
+  // fell back to a mock profile, label it loudly so visitors don't
+  // mistake fictional Lincoln HS players for someone real.
+  const isMockFallback = !real;
+
   return (
     <div className="bg-paper min-h-screen">
+      {recruiter && real && <RecruiterViewTracker playerId={real.id} />}
       <PublicNav />
-      <div className="max-w-layout-marketing mx-auto px-7">
-        <Hero player={player} />
-        <Identity player={player} />
-        <PlayerProfileTabs />
-        <Layout player={player} />
+      {isMockFallback && <MockProfileBanner />}
+      <div className="max-w-layout-marketing mx-auto px-4 sm:px-6 lg:px-7">
+        <Hero player={player} headerUrl={profileMedia?.headerUrl ?? null} />
+        <Identity
+          player={player}
+          isRealProfile={Boolean(real)}
+          avatarUrl={profileMedia?.avatarUrl ?? null}
+          commitmentStatus={profileMedia?.commitmentStatus ?? null}
+          commitmentSchool={profileMedia?.commitmentSchool ?? null}
+          commitmentYear={profileMedia?.commitmentYear ?? null}
+          mockBio={mockBio}
+        />
+        {recruiter && real && quota && (
+          <RecruiterOverlay
+            recruiter={recruiter}
+            playerId={real.id}
+            playerName={`${real.firstName} ${real.lastName}`}
+            lists={recruiterLists}
+            memberListIds={memberListIds}
+            viewStats={viewStats}
+            quota={quota}
+            outreachExists={outreachExists}
+          />
+        )}
+        <PlayerProfileTabs
+          tabs={buildTabs({
+            isRealProfile: Boolean(real),
+            hasBatting: Boolean(seasonLine && seasonLine.games > 0),
+            hasPitching: Boolean(pitchingSeason && pitchingSeason.games > 0),
+            hasMeasurables: measurables.length > 0,
+            hasVideo: Boolean(profileMedia?.highlightVideoUrl),
+            hasAnnouncements: Boolean(real) && announcements.length > 0,
+          })}
+        />
+        <Layout
+          player={player}
+          measurables={measurables}
+          seasonLine={seasonLine}
+          careerLine={careerLine}
+          pitchingSeason={pitchingSeason}
+          pitchingCareer={pitchingCareer}
+          isRealProfile={Boolean(real)}
+          profileMedia={profileMedia}
+          announcements={announcements}
+          mockBio={mockBio}
+          mockRecruiting={mockRecruiting}
+          mockAcademic={mockAcademic}
+        />
+        {recruiter && similarPlayers.length > 0 && (
+          <SimilarPlayersSection
+            anchorName={`${player.firstName} ${player.lastName}`}
+            players={similarPlayers}
+          />
+        )}
       </div>
     </div>
   );
@@ -50,30 +219,47 @@ export default async function PlayerProfilePage({
 
 // ── Hero ──────────────────────────────────────────────────────
 
-function Hero({ player }: { player: (typeof MOCK_PLAYERS)[number] }) {
-  return (
-    <div
-      className="relative mt-6 rounded-xl overflow-hidden bg-ink text-white min-h-[260px]"
-      style={{
+function Hero({
+  player,
+  headerUrl,
+}: {
+  player: (typeof MOCK_PLAYERS)[number];
+  headerUrl: string | null;
+}) {
+  const bgStyle: React.CSSProperties = headerUrl
+    ? {
+        aspectRatio: "3.6 / 1",
+        backgroundImage: `linear-gradient(180deg, rgba(10,13,18,.3), rgba(10,13,18,.7)), url("${headerUrl}")`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }
+    : {
         aspectRatio: "3.6 / 1",
         backgroundImage: [
           "radial-gradient(circle at 70% 30%, rgba(200,58,58,.4), transparent 55%)",
           "radial-gradient(circle at 20% 80%, rgba(58,110,168,.25), transparent 60%)",
           "linear-gradient(135deg, #14181f, #0a0d12)",
         ].join(", "),
-      }}
+      };
+  return (
+    <div
+      className="relative mt-6 rounded-xl overflow-hidden bg-ink text-white min-h-[260px]"
+      style={bgStyle}
     >
-      {/* grid overlay */}
-      <div
-        aria-hidden
-        className="absolute inset-0"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px)",
-          backgroundSize: "40px 40px",
-        }}
-      />
-      {/* faux diamond */}
+      {/* grid overlay — only on the gradient hero, not a photo hero */}
+      {!headerUrl && (
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px)",
+            backgroundSize: "40px 40px",
+          }}
+        />
+      )}
+      {/* faux diamond — only on the gradient hero */}
+      {!headerUrl && (
       <svg
         className="absolute right-12 top-0 bottom-0 h-[85%] my-auto"
         viewBox="0 0 300 200"
@@ -86,6 +272,7 @@ function Hero({ player }: { player: (typeof MOCK_PLAYERS)[number] }) {
         <rect x="146" y="-64" width="8" height="8" fill="rgba(255,255,255,.4)" transform="rotate(45 150 -60)" />
         <rect x="26" y="56" width="8" height="8" fill="rgba(255,255,255,.4)" transform="rotate(45 30 60)" />
       </svg>
+      )}
       <div className="absolute top-5 left-5 flex gap-2">
         <span className="px-2.5 py-1 bg-white/10 text-white rounded-xs text-[10.5px] font-bold uppercase tracking-[0.08em] backdrop-blur">
           ⚾ Baseball
@@ -102,46 +289,118 @@ function Hero({ player }: { player: (typeof MOCK_PLAYERS)[number] }) {
 
 // ── Identity ──────────────────────────────────────────────────
 
-function Identity({ player }: { player: (typeof MOCK_PLAYERS)[number] }) {
+function Identity({
+  player,
+  isRealProfile,
+  avatarUrl,
+  commitmentStatus,
+  commitmentSchool,
+  commitmentYear,
+  mockBio,
+}: {
+  player: (typeof MOCK_PLAYERS)[number];
+  isRealProfile: boolean;
+  avatarUrl: string | null;
+  commitmentStatus: "uncommitted" | "committed" | "decommitted" | "decided" | null;
+  commitmentSchool: string | null;
+  commitmentYear: number | null;
+  mockBio: MockBio | null;
+}) {
+  const levelLabel = player.levelName ?? (player.level === "V" ? "Varsity" : player.level === "JV" ? "JV" : "Freshman");
   return (
     <div className="flex gap-6 items-start -mt-14 relative z-[2] px-2">
       <div className="shrink-0">
         <div
-          className="w-32 h-32 rounded-xl border-[5px] border-card flex items-center justify-center font-display text-[44px] font-semibold text-white shadow-elev"
-          style={{
-            backgroundImage: "linear-gradient(135deg, #c83a3a, #0e1116)",
-          }}
+          className="w-32 h-32 rounded-xl border-[5px] border-card flex items-center justify-center font-display text-[44px] font-semibold text-white shadow-elev overflow-hidden bg-ink"
+          style={
+            avatarUrl
+              ? {
+                  backgroundImage: `url("${avatarUrl}")`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                }
+              : {
+                  backgroundImage: "linear-gradient(135deg, #c83a3a, #0e1116)",
+                }
+          }
         >
-          {player.initials}
+          {!avatarUrl && player.initials}
         </div>
       </div>
       <div className="flex-1 pt-16 min-w-0">
-        <div className="text-[11px] font-bold text-red tracking-[0.12em] uppercase">
-          Class of {player.gradYear}
+        <div className="flex items-center gap-2 flex-wrap">
+          {player.gradYear ? (
+            <div className="text-[11px] font-bold text-red tracking-[0.12em] uppercase">
+              Class of {player.gradYear}
+            </div>
+          ) : null}
+          {commitmentStatus === "committed" && commitmentSchool && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-grass-dim text-grass text-[10.5px] font-bold uppercase tracking-[0.06em]">
+              ✓ Committed · {commitmentSchool}
+              {commitmentYear ? ` '${String(commitmentYear).slice(-2)}` : ""}
+            </span>
+          )}
+          {commitmentStatus === "decided" && commitmentSchool && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-sky-soft text-sky text-[10.5px] font-bold uppercase tracking-[0.06em]">
+              Next stop · {commitmentSchool}
+            </span>
+          )}
+          {commitmentStatus === "decommitted" && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-amber-soft text-amber text-[10.5px] font-bold uppercase tracking-[0.06em]">
+              Decommitted · open to offers
+            </span>
+          )}
         </div>
         <h1 className="font-display text-[40px] font-semibold tracking-[-0.03em] leading-[1.05] mt-1">
-          {player.firstName} {player.lastName}{" "}
-          <span className="font-mono text-ink-3 text-[24px] align-middle">
-            #{player.jerseyNumber}
-          </span>
+          {player.firstName} {player.lastName}
+          {player.jerseyNumber ? (
+            <>
+              {" "}
+              <span className="font-mono text-ink-3 text-[24px] align-middle">
+                #{player.jerseyNumber}
+              </span>
+            </>
+          ) : null}
         </h1>
         <div className="flex flex-wrap gap-3.5 mt-2 text-[14px] text-ink-2">
-          <span>
-            <b className="font-semibold text-ink">{player.positions.join("/")}</b>
-          </span>
-          <span>·</span>
-          <span>
-            <b className="font-semibold text-ink">Lincoln HS</b> · Varsity
-          </span>
-          <span>·</span>
-          <span>Austin, TX</span>
-          <span>·</span>
-          <span>
-            <b className="font-semibold text-ink">6&apos;1&quot;</b> · 180 · R/R
-          </span>
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs bg-grass-dim text-grass text-[10px] font-bold uppercase tracking-[0.04em]">
-            <CheckCircle2 className="w-3 h-3" /> Verified
-          </span>
+          {player.positions.length > 0 && (
+            <span>
+              <b className="font-semibold text-ink">{player.positions.join("/")}</b>
+            </span>
+          )}
+          {isRealProfile ? (
+            // Real profile: only show data we actually have. Level is
+            // the only biographical field we currently persist for
+            // imported players.
+            levelLabel ? (
+              <>
+                {player.positions.length > 0 && <span>·</span>}
+                <span>
+                  <b className="font-semibold text-ink">{levelLabel}</b>
+                </span>
+              </>
+            ) : null
+          ) : (
+            // Demo profile: per-player bio for marketing realism — every
+            // mock player has a different height/weight/handedness so
+            // the demo doesn't look like 15 copies of the same kid.
+            <>
+              <span>·</span>
+              <span>
+                <b className="font-semibold text-ink">Lincoln HS</b> · Varsity
+              </span>
+              <span>·</span>
+              <span>Austin, TX</span>
+              <span>·</span>
+              <span>
+                <b className="font-semibold text-ink">{mockBio?.height ?? "6'0\""}</b>{" "}
+                · {mockBio?.weight ?? 175} · {mockBio?.bats ?? "R"}/{mockBio?.throws ?? "R"}
+              </span>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs bg-grass-dim text-grass text-[10px] font-bold uppercase tracking-[0.04em]">
+                <CheckCircle2 className="w-3 h-3" /> Verified
+              </span>
+            </>
+          )}
         </div>
       </div>
       <PlayerProfileActions handle={player.handle} name={`${player.firstName} ${player.lastName}`} />
@@ -151,65 +410,294 @@ function Identity({ player }: { player: (typeof MOCK_PLAYERS)[number] }) {
 
 // ── Layout ───────────────────────────────────────────────────
 
-function Layout({ player }: { player: (typeof MOCK_PLAYERS)[number] }) {
+function Layout({
+  player,
+  measurables,
+  seasonLine,
+  careerLine,
+  pitchingSeason,
+  pitchingCareer,
+  isRealProfile,
+  profileMedia,
+  announcements,
+  mockBio,
+  mockRecruiting,
+  mockAcademic,
+}: {
+  player: (typeof MOCK_PLAYERS)[number];
+  measurables: PlayerMeasurable[];
+  seasonLine: SeasonBattingLine | null;
+  careerLine: PlayerBattingLine | null;
+  pitchingSeason: SeasonPitchingLine | null;
+  pitchingCareer: PlayerPitchingLine | null;
+  isRealProfile: boolean;
+  profileMedia: PlayerProfileMedia | null;
+  announcements: PlayerAnnouncement[];
+  mockBio: MockBio | null;
+  mockRecruiting: MockRecruiting | null;
+  mockAcademic: MockAcademic | null;
+}) {
+  const hasBatting = Boolean(seasonLine && seasonLine.games > 0);
+  const hasPitching = Boolean(pitchingSeason && pitchingSeason.games > 0);
+  const hasMeasurables = measurables.length > 0;
+  const hasVideo = Boolean(profileMedia?.highlightVideoUrl);
+  const hasAnnouncements = announcements.length > 0;
+  // Gate ALL mock-only sections on whether this is a demo profile.
+  // A real signed-up coach importing their roster should NEVER see
+  // fake highlights / fake college offers / fake academics on a real
+  // player's profile — that was demo eye-candy for the marketing page.
+  const showMockSections = !isRealProfile;
   return (
-    <div className="grid grid-cols-[1fr_340px] gap-7 my-7 mb-20">
-      <div className="flex flex-col gap-5">
-        <StatHero />
-        <CareerChart />
-        <Career />
-        <Highlights />
-        <Combine />
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5 lg:gap-7 my-7 mb-20">
+      <div className="flex flex-col gap-5 min-w-0">
+        <section id="overview" className="scroll-mt-28">
+          <StatHero
+            measurables={measurables}
+            seasonLine={seasonLine}
+            pitchingSeason={pitchingSeason}
+            isRealProfile={isRealProfile}
+          />
+        </section>
+        {/* Announcement feed — pinned-then-recent, shown on real profiles */}
+        {isRealProfile && hasAnnouncements && (
+          <section id="activity" className="scroll-mt-28">
+            <AnnouncementFeed announcements={announcements} playerName={player.firstName} />
+          </section>
+        )}
+        {/* Highlight video embed */}
+        {hasVideo && (
+          <section id="video" className="scroll-mt-28">
+            <HighlightVideoCard url={profileMedia!.highlightVideoUrl!} />
+          </section>
+        )}
+        {(hasBatting || hasPitching) && (
+          <section id="stats" className="scroll-mt-28 flex flex-col gap-5">
+            {hasBatting ? (
+              <BattingCard seasonLine={seasonLine!} careerLine={careerLine} />
+            ) : null}
+            {hasPitching ? (
+              <PitchingCard seasonLine={pitchingSeason!} careerLine={pitchingCareer} />
+            ) : null}
+          </section>
+        )}
+        {/* Mock fallback career chart — only on demo profiles, AND only if no real stats */}
+        {showMockSections && !hasBatting && !hasPitching && (
+          <section id="stats" className="scroll-mt-28 flex flex-col gap-5">
+            <CareerChart />
+            <Career player={player} seasonLine={seasonLine} pitchingSeason={pitchingSeason} />
+          </section>
+        )}
+        {/* Demo-only: standalone Teams section anchor when there's also a stats section above */}
+        {showMockSections && (hasBatting || hasPitching) && (
+          <section id="teams" className="scroll-mt-28">
+            <Career player={player} seasonLine={seasonLine} pitchingSeason={pitchingSeason} />
+          </section>
+        )}
+        {/* Empty state when a real profile has no stats or measurables yet */}
+        {isRealProfile && !hasBatting && !hasPitching && !hasMeasurables && (
+          <div className="bg-card border border-dashed border-hair rounded-lg p-8 text-center">
+            <h3 className="font-display text-[18px] font-semibold tracking-tight">
+              No stats yet
+            </h3>
+            <p className="text-[13px] text-ink-3 mt-2 max-w-[380px] mx-auto leading-relaxed">
+              Once the coach imports season stats from GameChanger — or scores
+              a game live in Rostr — {player.firstName}&apos;s batting and pitching
+              lines will appear here.
+            </p>
+          </div>
+        )}
+        {showMockSections && (
+          <section id="highlights" className="scroll-mt-28">
+            <Highlights />
+          </section>
+        )}
+        {(hasMeasurables || showMockSections) && (
+          <section id="combine" className="scroll-mt-28">
+            <Combine measurables={measurables} mockBio={mockBio} />
+          </section>
+        )}
       </div>
       <div className="flex flex-col gap-5">
         <ShareCard handle={player.handle} />
-        <RecruitingCard />
-        <AcademicsCard />
-        <CoachVerification />
+        {showMockSections && (
+          <section id="recruiting" className="scroll-mt-28">
+            <RecruitingCard recruiting={mockRecruiting} />
+          </section>
+        )}
+        {showMockSections && (
+          <section id="academic" className="scroll-mt-28">
+            <AcademicsCard academic={mockAcademic} />
+          </section>
+        )}
+        {hasMeasurables && (
+          <section id="verification" className="scroll-mt-28">
+            <CoachVerification measurables={measurables} />
+          </section>
+        )}
       </div>
     </div>
   );
 }
 
+/**
+ * buildTabs — decide which tabs to show based on what the page actually
+ * has content for. Real profiles with no stats imported yet get a much
+ * shorter tab list (Overview + Combine empty state). Demo profiles get
+ * the full marketing-flavored set.
+ */
+function buildTabs(args: {
+  isRealProfile: boolean;
+  hasBatting: boolean;
+  hasPitching: boolean;
+  hasMeasurables: boolean;
+  hasVideo: boolean;
+  hasAnnouncements: boolean;
+}): PlayerProfileTab[] {
+  const tabs: PlayerProfileTab[] = [{ name: "Overview", anchor: "overview" }];
+  if (args.hasAnnouncements) tabs.push({ name: "Activity", anchor: "activity" });
+  if (args.hasVideo) tabs.push({ name: "Video", anchor: "video" });
+  if (args.hasBatting || args.hasPitching || !args.isRealProfile) {
+    tabs.push({ name: "Stats", anchor: "stats" });
+  }
+  if (!args.isRealProfile) {
+    tabs.push({ name: "Highlights", anchor: "highlights", count: "18" });
+    tabs.push({ name: "Teams", anchor: "teams", count: "4" });
+  }
+  if (args.hasMeasurables || !args.isRealProfile) {
+    tabs.push({ name: "Combine", anchor: "combine" });
+  }
+  if (!args.isRealProfile) {
+    tabs.push({ name: "Recruiting", anchor: "recruiting" });
+    tabs.push({ name: "Academic", anchor: "academic" });
+  }
+  if (args.hasMeasurables) {
+    tabs.push({ name: "Verification", anchor: "verification" });
+  }
+  return tabs;
+}
+
 // ── Stat Hero (4-cell) ───────────────────────────────────────
 
-function StatHero() {
-  const cells = [
-    { label: "Exit velo", value: "94", unit: "mph", delta: "+3.2 · 90d", up: true },
-    { label: "60 yd", value: "6.74", unit: "s", delta: "−0.18 · 1yr", up: true },
-    { label: "BA · 2026", value: ".372", delta: "+.054 vs Jr", up: true },
-    { label: "OPS", value: ".979", delta: "+.112 vs Jr", up: true },
-  ];
+function StatHero({
+  measurables,
+  seasonLine,
+  pitchingSeason,
+  isRealProfile,
+}: {
+  measurables: PlayerMeasurable[];
+  seasonLine: SeasonBattingLine | null;
+  pitchingSeason: SeasonPitchingLine | null;
+  isRealProfile: boolean;
+}) {
+  type Cell = {
+    label: string;
+    value: string;
+    unit: string;
+    sub: string; // context line under the number (no fake trends)
+    highlight?: boolean; // green-tint the value when it's a standout
+  };
+
+  const cells: Cell[] = [];
+
+  // Real measurables
+  for (const m of measurables.slice(0, 2)) {
+    cells.push({
+      label: m.stationName,
+      value: formatMeasurable(m),
+      unit: m.unit ?? "",
+      sub: m.verifiedByCoachName
+        ? `Verified by ${m.verifiedByCoachName}`
+        : "Verified",
+      highlight: true,
+    });
+  }
+
+  // Real season batting
+  if (seasonLine && seasonLine.games > 0) {
+    cells.push({
+      label: `AVG · ${seasonLine.seasonYear}`,
+      value: formatAvg(seasonLine.ba),
+      unit: "",
+      sub: `${seasonLine.games}G · ${seasonLine.h}H · ${seasonLine.hr}HR · ${seasonLine.rbi}RBI`,
+      highlight: seasonLine.ba >= 0.3,
+    });
+    cells.push({
+      label: "OPS",
+      value: formatAvg(seasonLine.ops),
+      unit: "",
+      sub: `${seasonLine.ab}AB · ${seasonLine.bb}BB · ${seasonLine.k}K`,
+      highlight: seasonLine.ops >= 0.8,
+    });
+  }
+
+  // Real season pitching
+  if (pitchingSeason && pitchingSeason.games > 0) {
+    cells.push({
+      label: "ERA",
+      value: formatERA(pitchingSeason.era),
+      unit: "",
+      sub: `${formatIP(pitchingSeason.ip)} IP · ${pitchingSeason.k}K · ${pitchingSeason.bb}BB`,
+      highlight: pitchingSeason.era > 0 && pitchingSeason.era < 3.0,
+    });
+    cells.push({
+      label: "WHIP",
+      value: formatWHIP(pitchingSeason.whip),
+      unit: "",
+      sub: `${pitchingSeason.games}G · ${pitchingSeason.h}H · ${pitchingSeason.r}R`,
+      highlight: pitchingSeason.whip > 0 && pitchingSeason.whip < 1.2,
+    });
+  }
+
+  // Demo fallback — only on demo/mock profiles, never on real.
+  if (!isRealProfile && cells.length < 4) {
+    const demoFill: Cell[] = [
+      { label: "Exit velo", value: "94", unit: "mph", sub: "+3.2 vs 90d ago", highlight: true },
+      { label: "60 yd", value: "6.74", unit: "s", sub: "−0.18 vs 1yr ago", highlight: true },
+      { label: "BA · 2026", value: ".372", unit: "", sub: "+.054 vs Jr year", highlight: true },
+      { label: "OPS", value: ".979", unit: "", sub: "+.112 vs Jr year", highlight: true },
+    ];
+    while (cells.length < 4 && demoFill.length > 0) cells.push(demoFill.shift()!);
+  }
+
+  // Real profile with fewer than 4 cells: show only what we have. No filler.
+  const displayCells = cells.slice(0, 4);
+
+  // If a real profile has NO stats AND no measurables, skip the hero
+  // entirely — the empty state below covers it.
+  if (isRealProfile && displayCells.length === 0) return null;
+
   return (
-    <div className="grid grid-cols-4 bg-card border border-hair rounded-lg overflow-hidden">
-      {cells.map((c, i) => (
+    <div
+      className={cn(
+        "grid bg-card border border-hair rounded-lg overflow-hidden",
+        displayCells.length === 1 && "grid-cols-1",
+        displayCells.length === 2 && "grid-cols-1 sm:grid-cols-2",
+        displayCells.length === 3 && "grid-cols-1 sm:grid-cols-3",
+        displayCells.length >= 4 && "grid-cols-2 md:grid-cols-4",
+      )}
+    >
+      {displayCells.map((c, i) => (
         <div
           key={i}
           className={cn(
             "px-5 py-[22px]",
-            i < cells.length - 1 && "border-r border-hair-2",
+            i < displayCells.length - 1 && "sm:border-r border-hair-2",
           )}
         >
           <div className="type-label">{c.label}</div>
-          <div className="font-mono text-[32px] font-semibold tracking-[-0.03em] mt-1.5 leading-none">
-            {c.value}
-            {c.unit && <span className="text-[14px] text-ink-3 font-medium ml-0.5">{c.unit}</span>}
-          </div>
           <div
             className={cn(
-              "mt-1.5 text-[11px] font-semibold flex items-center gap-1",
-              c.up ? "text-grass" : "text-red",
+              "font-mono text-[32px] font-semibold tracking-[-0.03em] mt-1.5 leading-none",
+              c.highlight && "text-red",
             )}
           >
-            <span>{c.up ? "▲" : "▼"} {c.delta}</span>
-            <svg viewBox="0 0 100 20" className="flex-1 h-[18px] ml-2.5" preserveAspectRatio="none">
-              <polyline
-                points={c.up ? "0,16 15,14 30,12 45,10 60,8 75,5 100,3" : "0,4 25,8 50,12 75,15 100,18"}
-                fill="none"
-                stroke={c.up ? "var(--grass)" : "var(--red)"}
-                strokeWidth="1.6"
-              />
-            </svg>
+            {c.value}
+            {c.unit && (
+              <span className="text-[14px] text-ink-3 font-medium ml-0.5">{c.unit}</span>
+            )}
+          </div>
+          <div className="mt-1.5 text-[11px] text-ink-3 leading-snug">
+            {c.sub}
           </div>
         </div>
       ))}
@@ -218,6 +706,148 @@ function StatHero() {
 }
 
 // ── Career Chart ────────────────────────────────────────────
+
+// ── Announcement Feed ─────────────────────────────────────────────
+// LinkedIn/X-style feed of posts on a player's profile. Commitment
+// announcements, milestones, updates. Pinned items (like the
+// commitment post) float to the top.
+
+const KIND_META: Record<
+  PlayerAnnouncement["kind"],
+  { label: string; color: string; bg: string }
+> = {
+  commitment: { label: "Committed", color: "text-grass", bg: "bg-grass-dim" },
+  milestone: { label: "Milestone", color: "text-red", bg: "bg-red-soft" },
+  achievement: { label: "Achievement", color: "text-gold", bg: "bg-amber-soft" },
+  offer: { label: "Offer", color: "text-sky", bg: "bg-sky-soft" },
+  video: { label: "Video", color: "text-red", bg: "bg-red-soft" },
+  update: { label: "Update", color: "text-ink-2", bg: "bg-paper-deep" },
+};
+
+function AnnouncementFeed({
+  announcements,
+  playerName,
+}: {
+  announcements: PlayerAnnouncement[];
+  playerName: string;
+}) {
+  return (
+    <div className="bg-card border border-hair rounded-lg overflow-hidden">
+      <div className="px-5 py-4 border-b border-hair-2 flex items-center gap-2">
+        <h3 className="font-display text-[15px] font-semibold tracking-tight">
+          {playerName}&apos;s feed
+        </h3>
+        <span className="text-[11.5px] text-ink-3 ml-2">
+          Commitments, milestones, updates
+        </span>
+      </div>
+      <div className="divide-y divide-hair-2">
+        {announcements.map((a) => {
+          const meta = KIND_META[a.kind];
+          return (
+            <div key={a.id} className="p-5">
+              <div className="flex items-center gap-2 flex-wrap mb-2">
+                <span
+                  className={cn(
+                    "inline-flex items-center px-2 py-0.5 rounded-xs text-[10px] font-bold uppercase tracking-[0.06em]",
+                    meta.bg,
+                    meta.color,
+                  )}
+                >
+                  {meta.label}
+                </span>
+                {a.pinned && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-xs bg-ink text-white text-[9.5px] font-bold uppercase tracking-[0.06em]">
+                    📌 Pinned
+                  </span>
+                )}
+                <span className="text-[11px] text-ink-3 ml-auto font-mono">
+                  {new Date(a.createdAt).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </span>
+              </div>
+              <div className="font-display text-[18px] font-semibold tracking-tight leading-snug">
+                {a.title}
+              </div>
+              {a.body && (
+                <p className="text-[13px] text-ink-2 mt-2 leading-relaxed whitespace-pre-wrap">
+                  {a.body}
+                </p>
+              )}
+              {a.imageUrl && (
+                <img
+                  src={a.imageUrl}
+                  alt=""
+                  className="mt-3 rounded-md border border-hair-2 max-h-[360px] w-full object-cover"
+                />
+              )}
+              {a.linkUrl && (
+                <a
+                  href={a.linkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-1 text-[12.5px] font-semibold text-red hover:underline"
+                >
+                  Read more →
+                </a>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Highlight video card ─────────────────────────────────────────
+// Resolves a YouTube/Hudl/Vimeo URL into the right iframe embed.
+
+function HighlightVideoCard({ url }: { url: string }) {
+  const embed = resolveVideoEmbed(url);
+  if (!embed || !embed.embedUrl) {
+    return (
+      <div className="bg-card border border-hair rounded-lg p-5">
+        <div className="flex items-center gap-2">
+          <h3 className="font-display text-[15px] font-semibold tracking-tight">
+            Highlight reel
+          </h3>
+        </div>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex items-center gap-1 text-[13px] font-semibold text-red hover:underline"
+        >
+          Watch on {new URL(url).hostname.replace(/^www\./, "")} →
+        </a>
+      </div>
+    );
+  }
+  return (
+    <div className="bg-card border border-hair rounded-lg overflow-hidden">
+      <div className="px-5 py-4 border-b border-hair-2 flex items-center gap-2">
+        <h3 className="font-display text-[15px] font-semibold tracking-tight">
+          Highlight reel
+        </h3>
+        <span className="text-[11.5px] text-ink-3 uppercase tracking-[0.06em] font-bold ml-2">
+          {embed.provider}
+        </span>
+      </div>
+      <div className="aspect-video w-full bg-ink">
+        <iframe
+          src={embed.embedUrl}
+          title="Highlight video"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          className="w-full h-full"
+        />
+      </div>
+    </div>
+  );
+}
 
 function CareerChart() {
   return (
@@ -301,44 +931,184 @@ function CareerChart() {
 
 // ── Career (timeline) ────────────────────────────────────────
 
-function Career() {
-  const seasons = [
-    {
-      year: "Senior · 2026",
-      badge: "VARSITY", badgeKind: "v" as const,
-      team: "Lincoln HS · 19 G (in progress)",
-      stats: [
-        ["BA", ".372"], ["OBP", ".448"], ["SLG", ".531"], ["SB", "14"], ["RBI", "21"],
-      ],
-      note: "Current run. **All-Conference frontrunner**. Hitting streak active (7G).",
-    },
-    {
-      year: "Junior · 2025",
-      badge: "VARSITY", badgeKind: "v" as const,
-      team: "Lincoln HS · 31 G",
-      stats: [
-        ["BA", ".318"], ["OBP", ".402"], ["SLG", ".445"], ["SB", "22"], ["RBI", "28"],
-      ],
-      note: "Moved from RF to CF midseason. **All-District 2nd team**. Playoff series loss to Ridgewood Prep, 1-2.",
-    },
-    {
-      year: "Summer '25",
-      badge: "CLUB · 17U", badgeKind: "club" as const,
-      team: "Texas Storm Baseball · PG showcases",
-      stats: [
-        ["BA", ".341"], ["EV HIGH", "91"], ["60YD", "6.82"], ["TOURN", "4"], ["CAMPS", "2"],
-      ],
-    },
-    {
-      year: "Sophomore · 2024",
-      badge: "JV", badgeKind: "jv" as const,
-      team: "Lincoln HS · 28 G (14 V callups)",
-      stats: [
-        ["BA", ".294"], ["OBP", ".371"], ["SLG", ".398"], ["SB", "11"], ["RBI", "16"],
-      ],
-    },
-  ];
-  const badgeStyles: Record<typeof seasons[number]["badgeKind"], string> = {
+// ── Real batting stats card (season + career) ─────────────────
+function BattingCard({
+  seasonLine,
+  careerLine,
+}: {
+  seasonLine: SeasonBattingLine;
+  careerLine: PlayerBattingLine | null;
+}) {
+  return (
+    <div className="bg-card border border-hair rounded-lg">
+      <div className="px-5 py-4 flex items-center gap-2.5 border-b border-hair-2">
+        <h3 className="font-display text-[15px] font-semibold tracking-tight">
+          Batting line
+        </h3>
+        <span className="text-[11.5px] text-ink-3 ml-2">
+          Derived live from every at-bat in Rostr
+        </span>
+        <span className="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs bg-grass-dim text-grass text-[9.5px] font-bold uppercase tracking-[0.04em]">
+          <CheckCircle2 className="w-3 h-3" /> Verified
+        </span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-hair-2">
+        <StatColumn title={`Season ${seasonLine.seasonYear}`} line={seasonLine} />
+        {careerLine ? (
+          <StatColumn title="Career" line={careerLine} />
+        ) : (
+          <div className="p-5 text-[12.5px] text-ink-3">Career aggregates as more games are played.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Real pitching stats card (season + career) ────────────────
+function PitchingCard({
+  seasonLine,
+  careerLine,
+}: {
+  seasonLine: SeasonPitchingLine;
+  careerLine: PlayerPitchingLine | null;
+}) {
+  return (
+    <div className="bg-card border border-hair rounded-lg">
+      <div className="px-5 py-4 flex items-center gap-2.5 border-b border-hair-2">
+        <h3 className="font-display text-[15px] font-semibold tracking-tight">
+          Pitching line
+        </h3>
+        <span className="text-[11.5px] text-ink-3 ml-2">
+          Derived live from every at-bat in Rostr
+        </span>
+        <span className="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs bg-grass-dim text-grass text-[9.5px] font-bold uppercase tracking-[0.04em]">
+          <CheckCircle2 className="w-3 h-3" /> Verified
+        </span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-hair-2">
+        <PitchingColumn title={`Season ${seasonLine.seasonYear}`} line={seasonLine} />
+        {careerLine ? (
+          <PitchingColumn title="Career" line={careerLine} />
+        ) : (
+          <div className="p-5 text-[12.5px] text-ink-3">Career totals build up with each outing.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PitchingColumn({
+  title,
+  line,
+}: {
+  title: string;
+  line: SeasonPitchingLine | PlayerPitchingLine;
+}) {
+  return (
+    <div className="p-5">
+      <div className="type-label mb-3">{title}</div>
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <BigStat label="ERA" value={formatERA(line.era)} highlight={line.era > 0 && line.era < 3.0} />
+        <BigStat label="WHIP" value={formatWHIP(line.whip)} highlight={line.whip > 0 && line.whip < 1.2} />
+        <BigStat label="K/9" value={line.k9 > 0 ? line.k9.toFixed(1) : "—"} highlight={line.k9 >= 10} />
+      </div>
+      <div className="grid grid-cols-4 gap-2 text-[12px]">
+        <MiniStat label="G" v={String(line.games)} />
+        <MiniStat label="IP" v={formatIP(line.ip)} />
+        <MiniStat label="K" v={String(line.k)} />
+        <MiniStat label="BB" v={String(line.bb)} />
+        <MiniStat label="H" v={String(line.h)} />
+        <MiniStat label="HR" v={String(line.hr)} />
+        <MiniStat label="R" v={String(line.r)} />
+        <MiniStat label="BF" v={String(line.bf)} />
+      </div>
+    </div>
+  );
+}
+
+function StatColumn({
+  title,
+  line,
+}: {
+  title: string;
+  line: SeasonBattingLine | PlayerBattingLine;
+}) {
+  return (
+    <div className="p-5">
+      <div className="type-label mb-3">{title}</div>
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <BigStat label="AVG" value={formatAvg(line.ba)} highlight={line.ba >= 0.3} />
+        <BigStat label="OBP" value={formatAvg(line.obp)} />
+        <BigStat label="SLG" value={formatAvg(line.slg)} />
+      </div>
+      <div className="grid grid-cols-4 gap-2 text-[12px]">
+        <MiniStat label="G" v={String(line.games)} />
+        <MiniStat label="AB" v={String(line.ab)} />
+        <MiniStat label="H" v={String(line.h)} />
+        <MiniStat label="HR" v={String(line.hr)} />
+        <MiniStat label="RBI" v={String(line.rbi)} />
+        <MiniStat label="BB" v={String(line.bb)} />
+        <MiniStat label="K" v={String(line.k)} />
+        <MiniStat label="OPS" v={formatAvg(line.ops)} />
+      </div>
+    </div>
+  );
+}
+
+function BigStat({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div>
+      <div
+        className={cn(
+          "font-mono text-[28px] font-bold tracking-[-0.03em] leading-none",
+          highlight && "text-red",
+        )}
+      >
+        {value}
+      </div>
+      <div className="text-[10px] font-bold text-ink-3 uppercase tracking-[0.06em] mt-1">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, v }: { label: string; v: string }) {
+  return (
+    <div className="text-center">
+      <div className="font-mono text-[14px] font-semibold">{v}</div>
+      <div className="text-[9px] font-bold text-ink-3 uppercase tracking-[0.06em] mt-0.5">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function Career({
+  player,
+  seasonLine,
+  pitchingSeason,
+}: {
+  player: MockPlayer;
+  seasonLine: SeasonBattingLine | null;
+  pitchingSeason: SeasonPitchingLine | null;
+}) {
+  // Per-player career timeline. Anchors on the player's CURRENT-season
+  // numbers (from seasonLine + pitchingSeason) and synthesizes prior
+  // seasons by walking back the timeline year by year. Each prior year
+  // shaves off a small slice of production so the arc looks like real
+  // development (sophomore → junior → senior peak), with the current
+  // year's BA / OPS exactly matching the StatHero + BattingCard above.
+  const seasons = buildCareerSeasons(player, seasonLine, pitchingSeason);
+  const badgeStyles: Record<"v" | "jv" | "club", string> = {
     v: "bg-red-soft text-red",
     jv: "bg-paper-deep text-ink-2",
     club: "bg-grass-dim text-grass",
@@ -348,7 +1118,7 @@ function Career() {
     <div className="bg-card border border-hair rounded-lg">
       <div className="px-5 py-4 flex items-center gap-2.5 border-b border-hair-2">
         <h3 className="font-display text-[15px] font-semibold tracking-tight">Career</h3>
-        <span className="text-[12px] text-ink-3 ml-2">4 seasons · HS + club</span>
+        <span className="text-[12px] text-ink-3 ml-2">{seasons.length} seasons · HS{seasons.some((s) => s.badgeKind === "club") ? " + club" : ""}</span>
       </div>
       <div>
         {seasons.map((s, i) => (
@@ -382,6 +1152,165 @@ function Career() {
       </div>
     </div>
   );
+}
+
+/**
+ * buildCareerSeasons — synthesize prior seasons from the player's
+ * current line so the Career timeline numbers stay consistent with
+ * the StatHero + BattingCard above. Walks back from the player's
+ * `gradYear` and `classYearShort`, decaying BA/OBP/SLG slightly each
+ * year (development arc) and shrinking AB count for sophomore /
+ * freshman seasons.
+ *
+ * Pure derivation, no random — same player → same career every render.
+ */
+interface CareerSeason {
+  year: string;
+  badge: string;
+  badgeKind: "v" | "jv" | "club";
+  team: string;
+  stats: Array<[string, string]>;
+  note?: string;
+}
+
+function buildCareerSeasons(
+  player: MockPlayer,
+  seasonLine: SeasonBattingLine | null,
+  pitchingSeason: SeasonPitchingLine | null,
+): CareerSeason[] {
+  const fmtAvg = (n: number) => n.toFixed(3).replace(/^0/, "");
+  const fmtEra = (n: number) => n.toFixed(2);
+  const seasons: CareerSeason[] = [];
+  const yearLabels: Record<string, string> = {
+    Sr: "Senior",
+    Jr: "Junior",
+    So: "Sophomore",
+    Fr: "Freshman",
+  };
+  const classOrder: Array<MockPlayer["classYearShort"]> = ["Sr", "Jr", "So", "Fr"];
+  const currentClassIdx = classOrder.indexOf(player.classYearShort);
+
+  // School-season year for each class level. A class-of-2028 player's
+  // senior season is 2028, their junior season is 2027, etc. — so the
+  // year for class-index i is `gradYear - i`. Iterating from the
+  // current class index walks the player's actual completed seasons.
+  const seasonYearFor = (classIdx: number): number => player.gradYear - classIdx;
+
+  // Build hitter career chain (if the player has batting numbers).
+  if (seasonLine && seasonLine.games > 0) {
+    const baCurrent = seasonLine.ba;
+    const obpCurrent = seasonLine.obp;
+    const slgCurrent = seasonLine.slg;
+    // Walk back from current class year toward freshman.
+    for (let i = currentClassIdx; i < classOrder.length; i++) {
+      const stepsBack = i - currentClassIdx; // 0 = current, 1 = prior, ...
+      const cls = classOrder[i];
+      const yr = seasonYearFor(i);
+      // Decay: each step back loses ~25 BA points + scaled OBP/SLG.
+      const decay = stepsBack * 0.025;
+      const baThen = Math.max(0.18, baCurrent - decay);
+      const obpThen = Math.max(0.22, obpCurrent - decay * 0.85);
+      const slgThen = Math.max(0.24, slgCurrent - decay * 1.1);
+      const games = stepsBack === 0 ? Math.max(seasonLine.games, 18) : 28 - stepsBack * 4;
+      const ab = Math.round(games * 3.6);
+      const sb = Math.max(2, Math.round(seasonLine.games * 0.3 - stepsBack * 3));
+      const rbi = Math.max(4, Math.round(seasonLine.rbi - stepsBack * 6));
+      const isVarsity = stepsBack <= 1 || cls === "Sr" || cls === "Jr";
+      seasons.push({
+        year: `${yearLabels[cls]} · ${yr}`,
+        badge: isVarsity ? "VARSITY" : "JV",
+        badgeKind: isVarsity ? "v" : "jv",
+        team: stepsBack === 0
+          ? `Lincoln HS · ${games} G (in progress)`
+          : `Lincoln HS · ${games} G`,
+        stats: [
+          ["BA", fmtAvg(baThen)],
+          ["OBP", fmtAvg(obpThen)],
+          ["SLG", fmtAvg(slgThen)],
+          ["SB", String(sb)],
+          ["RBI", String(rbi)],
+        ],
+        note: stepsBack === 0
+          ? (baCurrent >= 0.32
+              ? "Current run. **All-Conference frontrunner**."
+              : baCurrent >= 0.28
+                ? "Steady senior year. Big role in the lineup."
+                : "Development year. Putting in extra reps before each game.")
+          : undefined,
+      });
+    }
+    // Add a club summer between current and prior year (only for HS upperclassmen).
+    if (currentClassIdx <= 1 && seasons.length >= 2) {
+      const clubBA = Math.min(0.395, baCurrent + 0.015);
+      seasons.splice(1, 0, {
+        year: `Summer '${String(seasonYearFor(currentClassIdx) - 1).slice(-2)}`,
+        badge: "CLUB · 17U",
+        badgeKind: "club",
+        team: "Texas Storm Baseball · PG showcases",
+        stats: [
+          ["BA", fmtAvg(clubBA)],
+          ["EV HIGH", String(Math.round(83 + baCurrent * 30))],
+          ["60YD", (7.0 - (baCurrent - 0.25) * 1.4).toFixed(2)],
+          ["TOURN", "4"],
+          ["CAMPS", "2"],
+        ],
+      });
+    }
+    return seasons;
+  }
+
+  // Pitcher-only path: build career from ERA.
+  if (pitchingSeason && pitchingSeason.games > 0) {
+    const eraCurrent = pitchingSeason.era;
+    const whipCurrent = pitchingSeason.whip;
+    for (let i = currentClassIdx; i < classOrder.length; i++) {
+      const stepsBack = i - currentClassIdx;
+      const cls = classOrder[i];
+      const yr = seasonYearFor(i);
+      // ERA gets WORSE going back (less command); WHIP follows.
+      const eraThen = eraCurrent + stepsBack * 0.55;
+      const whipThen = whipCurrent + stepsBack * 0.10;
+      const ip = Math.max(8, Math.round((stepsBack === 0 ? pitchingSeason.ip : 30 - stepsBack * 8)));
+      const k = Math.round((pitchingSeason.k9 * ip) / 9);
+      const games = stepsBack === 0 ? pitchingSeason.games : Math.max(2, 10 - stepsBack * 2);
+      const isVarsity = stepsBack <= 1;
+      seasons.push({
+        year: `${yearLabels[cls]} · ${yr}`,
+        badge: isVarsity ? "VARSITY" : "JV",
+        badgeKind: isVarsity ? "v" : "jv",
+        team: stepsBack === 0
+          ? `Lincoln HS · ${games} G (in progress)`
+          : `Lincoln HS · ${games} G`,
+        stats: [
+          ["ERA", fmtEra(eraThen)],
+          ["WHIP", whipThen.toFixed(2)],
+          ["IP", ip.toFixed(1)],
+          ["K", String(k)],
+          ["G", String(games)],
+        ],
+        note: stepsBack === 0
+          ? (eraCurrent < 3.0
+              ? "Current ace. **Sub-3.00 ERA** with command."
+              : eraCurrent < 4.0
+                ? "Reliable starter. Senior leadership role."
+                : "Working through a few rough outings — pitch mix improving.")
+          : undefined,
+      });
+    }
+    return seasons;
+  }
+
+  // Fallback: shouldn't be hit because Career only renders when
+  // showMockSections is true and demo players always have stats.
+  return [
+    {
+      year: `${yearLabels[player.classYearShort]} · ${player.gradYear}`,
+      badge: "VARSITY",
+      badgeKind: "v",
+      team: `Lincoln HS · ${player.classYearShort} year`,
+      stats: [],
+    },
+  ];
 }
 
 // ── Highlights ──────────────────────────────────────────────
@@ -442,27 +1371,65 @@ function Highlights() {
 
 // ── Combine & measurables ───────────────────────────────────
 
-function Combine() {
-  const metrics = [
-    { v: "94", u: "mph", l: "Exit velo", d: "+3.2 vs last" },
-    { v: "87", u: "mph", l: "OF velo", d: "+4.0 vs last" },
-    { v: "6.74", u: "s", l: "60 yard", d: "−0.18 vs last" },
-    { v: "4.05", u: "s", l: "Home to 1B", d: "−0.09 vs last" },
-    { v: "28", u: "\"", l: "Vert jump", d: "+2 vs last" },
-    { v: "6'1\"", u: "", l: "Height" },
-    { v: "180", u: "", l: "Weight", d: "+8 vs last" },
-    { v: "R/R", u: "", l: "Bats/Throws" },
+function Combine({
+  measurables,
+  mockBio,
+}: {
+  measurables: PlayerMeasurable[];
+  mockBio: MockBio | null;
+}) {
+  // Real tryout-derived measurables first, then fill out the grid with
+  // mock "bio" fields (height/weight/bats) that aren't tryout-measured.
+  interface MetricCell {
+    v: string;
+    u: string;
+    l: string;
+    d?: string;
+    verified?: boolean;
+  }
+  const realMetrics: MetricCell[] = measurables.map((m) => ({
+    v: formatMeasurable(m),
+    u: m.unit ?? "",
+    l: m.stationName,
+    d: m.verifiedByCoachName ? `verified · ${m.verifiedByCoachName.split(" ")[0]}` : "verified",
+    verified: true,
+  }));
+  // Per-player bio when available (demo profiles), generic fallback otherwise.
+  const bio: MetricCell[] = [
+    { v: mockBio?.height ?? "6'0\"", u: "", l: "Height" },
+    { v: String(mockBio?.weight ?? 175), u: "", l: "Weight" },
+    {
+      v: `${mockBio?.bats ?? "R"}/${mockBio?.throws ?? "R"}`,
+      u: "",
+      l: "Bats/Throws",
+    },
   ];
+  const metrics: MetricCell[] = realMetrics.length > 0 ? [...realMetrics, ...bio] : bio;
+  const latestCoach = measurables.find((m) => m.verifiedByCoachName)?.verifiedByCoachName;
+  const latestDate = measurables
+    .map((m) => (m.latestAt ? new Date(m.latestAt) : null))
+    .filter((d): d is Date => d !== null)
+    .sort((a, b) => b.getTime() - a.getTime())[0];
+
   return (
     <div className="bg-card border border-hair rounded-lg">
-      <div className="px-5 py-4 flex items-center gap-2.5 border-b border-hair-2">
+      <div className="px-5 py-4 flex items-center gap-2.5 border-b border-hair-2 flex-wrap">
         <h3 className="font-display text-[15px] font-semibold tracking-tight">
           Combine &amp; measurables
         </h3>
-        <span className="text-[12px] text-ink-3 ml-2">verified by Coach Ruiz · 4/02/2026</span>
+        <span className="text-[12px] text-ink-3 ml-2">
+          {realMetrics.length > 0 ? (
+            <>
+              verified by {latestCoach ?? "coach"}
+              {latestDate ? ` · ${latestDate.toLocaleDateString()}` : ""}
+            </>
+          ) : (
+            <>no verified measurables yet</>
+          )}
+        </span>
       </div>
       <div className="p-5">
-        <div className="grid grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
           {metrics.map((m, i) => (
             <div key={i} className="p-3.5 bg-paper rounded-md">
               <div className="font-mono text-[22px] font-semibold tracking-[-0.02em]">
@@ -470,7 +1437,15 @@ function Combine() {
                 {m.u && <span className="text-[11px] text-ink-3 ml-0.5 font-normal">{m.u}</span>}
               </div>
               <div className="text-[10px] font-bold text-ink-3 uppercase tracking-[0.05em] mt-1">{m.l}</div>
-              {m.d && <div className="text-[10px] text-grass mt-0.5 font-semibold">{m.d}</div>}
+              {m.d && (
+                <div className={cn(
+                  "text-[10px] mt-0.5 font-semibold",
+                  m.verified ? "text-grass inline-flex items-center gap-1" : "text-grass",
+                )}>
+                  {m.verified && <CheckCircle2 className="w-2.5 h-2.5" />}
+                  {m.d}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -494,7 +1469,7 @@ function ShareCard({ handle }: { handle: string }) {
       <div className="relative">
         <h4 className="font-display text-[16px] font-semibold tracking-tight">Share your profile</h4>
         <p className="text-[12.5px] text-white/70 mt-1 leading-relaxed">
-          College coaches, scouts, recruits — send your whole career in one link.
+          College coaches, scouts, recruiters — send your whole career in one link.
         </p>
         <div className="mt-3 px-3 py-2.5 bg-white/[0.08] rounded-md font-mono text-[11.5px] flex items-center gap-2">
           <Link2 className="w-3.5 h-3.5 text-white/50 shrink-0" />
@@ -517,13 +1492,28 @@ function ShareCard({ handle }: { handle: string }) {
   );
 }
 
-function RecruitingCard() {
-  const interest = [
-    { initials: "TX", color: "bg-sky", name: "Texas State", meta: "saved · 3d ago", interested: true },
-    { initials: "BU", color: "bg-grass", name: "Baylor", meta: "viewed · 6d ago" },
-    { initials: "OU", color: "bg-amber", name: "Oklahoma", meta: "viewed · 12d ago" },
-    { initials: "AR", color: "bg-dirt", name: "Arkansas", meta: "viewed · 18d ago" },
-  ];
+function RecruitingCard({ recruiting }: { recruiting: MockRecruiting | null }) {
+  // Per-player school list + view count when on a demo profile.
+  // Sophomores with quiet numbers see 2-3 schools watching; seniors
+  // with high BA / low ERA see a packed Power-5 board. Every demo
+  // player has a different list.
+  const r: MockRecruiting = recruiting ?? {
+    viewsLast30: 7,
+    schools: [
+      { initials: "TX", color: "sky", name: "Texas State", meta: "saved · 3d ago", interested: true },
+      { initials: "BU", color: "grass", name: "Baylor", meta: "viewed · 6d ago" },
+      { initials: "OU", color: "amber", name: "Oklahoma", meta: "viewed · 12d ago" },
+      { initials: "AR", color: "dirt", name: "Arkansas", meta: "viewed · 18d ago" },
+    ],
+  };
+  const colorClass: Record<MockRecruiting["schools"][number]["color"], string> = {
+    sky: "bg-sky",
+    grass: "bg-grass",
+    amber: "bg-amber",
+    dirt: "bg-dirt",
+    red: "bg-red",
+    ink: "bg-ink",
+  };
   return (
     <div className="bg-card border border-hair rounded-lg">
       <div className="px-5 py-4 border-b border-hair-2">
@@ -531,31 +1521,48 @@ function RecruitingCard() {
       </div>
       <div className="p-4 space-y-2">
         <div className="bg-paper-deep border border-dashed border-hair rounded-md p-3.5 text-center">
-          <div className="font-mono text-[20px] font-semibold text-red">7</div>
+          <div className="font-mono text-[20px] font-semibold text-red">{r.viewsLast30}</div>
           <div className="text-[11px] font-bold text-ink-3 uppercase tracking-[0.05em] mt-0.5">
             college coaches viewed · 30d
           </div>
         </div>
-        <div className="space-y-2 mt-3.5">
-          {interest.map((i, idx) => (
-            <div key={idx} className="px-3 py-2.5 bg-paper rounded-md flex items-center gap-2.5 text-[12px]">
-              <div className={cn("w-[26px] h-[26px] rounded-xs flex items-center justify-center text-white text-[10px] font-bold", i.color)}>
-                {i.initials}
+        {r.schools.length > 0 ? (
+          <div className="space-y-2 mt-3.5">
+            {r.schools.map((i, idx) => (
+              <div key={idx} className="px-3 py-2.5 bg-paper rounded-md flex items-center gap-2.5 text-[12px]">
+                <div className={cn("w-[26px] h-[26px] rounded-xs flex items-center justify-center text-white text-[10px] font-bold", colorClass[i.color])}>
+                  {i.initials}
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold">{i.name}</div>
+                  <div className="font-mono text-[10px] text-ink-3">{i.meta}</div>
+                </div>
+                {i.interested && <span className="text-red text-[11px] font-semibold">Interested</span>}
               </div>
-              <div className="flex-1">
-                <div className="font-semibold">{i.name}</div>
-                <div className="font-mono text-[10px] text-ink-3">{i.meta}</div>
-              </div>
-              {i.interested && <span className="text-red text-[11px] font-semibold">Interested</span>}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-[12px] text-ink-3 mt-3 text-center px-3 py-4 leading-relaxed">
+            Still under the radar. As stats land + the season rolls,
+            recruiters will start tracking.
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function AcademicsCard() {
+function AcademicsCard({ academic }: { academic: MockAcademic | null }) {
+  // Per-player academic profile when on a demo profile. Falls back to
+  // the original Jordan-Kim numbers when no per-player data is given,
+  // which only happens if MOCK_ACADEMIC_BY_PLAYER doesn't have a row.
+  const a: MockAcademic = academic ?? {
+    gpa: "3.78",
+    sat: 1320,
+    classRank: "32 / 412",
+    major: "Business",
+    targetDiv: "D1 / D2",
+  };
   return (
     <div className="bg-card border border-hair rounded-lg">
       <div className="px-5 py-4 border-b border-hair-2 flex items-center gap-2">
@@ -564,11 +1571,11 @@ function AcademicsCard() {
       </div>
       <div>
         {[
-          ["GPA", "3.78"],
-          ["SAT", "1320"],
-          ["Class rank", "32 / 412"],
-          ["Major (intended)", "Business"],
-          ["Target div", "D1 / D2"],
+          ["GPA", a.gpa],
+          ["SAT", String(a.sat)],
+          ["Class rank", a.classRank],
+          ["Major (intended)", a.major],
+          ["Target div", a.targetDiv],
         ].map(([label, value]) => (
           <div key={label} className="flex justify-between items-center px-4 py-2.5 border-b border-hair-2 last:border-b-0 text-[13px]">
             <span className="text-ink-3 font-medium">{label}</span>
@@ -580,7 +1587,49 @@ function AcademicsCard() {
   );
 }
 
-function CoachVerification() {
+function CoachVerification({ measurables }: { measurables: PlayerMeasurable[] }) {
+  // Group real verifications by coach so we don't list the same coach once per
+  // station. Falls back to mock chain when we have no real data yet.
+  const byCoach = new Map<string, { name: string; stations: string[]; latestAt: Date | null }>();
+  for (const m of measurables) {
+    if (!m.verifiedByCoachName) continue;
+    const existing = byCoach.get(m.verifiedByCoachName);
+    const d = m.latestAt ? new Date(m.latestAt) : null;
+    if (existing) {
+      existing.stations.push(m.stationName);
+      if (d && (!existing.latestAt || d > existing.latestAt)) existing.latestAt = d;
+    } else {
+      byCoach.set(m.verifiedByCoachName, {
+        name: m.verifiedByCoachName,
+        stations: [m.stationName],
+        latestAt: d,
+      });
+    }
+  }
+
+  const realChain = Array.from(byCoach.values())
+    .sort((a, b) => (b.latestAt?.getTime() ?? 0) - (a.latestAt?.getTime() ?? 0))
+    .map((c) => ({
+      initials: c.name
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase(),
+      name: `Coach ${c.name}`,
+      role: "Tryout evaluator",
+      what: `verified ${c.stations.slice(0, 3).join(", ")}${c.stations.length > 3 ? "…" : ""}`,
+      when: c.latestAt ? c.latestAt.toLocaleDateString() : "",
+    }));
+
+  const mockChain = [
+    { initials: "JR", name: "Coach Joe Ruiz", role: "Head Coach · Lincoln HS", what: "verified combine measurables", when: "Apr 2, 2026" },
+    { initials: "DM", name: "Coach Dan Morales", role: "Head Coach · Texas Storm 17U", what: "verified summer game stats", when: "Aug 14, 2025" },
+    { initials: "AR", name: "Anthony Reyes", role: "PG South Showcase Eval", what: "verified 60yd time + EV", when: "Jul 22, 2025" },
+  ];
+
+  const chain = realChain.length > 0 ? realChain : mockChain;
+
   return (
     <div className="bg-card border border-hair rounded-lg">
       <div className="px-5 py-4 border-b border-hair-2 flex items-center gap-2">
@@ -588,11 +1637,7 @@ function CoachVerification() {
         <h3 className="font-display text-[15px] font-semibold tracking-tight">Verification chain</h3>
       </div>
       <div>
-        {[
-          { initials: "JR", name: "Coach Joe Ruiz", role: "Head Coach · Lincoln HS", what: "verified combine measurables", when: "Apr 2, 2026" },
-          { initials: "DM", name: "Coach Dan Morales", role: "Head Coach · Texas Storm 17U", what: "verified summer game stats", when: "Aug 14, 2025" },
-          { initials: "AR", name: "Anthony Reyes", role: "PG South Showcase Eval", what: "verified 60yd time + EV", when: "Jul 22, 2025" },
-        ].map((v, i) => (
+        {chain.map((v, i) => (
           <div key={i} className="px-[18px] py-3.5 border-b border-hair-2 last:border-b-0 flex gap-2.5 items-start">
             <Avatar size="md" color="ink" initials={v.initials} />
             <div className="flex-1 text-[13px] leading-relaxed">
@@ -601,12 +1646,49 @@ function CoachVerification() {
                 <span className="text-ink-3">— {v.what}</span>
               </div>
               <div className="font-mono text-[10.5px] text-ink-3 mt-0.5">
-                {v.role} · {v.when}
+                {v.role}
+                {v.when ? ` · ${v.when}` : ""}
               </div>
             </div>
             <Star className="w-3.5 h-3.5 text-grass shrink-0 mt-1" />
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function formatMeasurable(m: PlayerMeasurable): string {
+  if (m.scoreType === "rating") return m.bestValue.toFixed(1);
+  if (m.unit === "s") return m.bestValue.toFixed(2);
+  return m.bestValue.toFixed(1).replace(/\.0$/, "");
+}
+
+/**
+ * MockProfileBanner — shown on /p/[handle] when the URL didn't match
+ * a real player and we fell back to a fictional Lincoln HS profile.
+ *
+ * Privacy purpose: ensures visitors poking at random handles (or
+ * UUID-enumerating) cannot mistake fictional players for someone
+ * real. Pairs with the dedicated /demo tour for a guided experience.
+ */
+function MockProfileBanner() {
+  return (
+    <div className="bg-amber-soft border-b-2 border-amber">
+      <div className="max-w-layout-marketing mx-auto px-4 sm:px-6 lg:px-7 py-2 flex items-center gap-3 flex-wrap">
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs bg-amber text-white text-[10px] font-bold uppercase tracking-[0.08em]">
+          <Eye className="w-3 h-3" />
+          Demo data
+        </span>
+        <span className="text-[12.5px] text-ink-2 leading-snug flex-1 min-w-[200px]">
+          This is a fictional sample profile. No real player data shown.{" "}
+          <Link
+            href="/demo"
+            className="font-semibold text-red hover:underline"
+          >
+            See the full demo tour →
+          </Link>
+        </span>
       </div>
     </div>
   );

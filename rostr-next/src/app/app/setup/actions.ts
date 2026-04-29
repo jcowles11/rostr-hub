@@ -19,6 +19,8 @@ export interface CreateProgramInput {
   schoolName: string;
   sport: string;
   fullName: string;
+  /** Team/level names. E.g. ["Varsity"], ["Varsity","JV","Freshman"], or ["Heritage JV"]. */
+  levels?: string[];
 }
 
 export async function createProgramAction(input: CreateProgramInput) {
@@ -50,7 +52,10 @@ export async function createProgramAction(input: CreateProgramInput) {
       created_by: user.id,
       sport: input.sport,
       organization_id: org.id,
-      levels: ["Varsity", "JV", "Freshman"],
+      levels:
+        input.levels && input.levels.length > 0
+          ? input.levels
+          : ["Varsity"],
     })
     .select("id")
     .single();
@@ -59,11 +64,15 @@ export async function createProgramAction(input: CreateProgramInput) {
   }
 
   // 3. Organization member (links user → org with program scope)
+  //
+  // organization_members.role uses the `app_role` enum (admin | coach) —
+  // a different vocabulary than coaches.role (head_coach | assistant_coach).
+  // The creator of the program is treated as an admin of the org.
   const { error: memberErr } = await supabase.from("organization_members").insert({
     user_id: user.id,
     organization_id: org.id,
     program_id: program.id,
-    role: "head_coach",
+    role: "admin",
     full_name: input.fullName,
     email: user.email,
     color: "#c83a3a",

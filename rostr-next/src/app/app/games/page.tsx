@@ -1,11 +1,19 @@
 import { GamesView, type Game } from "./games-view";
 import { getCurrentCoach } from "@/lib/services/coach";
-import { fetchUpcomingGames } from "@/lib/services/schedule";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
  * /app/games — Games list, server shell.
- * Pulls upcoming games from Supabase when a coach record exists, otherwise
- * falls back to the mock demo schedule.
+ *
+ * For the unauthenticated demo, falls back to a mock schedule with
+ * placeholder IDs (the demo route at /demo/games has its own renderer
+ * that uses these same shapes via getMockGames()).
+ *
+ * For a signed-in coach: fetches their full game list (past + future)
+ * directly. Critically, does NOT fall back to DEMO_GAMES when the list
+ * is empty — those rows have fake IDs like "g1" that 404 when clicked.
+ * Empty list → GamesView renders its empty state with a "schedule
+ * your first game" CTA.
  */
 const DEMO_GAMES: Game[] = [
   { id: "g1", date: { day: 24, month: "Fri" }, time: "5:00 PM", opponent: "Central Hawks", home: true, location: "Lincoln HS · Main", status: "upcoming", tag: "conference" },
@@ -19,27 +27,43 @@ const DEMO_GAMES: Game[] = [
 
 export default async function GamesPage() {
   const coach = await getCurrentCoach();
-  let games = DEMO_GAMES;
-  if (coach) {
-    const real = await fetchUpcomingGames(coach.program_id);
-    if (real.length > 0) {
-      games = real.map((g): Game => {
-        const d = new Date(g.date + "T00:00:00");
-        return {
-          id: g.id,
-          date: {
-            day: d.getDate(),
-            month: d.toLocaleString("en-US", { weekday: "short" }),
-          },
-          time: "",
-          opponent: g.opponent,
-          home: g.home,
-          location: g.location ?? "",
-          status: g.status === "final" ? "final" : "upcoming",
-          tag: undefined,
-        };
-      });
-    }
+  if (!coach) {
+    // Unauthenticated landing → demo placeholders. Their fake IDs only
+    // live inside this list; clicking one is fine because /app/games/[id]
+    // renders a demo fallback when no coach exists.
+    return <GamesView games={DEMO_GAMES} />;
   }
+
+  // Real coach: fetch their full slate (past + future) so they see
+  // everything they've scheduled. No fake-ID fallback.
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("games")
+    .select("id, name, opponent, game_date, game_time, location, home_away, team_level, status, our_score, opponent_score, result")
+    .eq("program_id", coach.program_id)
+    .order("game_date", { ascending: false });
+
+  const rows = error || !data ? [] : data;
+  const games: Game[] = rows.map((g): Game => {
+    const d = new Date((g.game_date as string) + "T00:00:00");
+    const isFinal = (g.status ?? "scheduled") === "completed" || g.our_score !== null;
+    const us = (g.our_score as number | null) ?? null;
+    const them = (g.opponent_score as number | null) ?? null;
+    return {
+      id: g.id as string,
+      date: {
+        day: d.getDate(),
+        month: d.toLocaleString("en-US", { weekday: "short" }),
+      },
+      time: g.game_time ? (g.game_time as string).slice(0, 5) : "",
+      opponent: (g.opponent as string | null) ?? (g.name as string | null) ?? "Opponent TBD",
+      home: ((g.home_away as string | null) ?? "home") === "home",
+      location: (g.location as string | null) ?? "",
+      status: isFinal ? "final" : "upcoming",
+      result: isFinal && us !== null && them !== null ? { us, them } : undefined,
+      tag: undefined,
+    };
+  });
+
   return <GamesView games={games} />;
 }

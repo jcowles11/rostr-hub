@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentCoach } from "@/lib/services/coach";
+import { isDemoRequest, DEMO_GUARD_MESSAGE } from "@/lib/demo-guard";
 
 export interface CreateGameInput {
   opponent: string;
@@ -17,6 +18,7 @@ export interface CreateGameInput {
 export async function createGameAction(
   input: CreateGameInput,
 ): Promise<{ error: string | null; gameId?: string }> {
+  if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
   if (!input.opponent.trim() || !input.gameDate) {
     return { error: "Opponent and game date are required." };
   }
@@ -57,6 +59,7 @@ export async function setGameRosterAction(
   gameId: string,
   playerIds: string[],
 ): Promise<{ error: string | null }> {
+  if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
   const coach = await getCurrentCoach();
   if (!coach) return { error: "No program." };
   const supabase = createSupabaseServerClient();
@@ -110,6 +113,7 @@ export async function setLineupAction(
   gameId: string,
   entries: LineupEntry[],
 ): Promise<{ error: string | null }> {
+  if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
   const coach = await getCurrentCoach();
   if (!coach) return { error: "No program." };
   const supabase = createSupabaseServerClient();
@@ -139,7 +143,136 @@ export async function setLineupAction(
   return { error: null };
 }
 
+/**
+ * recordGameResultAction — flip a scheduled game to completed with a
+ * final score. Stores recap notes + stamps who / when. The `result`
+ * column (W/L/T) is a generated column on games, so no need to pass it.
+ */
+export interface RecordGameResultInput {
+  gameId: string;
+  ourScore: number;
+  opponentScore: number;
+  recapNotes?: string;
+}
+
+export async function recordGameResultAction(
+  input: RecordGameResultInput,
+): Promise<{ error: string | null }> {
+  if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program." };
+  if (!Number.isFinite(input.ourScore) || !Number.isFinite(input.opponentScore)) {
+    return { error: "Both scores are required." };
+  }
+  if (input.ourScore < 0 || input.opponentScore < 0) {
+    return { error: "Scores can't be negative." };
+  }
+  const supabase = createSupabaseServerClient();
+
+  const { error } = await supabase
+    .from("games")
+    .update({
+      status: "completed",
+      our_score: input.ourScore,
+      opponent_score: input.opponentScore,
+      recap_notes: input.recapNotes?.trim() || null,
+      completed_at: new Date().toISOString(),
+      completed_by: coach.id,
+    })
+    .eq("id", input.gameId)
+    .eq("program_id", coach.program_id);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/app/games/${input.gameId}`);
+  revalidatePath("/app/games");
+  revalidatePath("/app/schedule");
+  revalidatePath("/app");
+  return { error: null };
+}
+
+/**
+ * clearGameResultAction — un-complete a game. Used if the coach
+ * recorded the wrong score or needs to re-record.
+ */
+export async function clearGameResultAction(
+  gameId: string,
+): Promise<{ error: string | null }> {
+  if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program." };
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase
+    .from("games")
+    .update({
+      status: "scheduled",
+      our_score: null,
+      opponent_score: null,
+      recap_notes: null,
+      completed_at: null,
+      completed_by: null,
+    })
+    .eq("id", gameId)
+    .eq("program_id", coach.program_id);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/app/games/${gameId}`);
+  revalidatePath("/app");
+  return { error: null };
+}
+
+// ── Game prep ────────────────────────────────────────────────────
+
+export interface UpdateGamePrepInput {
+  gameId: string;
+  reportTime: string | null; // "HH:MM" or null
+  releaseTime: string | null;
+  uniform: string | null;
+  equipmentNotes: string | null;
+  lineupPreview: string | null;
+  prepNotes: string | null;
+}
+
+/**
+ * updateGamePrepAction — save coach-authored prep details for a game.
+ * Shown to players on /me + /p/[handle] so they can plan uniforms,
+ * arrival, early release from school, etc.
+ */
+export async function updateGamePrepAction(
+  input: UpdateGamePrepInput,
+): Promise<{ error: string | null }> {
+  if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program." };
+  const supabase = createSupabaseServerClient();
+  // Convert "14:30" → "14:30:00" for PostgreSQL time columns
+  const normalizeTime = (t: string | null): string | null => {
+    if (!t) return null;
+    const trimmed = t.trim();
+    if (!trimmed) return null;
+    return trimmed.length === 5 ? `${trimmed}:00` : trimmed;
+  };
+  const { error } = await supabase
+    .from("games")
+    .update({
+      report_time: normalizeTime(input.reportTime),
+      release_time: normalizeTime(input.releaseTime),
+      uniform: input.uniform?.trim() || null,
+      equipment_notes: input.equipmentNotes?.trim() || null,
+      lineup_preview: input.lineupPreview?.trim() || null,
+      prep_notes: input.prepNotes?.trim() || null,
+    })
+    .eq("id", input.gameId)
+    .eq("program_id", coach.program_id);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/app/games/${input.gameId}`);
+  revalidatePath("/me");
+  revalidatePath("/app");
+  return { error: null };
+}
+
 export async function deleteGameAction(gameId: string): Promise<{ error: string | null }> {
+  if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
   const coach = await getCurrentCoach();
   if (!coach) return { error: "No program." };
   const supabase = createSupabaseServerClient();

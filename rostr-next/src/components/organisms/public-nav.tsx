@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { getSessionUser, initialsFrom, displayName } from "@/lib/auth";
 import { Avatar } from "@/components/atoms/avatar";
+import { LogoMark } from "@/components/atoms/logo";
 
 /**
  * PublicNav — organisms/public-nav
@@ -24,9 +25,7 @@ export async function PublicNav({ sticky = false }: { sticky?: boolean }) {
     >
       <div className="max-w-layout-marketing mx-auto px-7 h-[60px] flex items-center">
         <Link href="/" className="flex items-center gap-2.5 font-display text-[18px] font-bold">
-          <span className="relative inline-flex w-[26px] h-[26px] rounded-sm bg-ink text-red items-center justify-center font-display text-[15px] font-bold brand-dashed">
-            R
-          </span>
+          <LogoMark size="sm" variant="dark" />
           rostr
         </Link>
         <div className="ml-7 flex gap-5 text-[13.5px] text-ink-2 font-medium">

@@ -47,7 +47,7 @@ export function GamesView({ games: GAMES }: { games: Game[] }) {
                 Games
               </h1>
               <p className="text-[13.5px] text-ink-3 mt-1">
-                Spring &apos;26 season · 12-4 record · 5 upcoming
+                {summarizeHeader(GAMES, upcoming, past)}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -65,37 +65,71 @@ export function GamesView({ games: GAMES }: { games: Game[] }) {
             </div>
           </div>
 
-          <div className="bg-card border border-hair rounded-lg overflow-hidden">
-            <div className="px-[18px] py-3.5 border-b border-hair-2 flex items-center gap-2">
-              <h3 className="font-display text-[15px] font-semibold tracking-tight">Upcoming</h3>
-              <span className="font-mono text-[10.5px] text-ink-3 font-semibold ml-auto">
-                {upcoming.length} GAMES
-              </span>
+          {GAMES.length === 0 ? (
+            <div className="bg-card border border-dashed border-hair rounded-lg p-10 text-center">
+              <h3 className="font-display text-[18px] font-semibold tracking-tight">
+                No games scheduled yet
+              </h3>
+              <p className="text-[13px] text-ink-3 mt-2 max-w-[440px] mx-auto leading-relaxed">
+                Add your first game and you&apos;ll be able to set the
+                roster, build the lineup, post game-day prep notes, and
+                score the game live from the dugout.
+              </p>
+              <button
+                onClick={() => setAddOpen(true)}
+                className="mt-5 px-4 py-2 bg-red text-white rounded-sm text-[13px] font-semibold inline-flex items-center gap-1.5 hover:bg-red/90"
+              >
+                <Plus className="w-3.5 h-3.5" /> Schedule your first game
+              </button>
             </div>
-            <div>
-              {upcoming.map((g) => (
-                <GameRow key={g.id} game={g} />
-              ))}
-            </div>
-          </div>
+          ) : (
+            <>
+              {upcoming.length > 0 && (
+                <div className="bg-card border border-hair rounded-lg overflow-hidden">
+                  <div className="px-[18px] py-3.5 border-b border-hair-2 flex items-center gap-2">
+                    <h3 className="font-display text-[15px] font-semibold tracking-tight">Upcoming</h3>
+                    <span className="font-mono text-[10.5px] text-ink-3 font-semibold ml-auto">
+                      {upcoming.length} GAMES
+                    </span>
+                  </div>
+                  <div>
+                    {upcoming.map((g) => (
+                      <GameRow key={g.id} game={g} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          <div className="bg-card border border-hair rounded-lg overflow-hidden mt-6">
-            <div className="px-[18px] py-3.5 border-b border-hair-2 flex items-center gap-2">
-              <h3 className="font-display text-[15px] font-semibold tracking-tight">Recent results</h3>
-              <span className="font-mono text-[10.5px] text-ink-3 font-semibold ml-auto">
-                W-L-D 2-1-0
-              </span>
-            </div>
-            <div>
-              {past.map((g) => (
-                <GameRow key={g.id} game={g} />
-              ))}
-            </div>
-          </div>
+              {past.length > 0 && (
+                <div className={cn("bg-card border border-hair rounded-lg overflow-hidden", upcoming.length > 0 && "mt-6")}>
+                  <div className="px-[18px] py-3.5 border-b border-hair-2 flex items-center gap-2">
+                    <h3 className="font-display text-[15px] font-semibold tracking-tight">Recent results</h3>
+                    <span className="font-mono text-[10.5px] text-ink-3 font-semibold ml-auto">
+                      {summarizeRecord(past)}
+                    </span>
+                  </div>
+                  <div>
+                    {past.map((g) => (
+                      <GameRow key={g.id} game={g} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          <div className="mt-8 text-center text-[12px] text-ink-3">
-            Game-day dugout console + lineup builder coming in the next build.
-          </div>
+              {/* Edge case: only upcoming + zero finals (or vice versa) — show
+                  a soft hint for the missing half so the page never looks broken. */}
+              {upcoming.length === 0 && past.length > 0 && (
+                <div className="mt-6 bg-paper-deep border border-dashed border-hair rounded-lg p-4 text-center text-[12.5px] text-ink-3">
+                  No upcoming games. Add the next one when you&apos;re ready.
+                </div>
+              )}
+              {past.length === 0 && upcoming.length > 0 && (
+                <div className="mt-6 bg-paper-deep border border-dashed border-hair rounded-lg p-4 text-center text-[12.5px] text-ink-3">
+                  No completed games yet. Scores show up here after you record results.
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
       <AddEventModal open={addOpen} onOpenChange={setAddOpen} initialKind="game" />
@@ -186,4 +220,41 @@ function GameRow({ game }: { game: Game }) {
       <ChevronRight className="w-4 h-4 text-ink-4 shrink-0" />
     </Link>
   );
+}
+
+/**
+ * summarizeRecord — "W-L-D 8-3-0" from a list of finalized games.
+ * Replaces the previous hardcoded "W-L-D 2-1-0" placeholder so a real
+ * coach's record reflects what they've actually played.
+ */
+function summarizeRecord(past: Game[]): string {
+  let w = 0, l = 0, d = 0;
+  for (const g of past) {
+    if (!g.result) continue;
+    if (g.result.us > g.result.them) w++;
+    else if (g.result.us < g.result.them) l++;
+    else d++;
+  }
+  return `W-L-D ${w}-${l}-${d}`;
+}
+
+/**
+ * summarizeHeader — page-title sub-line. Computes the season + record +
+ * upcoming count from the actual games array. Replaces the previously
+ * hardcoded "Spring '26 season · 12-4 record · 5 upcoming" string that
+ * a real coach with a fresh account would have seen as a confusing lie.
+ */
+function summarizeHeader(all: Game[], upcoming: Game[], past: Game[]): string {
+  if (all.length === 0) return "No games scheduled yet";
+  let w = 0, l = 0, d = 0;
+  for (const g of past) {
+    if (!g.result) continue;
+    if (g.result.us > g.result.them) w++;
+    else if (g.result.us < g.result.them) l++;
+    else d++;
+  }
+  const recordPart = past.length > 0 ? `${w}-${l}${d > 0 ? `-${d}` : ""} record` : null;
+  const upcomingPart =
+    upcoming.length === 0 ? "no upcoming" : `${upcoming.length} upcoming`;
+  return [recordPart, upcomingPart].filter(Boolean).join(" · ");
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -12,6 +12,7 @@ import {
   ExternalLink,
   Pencil,
   Trash2,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { TopBar } from "@/components/organisms/top-bar";
@@ -22,9 +23,12 @@ import { comingSoon } from "@/lib/coming-soon";
 import { cn } from "@/lib/utils";
 import { AddPlayerModal, type PlayerEditInit } from "@/components/organisms/add-player-modal";
 import { ImportRosterModal } from "@/components/organisms/import-roster-modal";
+import { ImportStatsModal } from "@/components/organisms/import-stats-modal";
+import { PlayerSlideover } from "@/components/organisms/player-slideover";
 import { LevelPicker } from "@/components/molecules/level-picker";
 import { RowActions } from "@/components/molecules/row-actions";
 import { deletePlayerAction, bulkSetPlayerLevelAction } from "./actions";
+import { seedSampleRosterAction } from "./sample-actions";
 import {
   type AvailabilityStatus,
   type ProfileStatus,
@@ -45,11 +49,18 @@ function shortToLongName(short: string): string {
  * Component page wrapper.
  */
 export function RosterView({
-  players: MOCK_PLAYERS,
+  players,
   levels = ["Varsity", "JV", "Freshman"],
+  battingByPlayer = {},
+  programName = "Rostr",
 }: {
   players: MockPlayer[];
   levels?: string[];
+  battingByPlayer?: Record<
+    string,
+    { games: number; ba: number; obp: number; slg: number; ops: number; hr: number; rbi: number }
+  >;
+  programName?: string;
 }) {
   const router = useRouter();
   const [levelFilter, setLevelFilter] = useState<"all" | string>("all");
@@ -57,6 +68,27 @@ export function RosterView({
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<PlayerEditInit | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [importStatsOpen, setImportStatsOpen] = useState(false);
+  const [slideoverPlayer, setSlideoverPlayer] = useState<MockPlayer | null>(null);
+  const [, startSampleTransition] = useTransition();
+  const [sampling, setSampling] = useState(false);
+
+  const seedSample = () => {
+    if (sampling) return;
+    setSampling(true);
+    startSampleTransition(async () => {
+      const r = await seedSampleRosterAction();
+      setSampling(false);
+      if (r.error) {
+        toast.error("Couldn't seed sample roster", { description: r.error });
+        return;
+      }
+      toast.success(`Added ${r.inserted} sample players`, {
+        description: "Explore the app, then wipe + import your real roster.",
+      });
+      router.refresh();
+    });
+  };
   const [filters] = useState([
     { key: "class", label: "Class: Any" },
     { key: "position", label: "Position: Any" },
@@ -64,23 +96,23 @@ export function RosterView({
   ]);
 
   const filtered = useMemo(() => {
-    if (levelFilter === "all") return MOCK_PLAYERS;
-    return MOCK_PLAYERS.filter((p) => {
+    if (levelFilter === "all") return players;
+    return players.filter((p) => {
       const name = p.levelName ?? shortToLongName(p.level);
       return name.toLowerCase() === levelFilter.toLowerCase();
     });
-  }, [levelFilter, MOCK_PLAYERS]);
+  }, [levelFilter, players]);
 
   const levelCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const lvl of levels) counts[lvl] = 0;
-    for (const p of MOCK_PLAYERS) {
+    for (const p of players) {
       const name = p.levelName ?? shortToLongName(p.level);
       if (counts[name] !== undefined) counts[name]++;
       else counts[name] = (counts[name] ?? 0) + 1;
     }
     return counts;
-  }, [MOCK_PLAYERS, levels]);
+  }, [players, levels]);
 
   const toggleRow = (id: string) =>
     setSelected((prev) => {
@@ -99,33 +131,36 @@ export function RosterView({
   return (
     <>
       <TopBar
-        breadcrumbs={[{ label: "Lincoln HS" }, { label: "Roster" }]}
+        breadcrumbs={[{ label: programName }, { label: "Roster" }]}
         actions={[
           { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
           { kind: "ghost", label: "Export", icon: <Download className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Export roster", "GameChanger + MaxPreps CSV out — next sprint.") },
-          { kind: "ghost", label: "Import", icon: <Upload className="w-[15px] h-[15px]" />, onClick: () => setImportOpen(true) },
+          { kind: "ghost", label: "Import roster", icon: <Upload className="w-[15px] h-[15px]" />, onClick: () => setImportOpen(true) },
+          { kind: "ghost", label: "Import stats", icon: <Upload className="w-[15px] h-[15px]" />, onClick: () => setImportStatsOpen(true) },
           { kind: "primary", label: "Add player", icon: <Plus className="w-[15px] h-[15px]" />, onClick: () => setAddOpen(true) },
         ]}
       />
-      <div className="flex-1 overflow-auto px-8 pt-7 pb-12">
+      <div className="flex-1 overflow-auto px-4 sm:px-6 lg:px-8 pt-5 sm:pt-7 pb-12">
         <div className="max-w-layout-app mx-auto">
           {/* Page head */}
           <div className="flex items-end justify-between mb-5">
             <div>
               <h1 className="font-display text-display-md">Roster</h1>
               <p className="mt-1 text-ink-3 text-[14px]">
-                {MOCK_PLAYERS.length} players · Spring &apos;26 season · 3 invites pending
+                {players.length === 0
+                  ? "No players yet — import or add your first to get started."
+                  : `${players.length} player${players.length === 1 ? "" : "s"}`}
               </p>
             </div>
           </div>
 
           {/* Level tabs (dynamic from program.levels) */}
-          <div className="flex gap-1 mb-4 p-1 bg-paper-deep rounded-md w-fit flex-wrap">
+          <div className="flex gap-1 mb-4 p-1 bg-paper-deep rounded-md w-fit max-w-full overflow-x-auto flex-wrap">
             <LevelTab
               active={levelFilter === "all"}
               onClick={() => setLevelFilter("all")}
               label="All"
-              count={MOCK_PLAYERS.length}
+              count={players.length}
             />
             {levels.map((lvl) => (
               <LevelTab
@@ -158,13 +193,18 @@ export function RosterView({
                 <b className="font-bold">{selected.size} selected</b>
                 <span className="text-white/40">·</span>
                 <span className="text-white/60">Move to:</span>
-                {levels.map((lvl, i) => (
+                {levels.map((lvl) => (
                   <BulkMoveButton
                     key={lvl}
                     label={lvl}
                     onClick={async () => {
-                      const enumVal = i === 0 ? "varsity" : i === 1 ? "jv" : "freshman";
-                      const r = await bulkSetPlayerLevelAction(Array.from(selected), enumVal);
+                      // Store by exact level name (lowercased). The
+                      // roster_assignments.assignment column is TEXT — any
+                      // configured level name is valid.
+                      const r = await bulkSetPlayerLevelAction(
+                        Array.from(selected),
+                        lvl.toLowerCase(),
+                      );
                       if (r.error) toast.error("Bulk move failed", { description: r.error });
                       else {
                         toast.success(`Moved ${r.updated} to ${lvl}`);
@@ -199,7 +239,60 @@ export function RosterView({
               </div>
             )}
 
-            <table className="w-full border-collapse text-[13px]">
+            {players.length === 0 && (
+              <div className="p-10 text-center">
+                <div className="inline-flex w-14 h-14 rounded-full bg-red-soft text-red items-center justify-center mb-3">
+                  <Upload className="w-7 h-7" />
+                </div>
+                <h2 className="font-display text-[20px] font-semibold tracking-tight">
+                  Your roster is empty
+                </h2>
+                <p className="text-[13px] text-ink-3 mt-2 max-w-[420px] mx-auto leading-relaxed">
+                  Import your team from GameChanger in seconds — or add players
+                  one at a time. Both paths are in the top-right.
+                </p>
+                <div className="mt-5 flex justify-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => setImportStatsOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-red hover:bg-red/90 text-white rounded-sm text-[13px] font-semibold"
+                  >
+                    <Upload className="w-4 h-4" /> Import stats from GameChanger
+                  </button>
+                  <button
+                    onClick={() => setImportOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-paper hover:bg-paper-deep border border-hair text-ink rounded-sm text-[13px] font-semibold"
+                  >
+                    <Upload className="w-4 h-4" /> Import roster CSV
+                  </button>
+                  <button
+                    onClick={() => setAddOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-paper hover:bg-paper-deep border border-hair text-ink rounded-sm text-[13px] font-semibold"
+                  >
+                    <Plus className="w-4 h-4" /> Add player manually
+                  </button>
+                </div>
+                <div className="mt-5 pt-5 border-t border-hair-2 max-w-[420px] mx-auto">
+                  <p className="text-[12.5px] text-ink-3 mb-2">
+                    Just want to look around first?
+                  </p>
+                  <button
+                    onClick={seedSample}
+                    disabled={sampling}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-paper-deep hover:bg-paper border border-dashed border-hair text-ink-2 hover:text-ink rounded-sm text-[12.5px] font-semibold disabled:opacity-50"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    {sampling ? "Seeding…" : "Try with 15 sample players"}
+                  </button>
+                  <p className="text-[10.5px] text-ink-3 mt-2 leading-relaxed">
+                    Adds &quot;Sample Adams&quot; through &quot;Sample Olson&quot; so you can play with the practice planner, lineup builder, and stats pages. Wipe + reimport your real roster from Settings → Data when you&apos;re ready.
+                  </p>
+                </div>
+              </div>
+            )}
+            {players.length > 0 && (
+            <div>
+            <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-[13px] md:min-w-[720px]">
               <thead>
                 <tr>
                   <Th width="32px">
@@ -212,12 +305,12 @@ export function RosterView({
                   <Th width="52px">#</Th>
                   <Th>Player</Th>
                   <Th width="70px">Level</Th>
-                  <Th width="80px">Position</Th>
-                  <Th width="70px">Class</Th>
-                  <Th width="70px" align="right">BA</Th>
-                  <Th width="70px" align="right">ERA</Th>
+                  <Th width="80px" mobileHidden>Position</Th>
+                  <Th width="70px" mobileHidden>Class</Th>
+                  <Th width="70px" align="right" mobileHidden>BA</Th>
+                  <Th width="70px" align="right" mobileHidden>ERA</Th>
                   <Th width="110px">Today</Th>
-                  <Th width="120px">Profile</Th>
+                  <Th width="120px" mobileHidden>Profile</Th>
                   <Th width="36px" />
                 </tr>
               </thead>
@@ -227,7 +320,7 @@ export function RosterView({
                   return (
                     <tr
                       key={p.id}
-                      onClick={() => router.push(`/p/${p.handle}`)}
+                      onClick={() => setSlideoverPlayer(p)}
                       className={cn(
                         "cursor-pointer transition-colors",
                         isSelected ? "bg-red-soft" : "hover:bg-paper",
@@ -267,12 +360,12 @@ export function RosterView({
                           levels={levels}
                         />
                       </Td>
-                      <Td mono>{p.positions.join("/")}</Td>
-                      <Td mono>{p.classYear}</Td>
-                      <Td mono align="right">
-                        {p.ba ?? <span className="text-ink-4">—</span>}
+                      <Td mono mobileHidden>{p.positions.join("/")}</Td>
+                      <Td mono mobileHidden>{p.classYear}</Td>
+                      <Td mono align="right" mobileHidden>
+                        {renderRealBA(battingByPlayer[p.id]) ?? p.ba ?? <span className="text-ink-4">—</span>}
                       </Td>
-                      <Td mono align="right">
+                      <Td mono align="right" mobileHidden>
                         {p.era ?? <span className="text-ink-4">—</span>}
                       </Td>
                       <Td>
@@ -281,7 +374,7 @@ export function RosterView({
                           note={p.availabilityNote}
                         />
                       </Td>
-                      <Td>
+                      <Td mobileHidden>
                         <ProfileLinkBadge status={p.profileStatus} />
                       </Td>
                       <Td onClickStopPropagation>
@@ -349,17 +442,17 @@ export function RosterView({
                 })}
               </tbody>
             </table>
+            </div>
 
             {/* Footer */}
             <div className="flex items-center justify-between px-[14px] py-2.5 border-t border-hair bg-paper text-[12px] text-ink-3">
               <div>
                 Showing <b className="text-ink">{filtered.length}</b> of{" "}
-                <b className="text-ink">{MOCK_PLAYERS.length}</b> players
-              </div>
-              <div className="font-mono text-[11.5px]">
-                Last synced 12 min ago · GameChanger
+                <b className="text-ink">{players.length}</b> player{players.length === 1 ? "" : "s"}
               </div>
             </div>
+            </div>
+            )}
           </div>
         </div>
       </div>
@@ -371,6 +464,41 @@ export function RosterView({
         editing={editing}
       />
       <ImportRosterModal open={importOpen} onOpenChange={setImportOpen} />
+      <ImportStatsModal open={importStatsOpen} onOpenChange={setImportStatsOpen} levels={levels} />
+      <PlayerSlideover
+        player={slideoverPlayer}
+        players={filtered}
+        stats={slideoverPlayer ? battingByPlayer[slideoverPlayer.id] ?? null : null}
+        open={slideoverPlayer !== null}
+        onOpenChange={(o) => !o && setSlideoverPlayer(null)}
+        onEdit={(p) => {
+          // If the slideover wants to navigate to another player (prev/next),
+          // we receive the new player here. If id matches the current one, treat
+          // as an "Edit" action and open the edit modal.
+          if (p.id === slideoverPlayer?.id) {
+            setSlideoverPlayer(null);
+            setEditing({
+              id: p.id,
+              firstName: p.firstName,
+              lastName: p.lastName,
+              grade:
+                p.classYearShort === "Fr"
+                  ? 9
+                  : p.classYearShort === "So"
+                    ? 10
+                    : p.classYearShort === "Jr"
+                      ? 11
+                      : p.classYearShort === "Sr"
+                        ? 12
+                        : null,
+              positions: p.positions,
+              playerNumber: p.jerseyNumber || null,
+            });
+          } else {
+            setSlideoverPlayer(p);
+          }
+        }}
+      />
     </>
   );
 }
@@ -467,15 +595,20 @@ function Th({
   children,
   width,
   align = "left",
+  mobileHidden,
 }: {
   children?: React.ReactNode;
   width?: string;
   align?: "left" | "right";
+  mobileHidden?: boolean;
 }) {
   return (
     <th
       style={{ width, textAlign: align }}
-      className="bg-paper px-[14px] py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3 border-b border-hair sticky top-0"
+      className={cn(
+        "bg-paper px-[14px] py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3 border-b border-hair sticky top-0",
+        mobileHidden && "hidden md:table-cell",
+      )}
     >
       {children}
     </th>
@@ -487,11 +620,13 @@ function Td({
   mono,
   align = "left",
   onClickStopPropagation,
+  mobileHidden,
 }: {
   children?: React.ReactNode;
   mono?: boolean;
   align?: "left" | "right";
   onClickStopPropagation?: boolean;
+  mobileHidden?: boolean;
 }) {
   return (
     <td
@@ -500,6 +635,7 @@ function Td({
       className={cn(
         "px-[14px] py-3 border-b border-hair-2 align-middle",
         mono && "font-mono",
+        mobileHidden && "hidden md:table-cell",
       )}
     >
       {children}
@@ -545,6 +681,25 @@ function ProfileLinkBadge({ status }: { status: ProfileStatus }) {
     >
       <span className={cn("w-1.5 h-1.5 rounded-full", s.color.replace("text-", "bg-"))} />
       {s.label}
+    </span>
+  );
+}
+
+/**
+ * renderRealBA — if the player has recorded at-bats, render their BA
+ * with the baseball-convention leading-dot format (".372"). Returns
+ * null so the caller can fall through to mock BA / em-dash when no
+ * real events exist yet.
+ */
+function renderRealBA(
+  line?: { games: number; ba: number },
+): React.ReactNode | null {
+  if (!line || line.games === 0) return null;
+  const formatted = Number(line.ba).toFixed(3);
+  const display = formatted.startsWith("0") ? formatted.slice(1) : formatted;
+  return (
+    <span className="text-ink font-semibold" title={`${line.games} games`}>
+      {display}
     </span>
   );
 }

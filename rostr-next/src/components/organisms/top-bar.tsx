@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SearchInput } from "@/components/atoms/input";
+import { TopBarSearchBox } from "@/components/organisms/top-bar-search";
 import { Button } from "@/components/atoms/button";
 
 /**
@@ -42,21 +43,24 @@ export function TopBar({
   return (
     <header
       className={cn(
-        "h-14 px-7 bg-card border-b border-hair flex items-center gap-[18px] shrink-0 sticky top-0 z-topbar",
+        "h-14 px-3 sm:px-5 lg:px-7 bg-card border-b border-hair flex items-center gap-2 sm:gap-[18px] shrink-0 sticky top-0 z-topbar",
         className,
       )}
     >
-      {/* Breadcrumbs */}
-      <nav className="flex items-center gap-2 text-[13px] text-ink-3">
+      {/* Breadcrumbs — last crumb emphasized on mobile, earlier crumbs hidden */}
+      <nav className="flex items-center gap-2 text-[13px] text-ink-3 min-w-0">
         {breadcrumbs.map((c, i) => {
           const isLast = i === breadcrumbs.length - 1;
           return (
             <React.Fragment key={`${c.label}-${i}`}>
-              {i > 0 && <span className="text-ink-4">/</span>}
+              {i > 0 && (
+                <span className="text-ink-4 hidden sm:inline">/</span>
+              )}
               <span
                 className={cn(
-                  isLast ? "text-ink font-semibold" : "text-ink-3",
+                  isLast ? "text-ink font-semibold" : "text-ink-3 hidden sm:inline",
                   !isLast && c.href && "hover:text-ink cursor-pointer",
+                  "truncate",
                 )}
               >
                 {c.label}
@@ -67,9 +71,13 @@ export function TopBar({
       </nav>
 
       {/* Right cluster */}
-      <div className="ml-auto flex items-center gap-2">
-        <div className="w-[280px]">
-          <SearchInput placeholder={searchPlaceholder ?? "Search players, drills, games…"} />
+      <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+        {/* Search — hidden on mobile, compact on tablet, full on desktop.
+            Functional command-palette-style box: ⌘K opens, Enter
+            navigates, Esc closes. Filters MOCK_PLAYERS + events + page
+            shortcuts in /demo. */}
+        <div className="hidden md:block w-[180px] lg:w-[280px]">
+          <TopBarSearchBox placeholder={searchPlaceholder ?? "Search players, drills, games…"} />
         </div>
         {actions.map((a, i) => {
           if (a.kind === "icon") {
@@ -90,12 +98,24 @@ export function TopBar({
               </button>
             );
           }
+          // On mobile, ghost buttons collapse to icon-only (saves width).
+          const buttonContent =
+            a.kind === "ghost" ? (
+              <>
+                {a.icon}
+                {a.label && <span className="hidden sm:inline">{a.label}</span>}
+              </>
+            ) : (
+              <>
+                {a.icon}
+                {a.label}
+              </>
+            );
           if (a.href) {
             return (
               <Link key={i} href={a.href}>
                 <Button size="md" variant={a.kind === "primary" ? "primary" : "ghost"}>
-                  {a.icon}
-                  {a.label}
+                  {buttonContent}
                 </Button>
               </Link>
             );
@@ -107,8 +127,7 @@ export function TopBar({
               variant={a.kind === "primary" ? "primary" : "ghost"}
               onClick={a.onClick}
             >
-              {a.icon}
-              {a.label}
+              {buttonContent}
             </Button>
           );
         })}

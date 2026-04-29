@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { notFound } from "next/navigation";
 import { Plus, Download, ArrowRight } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { Badge } from "@/components/atoms/badge";
@@ -13,11 +14,22 @@ import { Checkbox } from "@/components/atoms/checkbox";
 import { Chip } from "@/components/atoms/chip";
 
 /**
- * /_dev/atoms — developer-only showcase page.
+ * /dev/atoms — developer-only showcase page.
  * Every atom rendered in every variant so we can visually verify
  * against the tokens + COMPONENTS.md before moving on to screens.
+ *
+ * Production gate: this page is fine in dev but doesn't belong on the
+ * public site. We 404 it in production so a curious visitor can't
+ * stumble onto an internal-looking page. To preview in production,
+ * set NEXT_PUBLIC_ENABLE_DEV_PAGES=1 at build time.
  */
 export default function AtomsPage() {
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.NEXT_PUBLIC_ENABLE_DEV_PAGES !== "1"
+  ) {
+    notFound();
+  }
   const [toggleOn, setToggleOn] = useState(true);
   const [checked, setChecked] = useState(true);
   const [chipOn, setChipOn] = useState(false);
@@ -69,7 +81,7 @@ export default function AtomsPage() {
           <Badge variant="pending">Pending</Badge>
           <Badge variant="unlinked">Unlinked</Badge>
           <Badge variant="verified">Verified</Badge>
-          <Badge variant="ai">AI Co-coach</Badge>
+          <Badge variant="ai">AI Assistant Coach</Badge>
         </div>
       </Section>
 

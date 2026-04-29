@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AlertCircle } from "lucide-react";
@@ -38,7 +38,8 @@ export function AddEventModal({
   const [notes, setNotes] = useState("");
 
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const loading = isPending;
 
   const reset = () => {
     setKind(initialKind); setOpponent(""); setHomeAway("home");
@@ -47,44 +48,42 @@ export function AddEventModal({
     setError(null);
   };
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
-
-    if (kind === "game") {
-      const r = await createGameAction({
-        opponent,
-        gameDate: date,
-        gameTime: time || undefined,
-        location: location || undefined,
-        homeAway,
-        teamLevel: level,
-      });
-      setLoading(false);
-      if (r.error) {
-        setError(r.error);
-        return;
+    startTransition(async () => {
+      if (kind === "game") {
+        const r = await createGameAction({
+          opponent,
+          gameDate: date,
+          gameTime: time || undefined,
+          location: location || undefined,
+          homeAway,
+          teamLevel: level,
+        });
+        if (r.error) {
+          setError(r.error);
+          return;
+        }
+        toast.success("Game scheduled", { description: `vs ${opponent} · ${date}` });
+      } else {
+        const r = await createPracticeAction({
+          title,
+          practiceDate: date,
+          teamLevel: level,
+          notes,
+        });
+        if (r.error) {
+          setError(r.error);
+          return;
+        }
+        toast.success("Practice scheduled", { description: `${title} · ${date}` });
       }
-      toast.success("Game scheduled", { description: `vs ${opponent} · ${date}` });
-    } else {
-      const r = await createPracticeAction({
-        title,
-        practiceDate: date,
-        teamLevel: level,
-        notes,
-      });
-      setLoading(false);
-      if (r.error) {
-        setError(r.error);
-        return;
-      }
-      toast.success("Practice scheduled", { description: `${title} · ${date}` });
-    }
 
-    reset();
-    onOpenChange(false);
-    router.refresh();
+      reset();
+      onOpenChange(false);
+      router.refresh();
+    });
   };
 
   return (

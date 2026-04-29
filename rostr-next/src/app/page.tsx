@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import { PublicNav } from "@/components/organisms/public-nav";
+import { LogoMark } from "@/components/atoms/logo";
 import { cn } from "@/lib/utils";
 
 /**
@@ -39,40 +40,46 @@ function Hero() {
               Built by a coach, for coaches
             </div>
             <h1 className="font-display font-semibold leading-[0.98] tracking-[-0.04em] text-[52px] md:text-[68px] mb-6">
-              The operating system for{" "}
+              Stop running your team from a{" "}
               <span className="relative inline-block">
-                coaches.
+                spreadsheet.
                 <span className="absolute left-0 right-0 -bottom-0.5 h-3 bg-red/20 -z-10 rounded" />
               </span>
             </h1>
-            <p className="text-[19px] leading-relaxed text-ink-2 mb-7 max-w-[520px]">
-              One app for tryouts, roster, practice plans, lineups, parent comms — and a
-              player profile that every athlete actually wants to have. Built for high
-              school and elite club programs.
+            <p className="text-[19px] leading-relaxed text-ink-2 mb-7 max-w-[540px]">
+              One app for the full lifecycle of your season — and beyond.
+              Roster, practice plans, lineups, tryout scoring, parent comms,
+              and a profile every player keeps for life. Built for the field,
+              not the desk.
             </p>
             <div className="flex gap-3 items-center mb-5 flex-wrap">
               <Link
                 href="/signup"
                 className="inline-flex items-center gap-2 px-[22px] py-3.5 bg-red hover:bg-red/90 text-white rounded-sm text-[15px] font-semibold transition-colors"
               >
-                Start free trial <ArrowRight className="w-4 h-4" />
+                Try it free <ArrowRight className="w-4 h-4" />
               </Link>
+              {/* Now points to the static product tour (/demo) instead
+                  of /app, which would just bounce to /login. The tour
+                  uses fictional Lincoln HS data and is clearly labeled
+                  so a prospect can scroll through the product before
+                  committing to signup. */}
               <Link
-                href="/app"
+                href="/demo"
                 className="inline-flex items-center gap-2 px-[22px] py-3.5 bg-card border border-hair hover:border-ink text-ink rounded-sm text-[15px] font-semibold transition-colors"
               >
-                See the product
+                See the product tour
               </Link>
             </div>
             <div className="flex gap-5 text-[12.5px] text-ink-3 flex-wrap">
               <div>
-                <b className="text-ink font-bold font-mono">HS + club</b> purpose-built
+                <b className="text-ink font-bold font-mono">Any team, any level</b>
               </div>
               <div>
                 <b className="text-ink font-bold font-mono">Every player</b> gets a profile
               </div>
               <div>
-                <b className="text-ink font-bold font-mono">$0</b> forever for players
+                <b className="text-ink font-bold font-mono">Free</b> forever for players
               </div>
             </div>
           </div>
@@ -83,95 +90,247 @@ function Hero() {
   );
 }
 
+/**
+ * HeroShot — laptop frame (Coach Hub) + iPhone frame (tryout scoring).
+ *
+ * Pure CSS device mockups so prospects see the product on the actual
+ * form factors a coach uses: a laptop in the office (Hub overview)
+ * and a phone at the field (rapid tryout scoring). Replaces the
+ * earlier floating-cards mock that didn't match any real device.
+ */
 function HeroShot() {
   return (
-    <div className="relative min-h-[480px] hidden md:block">
-      {/* Main dashboard card */}
-      <div className="absolute inset-0 bg-card border border-hair rounded-lg shadow-elev overflow-hidden">
-        <div className="bg-ink text-white/80 px-5 py-3 flex items-center gap-2.5 text-[11px] font-semibold">
-          <span className="w-2 h-2 rounded-full bg-red" />
-          Lincoln HS · Baseball · Varsity
-          <span className="ml-auto font-mono text-[10px] text-white/50 tracking-[0.08em]">
-            TODAY · APR 21
-          </span>
+    // Container sized so the laptop (Team Home) is the dominant visual
+    // and the iPhone (tryout scoring) sits clearly tucked in the bottom-
+    // right corner WITHOUT covering the laptop's screen content.
+    <div className="relative min-h-[520px] hidden md:block">
+      {/* ── Laptop showing Team Home (/app) ─────────────────────── */}
+      <div className="absolute inset-0">
+        {/* Laptop bezel + screen */}
+        <div className="bg-ink rounded-t-lg p-2 shadow-elev">
+          <div className="bg-card rounded-md overflow-hidden border border-white/5">
+            {/* Browser chrome */}
+            <div className="bg-paper-deep px-3 py-1.5 flex items-center gap-1.5 border-b border-hair-2">
+              <span className="w-2 h-2 rounded-full bg-red/40" />
+              <span className="w-2 h-2 rounded-full bg-amber/50" />
+              <span className="w-2 h-2 rounded-full bg-grass/50" />
+              <span className="ml-3 px-2 py-0.5 bg-card rounded-sm text-[9px] font-mono text-ink-3 border border-hair-2">
+                rostr.app/app
+              </span>
+            </div>
+            {/* Screen content — Team Home (Coach Hub at /app) */}
+            <div className="bg-paper">
+              {/* Program header strip — shows the full program scale
+                  (4 teams, ~64 players) instead of pretending it's a
+                  single Varsity squad. Coaches need to recognize the
+                  scope this app is built for. */}
+              <div className="bg-ink text-white px-4 py-2.5 flex items-center gap-2 text-[11px]">
+                <span className="w-5 h-5 rounded-sm bg-red flex items-center justify-center text-[9px] font-bold">
+                  LH
+                </span>
+                <span className="font-bold tracking-tight">Lincoln HS Baseball</span>
+                <span className="text-white/40">·</span>
+                <span className="text-white/70">4 teams · 64 players</span>
+                <span className="ml-auto font-mono text-[9px] text-white/50 tracking-[0.08em]">
+                  TUE · APR 21
+                </span>
+              </div>
+              <div className="p-5">
+                {/* Greeting + record */}
+                <div className="flex items-end gap-3 mb-4">
+                  <div>
+                    <div className="font-display text-[22px] font-semibold tracking-tight leading-tight">
+                      Good morning, Coach.
+                    </div>
+                    <div className="text-[11px] text-ink-3 mt-0.5">
+                      3 practices today across V/JV/Soph · V game tomorrow
+                    </div>
+                  </div>
+                  <span className="ml-auto inline-flex items-center px-2 py-0.5 rounded-xs bg-grass-dim text-grass text-[10px] font-bold uppercase tracking-[0.04em]">
+                    V 8-3 · W2
+                  </span>
+                </div>
+
+                {/* Today's events */}
+                <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3 mb-2">
+                  Today
+                </div>
+                <div className="space-y-1.5 mb-4">
+                  <HubEventRow
+                    color="grass"
+                    label="PRAC"
+                    title="Practice — situational hitting"
+                    sub="3:30 PM · Field A · 22 players"
+                  />
+                </div>
+
+                {/* This week */}
+                <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3 mb-2">
+                  This week
+                </div>
+                <div className="space-y-1.5 mb-4">
+                  <HubEventRow
+                    color="red"
+                    label="GAME"
+                    title="vs Central Hawks · conference"
+                    sub="Wed 5:00 PM · Home"
+                    emphasis
+                  />
+                  <HubEventRow
+                    color="red"
+                    label="GAME"
+                    title="@ Westfield Panthers"
+                    sub="Sat 1:00 PM · Bus 11:15"
+                  />
+                  <HubEventRow
+                    color="grass"
+                    label="PRAC"
+                    title="Light BP + pregame prep"
+                    sub="Thu 3:30 PM · 90 min"
+                  />
+                </div>
+
+                {/* Availability snapshot */}
+                <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3 mb-2">
+                  Availability
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <MiniStat label="Available" value="22" />
+                  <MiniStat label="Limited" value="2" />
+                  <MiniStat label="Out" value="1" valueColor="text-red" />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="p-6">
-          <div className="type-label">Command center</div>
-          <div className="font-display text-[24px] font-semibold tracking-tight mt-0.5">
-            Pre-practice huddle
+        {/* Laptop base */}
+        <div className="h-2 bg-ink rounded-b-2xl mx-[-12px]" />
+        <div className="h-1 bg-ink/80 rounded-b mx-[-4px]" />
+      </div>
+
+      {/* ── iPhone (tryout scoring) ─────────────────────────────
+          Sized + positioned so it's a clear secondary visual — tucked
+          into the bottom-right outside the laptop screen, not overlapping
+          its content. Realistic 9:19.5 aspect with notch + bezel. */}
+      <div className="absolute -bottom-10 -right-2 w-[160px]">
+        <div
+          className="bg-ink rounded-[26px] p-1.5 border border-white/5"
+          style={{
+            boxShadow:
+              "0 30px 60px -20px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.45)",
+          }}
+        >
+          <div className="bg-paper rounded-[20px] overflow-hidden relative aspect-[9/19.5]">
+            {/* Notch */}
+            <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-[58px] h-[16px] bg-ink rounded-full z-10" />
+            {/* Status bar */}
+            <div className="px-3 pt-1 pb-0.5 flex items-center justify-between text-[7px] font-bold text-ink z-20 relative">
+              <span>9:41</span>
+              <span className="font-mono">●●●</span>
+            </div>
+            {/* Top bar */}
+            <div className="bg-ink text-white px-2 py-1.5 flex items-center gap-1 mt-2">
+              <span className="text-[6.5px] text-white/60 font-bold uppercase tracking-[0.08em] truncate">
+                60-yard dash
+              </span>
+              <span className="ml-auto font-mono text-[7px] font-bold">
+                12/18
+              </span>
+            </div>
+            {/* Progress */}
+            <div className="h-0.5 bg-ink/10">
+              <div className="h-full bg-red" style={{ width: "67%" }} />
+            </div>
+            {/* Player hero */}
+            <div className="px-2 py-1.5 flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-full bg-sky text-white flex items-center justify-center text-[7px] font-bold">
+                JK
+              </span>
+              <div className="min-w-0">
+                <div className="font-display text-[9px] font-semibold tracking-tight truncate leading-tight">
+                  Jordan Kim
+                </div>
+                <div className="font-mono text-[6.5px] text-ink-3 leading-tight">
+                  #12 · SS
+                </div>
+              </div>
+            </div>
+            {/* Score readout */}
+            <div className="mx-2 bg-card border border-hair rounded-sm p-1.5 text-center">
+              <div className="text-[6px] font-bold uppercase tracking-[0.06em] text-ink-3">
+                Time
+              </div>
+              <div className="font-mono font-bold text-[18px] tracking-[-0.02em] leading-none mt-0.5">
+                6.84
+                <span className="text-[8px] text-ink-3">s</span>
+              </div>
+            </div>
+            {/* Keypad (3x3) */}
+            <div className="px-2 py-1.5">
+              <div className="grid grid-cols-3 gap-1">
+                {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((k) => (
+                  <div
+                    key={k}
+                    className="h-5 bg-card border border-hair rounded-xs flex items-center justify-center text-[9px] font-bold"
+                  >
+                    {k}
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Save */}
+            <div className="px-2 pb-2">
+              <div className="h-6 bg-red text-white rounded-xs flex items-center justify-center text-[8px] font-bold">
+                Save &amp; next →
+              </div>
+            </div>
+            {/* Home indicator */}
+            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-[60px] h-0.5 bg-ink/30 rounded-full" />
           </div>
-          <div className="grid grid-cols-3 gap-2 mt-4">
-            <MiniStat label="Available" value="22" />
-            <MiniStat label="Limited" value="2" />
-            <MiniStat label="Out" value="1" valueColor="text-red" />
-          </div>
-          <div className="mt-4 text-[11px] font-bold text-ink-3 uppercase tracking-[0.08em] mb-2">
-            Today&apos;s focus
-          </div>
-          <FocusRow n={1} text="Situational hitting · runners on corners" chips={["20 min", "Field A", "Coach Ruiz"]} active />
-          <FocusRow n={2} text="Bullpen rotation · 4 pitchers" />
-          <FocusRow n={3} text="Base running · 2nd-to-home reads" />
         </div>
       </div>
-      {/* Scout card floating */}
-      <div className="absolute -right-6 top-24 bg-ink text-white rounded-md p-4 w-[260px] shadow-elev border border-white/10">
-        <div className="text-[10px] text-white/50 font-bold tracking-[0.1em]">
-          SCOUT · UNC BASEBALL
+    </div>
+  );
+}
+
+/**
+ * HubEventRow — compact event row used inside the laptop's Team Home
+ * mockup. Color-coded type badge + title + sub. Mirrors the actual
+ * shape of the today/upcoming cards inside the real /app Hub.
+ */
+function HubEventRow({
+  color,
+  label,
+  title,
+  sub,
+  emphasis,
+}: {
+  color: "red" | "grass";
+  label: string;
+  title: string;
+  sub: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2.5 px-2.5 py-2 rounded-md border",
+        emphasis ? "border-red bg-red-soft/40" : "border-hair bg-paper",
+      )}
+    >
+      <span
+        className={cn(
+          "px-1.5 py-0.5 rounded-xs text-[8.5px] font-bold uppercase tracking-[0.06em] shrink-0",
+          color === "red" ? "bg-red text-white" : "bg-grass-dim text-grass",
+        )}
+      >
+        {label}
+      </span>
+      <div className="flex-1 min-w-0">
+        <div className="text-[12px] font-semibold tracking-tight truncate">
+          {title}
         </div>
-        <div className="font-display text-[15px] font-semibold tracking-tight mt-0.5">
-          LHH · CF · 85+ mph · &lt;6.9 60yd
-        </div>
-        <div className="mt-3 pt-3 border-t border-white/10 flex items-center gap-2">
-          <span className="w-7 h-7 rounded-full bg-red flex items-center justify-center text-[11px] font-bold">
-            MJ
-          </span>
-          <div>
-            <div className="text-[12px] font-semibold">Marcus Johnson</div>
-            <div className="font-mono text-[10px] text-white/55">
-              Lincoln HS · Sr · .372 BA
-            </div>
-          </div>
-          <div className="ml-auto font-mono text-[14px] font-semibold text-red">86</div>
-        </div>
-      </div>
-      {/* Phone mock */}
-      <div className="absolute -bottom-3 -left-6 w-[168px] rounded-xl overflow-hidden bg-ink border-[6px] border-ink shadow-phone">
-        <div className="bg-ink text-white p-3">
-          <div className="text-[8.5px] text-white/50 font-bold tracking-[0.08em]">
-            SCORING · LIVE
-          </div>
-          <div className="font-display text-[13px] font-semibold mt-0.5">
-            Tryout #47
-          </div>
-          <div className="mt-2 flex items-center gap-1.5">
-            <span className="w-6 h-6 rounded-full bg-red flex items-center justify-center text-[9px] font-bold font-mono">
-              #21
-            </span>
-            <div>
-              <div className="text-[10px] font-semibold">Jordan Kim</div>
-              <div className="text-[8px] text-white/50">SS · Jr</div>
-            </div>
-          </div>
-        </div>
-        <div className="bg-card p-3 text-ink">
-          <div className="text-[8.5px] font-bold text-ink-3 uppercase tracking-[0.06em]">
-            60 YD DASH
-          </div>
-          <div className="font-mono text-[30px] font-semibold tracking-[-0.02em]">
-            6.84<span className="text-[12px] text-ink-3">s</span>
-          </div>
-          <div className="flex gap-1 mt-2">
-            <div className="flex-1 h-6 bg-paper-deep rounded-xs flex items-center justify-center text-[10px] font-bold text-ink-2">
-              −
-            </div>
-            <div className="flex-1 h-6 bg-ink text-white rounded-xs flex items-center justify-center text-[10px] font-bold">
-              SAVE
-            </div>
-            <div className="flex-1 h-6 bg-paper-deep rounded-xs flex items-center justify-center text-[10px] font-bold text-ink-2">
-              +
-            </div>
-          </div>
-        </div>
+        <div className="text-[10px] text-ink-3 truncate">{sub}</div>
       </div>
     </div>
   );
@@ -250,10 +409,10 @@ function ProofStrip() {
   return (
     <div className="border-y border-hair bg-card">
       <div className="max-w-[1240px] mx-auto px-8 py-5 flex items-center gap-8 flex-wrap">
-        <div className="type-label">Built for the way HS programs actually run</div>
+        <div className="type-label">Built for the way real programs actually run</div>
         <div className="flex gap-7 text-[13px] text-ink-2 font-medium flex-wrap">
-          <span>40+ player rosters</span>
-          <span>V / JV / Frosh</span>
+          <span>60+ player rosters</span>
+          <span>4 teams per program</span>
           <span>60-game seasons</span>
           <span>Tryout weeks</span>
           <span>College recruiting</span>
@@ -273,12 +432,12 @@ function Problem() {
           The problem
         </div>
         <h2 className="font-display font-semibold text-[40px] md:text-[52px] leading-[1.05] tracking-[-0.03em] mb-5">
-          HS coaches run programs on
+          Coaches run programs on
           <br />
           Sheets, Word docs, and group texts.
         </h2>
         <p className="text-[17px] leading-relaxed text-ink-2">
-          A HS baseball coach manages 60+ kids across Varsity, JV, and Freshman. Tryouts
+          A HS baseball coach manages 60+ kids across 4 teams. Tryouts
           in Excel. Practice plans in Word. Lineups on paper. Depth chart in a notes app.
           Parent updates by group text. No connection between any of it — and no record
           of a kid&apos;s development when they graduate.
@@ -305,7 +464,7 @@ function Tour() {
     },
     {
       label: "Roster + recruiting",
-      title: "Every player gets a profile — without anyone asking",
+      title: "Every player gets a profile",
       copy:
         "You enter a player once. The career that follows — every metric, every season, every verified stat — is theirs. And it's discoverable by college coaches the moment they want it to be.",
       bullet: [
@@ -316,12 +475,12 @@ function Tour() {
     },
     {
       label: "Practice planner",
-      title: "Practice plans your assistants can actually run",
+      title: "Practice plans made in seconds",
       copy:
-        "Drag-and-drop time blocks, auto-assigned coaches, field-runner mode on your phone when you're on the field.",
+        "Tell the AI Assistant Coach your field constraint and tonight's focus, and it drafts a plan tailored to your roster + recent games. Tap drills from your library, drag-and-drop time blocks, run it from your phone at the field.",
       bullet: [
-        "Weekly templates + per-day adjustments",
-        "Field map with zones + parallel groups",
+        "AI Assistant Coach drafts a plan in one tap",
+        "Drill library + weekly templates + per-day adjustments",
         "Phone field-runner with offline queue",
       ],
     },
@@ -374,9 +533,33 @@ function Tour() {
 
 function Audiences() {
   const audiences = [
-    { label: "Coaches", title: "Run your whole program in one place", bullets: ["Ops, tryouts, recruiting all linked", "Assistants on the same page automatically", "Works on the field, not just the desk"] },
-    { label: "Athletes", title: "The profile that gets you seen", bullets: ["Career-long metric history", "Verified by your coaches", "Free. Always."] },
-    { label: "Recruiters", title: "Source talent from the source", bullets: ["Filter by measurables + class year + region", "Coach-verified data, not self-reported", "Compliance-aware contact routing"] },
+    {
+      label: "Coaches",
+      title: "Run your whole program in one place",
+      bullets: [
+        "Tryouts, roster, practice plans, lineups — all linked",
+        "Assistants on the same page automatically",
+        "Designed for the field, not just the desk",
+      ],
+    },
+    {
+      label: "Athletes",
+      title: "The profile that gets you seen",
+      bullets: [
+        "Career-long metric history",
+        "Verified by your coaches",
+        "Free. Always.",
+      ],
+    },
+    {
+      label: "Recruiters",
+      title: "Source talent from the source",
+      bullets: [
+        "Filter by measurables + class year + region",
+        "Coach-verified data, not self-reported",
+        "Compliance-aware contact routing",
+      ],
+    },
   ];
   return (
     <section id="audiences" className="py-20 scroll-mt-16">
@@ -384,9 +567,13 @@ function Audiences() {
         <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-red mb-3">
           Who it&apos;s for
         </div>
-        <h2 className="font-display font-semibold text-[36px] md:text-[44px] leading-[1.08] tracking-[-0.03em] mb-14 max-w-[680px]">
-          Three audiences. One data pipeline.
+        <h2 className="font-display font-semibold text-[36px] md:text-[44px] leading-[1.08] tracking-[-0.03em] mb-3 max-w-[760px]">
+          Built for every coach who runs a team.
         </h2>
+        <p className="text-[16px] text-ink-2 max-w-[680px] mb-14 leading-relaxed">
+          Youth and travel ball. Middle school and high school. Club, summer ball,
+          and elite programs. If you have a roster and a schedule, this works for you.
+        </p>
         <div className="grid md:grid-cols-3 gap-6">
           {audiences.map((a) => (
             <div key={a.label} className="p-7 bg-card border border-hair rounded-lg">
@@ -437,7 +624,7 @@ function Flywheel() {
             href="#pricing"
             className="inline-flex items-center gap-2 text-[15px] font-semibold text-red hover:underline"
           >
-            See pricing <ArrowRight className="w-4 h-4" />
+            See plans <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
         <div className="bg-paper border border-hair rounded-lg p-7 max-w-sm space-y-3">
@@ -498,7 +685,7 @@ function AI() {
           <div className="relative max-w-[680px]">
             <div className="inline-flex items-center gap-1.5 text-[10px] text-red font-bold uppercase tracking-[0.14em]">
               <span className="w-1.5 h-1.5 rounded-full bg-red" />
-              AI Co-coach
+              AI Assistant Coach
             </div>
             <h2 className="font-display font-semibold text-[40px] md:text-[52px] leading-[1.05] tracking-[-0.03em] mt-3 mb-5">
               Your assistant coach that never sleeps.
@@ -534,94 +721,92 @@ function AI() {
 
 // ── Pricing ──────────────────────────────────────────────────
 
+/**
+ * Plans — three audience-scoped panels, no dollar amounts.
+ *
+ * Pricing for Coach + Recruiter is intentionally not on the marketing
+ * site (we don't have public pricing yet). CTAs route to a "Talk to
+ * sales" mailto so prospects can ask. Athlete tier is free forever
+ * and CTAs straight to the signup flow.
+ */
 function Pricing() {
   const tiers = [
     {
       name: "Coach",
-      price: "$49",
-      period: "/ season / coach",
-      description: "Everything to run a team — roster, practice, tryouts, games, profiles.",
+      tagline: "Run your team",
+      description:
+        "Everything to run a team — roster, practice plans, tryouts, games, lineups, parent comms.",
       bullet: [
-        "Unlimited players",
-        "Unlimited practices + games",
-        "Public profiles for every player",
-        "CSV bi-directional with GameChanger",
+        "Unlimited players, practices, and games",
+        "Public profile for every player you coach",
+        "Built for the field — phone-first",
+        "AI assistant for practice plans + lineups",
       ],
-      cta: "Start free trial",
+      cta: "Talk to sales",
+      ctaHref: "mailto:hello@rostr.app?subject=Rostr%20-%20coach%20account%20inquiry",
       emphasis: true,
     },
     {
-      name: "Athlete",
-      price: "Free",
-      period: "forever",
-      description: "The profile and the career record — always free for the player.",
+      name: "Player",
+      tagline: "Free, forever",
+      description:
+        "The profile and the career record — always free for the athlete.",
       bullet: [
         "Public profile at rostr.app/<handle>",
         "Career-long metric history",
-        "Highlight uploads (up to 50)",
+        "Highlight uploads",
         "Claim at any time from any team",
       ],
       cta: "Claim your profile",
+      ctaHref: "/signup?role=player",
+      ctaIsLink: true,
     },
     {
       name: "Recruiter",
-      price: "$2,400",
-      period: "/ year / seat",
-      description: "Source, save, and contact HS athletes with coach-verified data.",
+      tagline: "Talent funnel",
+      description:
+        "Source, save, and contact athletes with coach-verified data.",
       bullet: [
         "Filter by measurables + class + region",
         "Saved prospects + notes",
         "Compliance-aware messaging",
         "Multiple seats per program",
       ],
-      cta: "Request access",
+      cta: "Talk to sales",
+      ctaHref: "mailto:hello@rostr.app?subject=Rostr%20-%20recruiter%20access%20inquiry",
     },
   ];
   return (
     <section id="pricing" className="py-20 bg-card border-y border-hair">
       <div className="max-w-[1240px] mx-auto px-8">
         <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-red mb-3">
-          Pricing
+          Plans
         </div>
         <h2 className="font-display font-semibold text-[36px] md:text-[44px] leading-[1.08] tracking-[-0.03em] mb-3 max-w-[680px]">
           Free for athletes.
           <br />
-          Paid where it pays for itself.
+          One conversation for everyone else.
         </h2>
         <p className="text-[16px] text-ink-2 mb-14 max-w-[620px]">
-          Athletes never pay. Coaches pay a season fee. Recruiters pay for the funnel.
+          Athletes never pay. Coaches and recruiters: drop us a line and we'll
+          set you up — pricing depends on team size and what you need.
         </p>
         <div className="grid md:grid-cols-3 gap-6">
           {tiers.map((t) => (
             <div
               key={t.name}
               className={cn(
-                "p-7 rounded-lg",
+                "p-7 rounded-lg flex flex-col",
                 t.emphasis
                   ? "bg-ink text-white border border-ink shadow-elev"
                   : "bg-paper border border-hair",
               )}
             >
-              <div
-                className={cn(
-                  "type-label",
-                  t.emphasis ? "!text-red" : "!text-red",
-                )}
-              >
-                {t.name}
-              </div>
-              <div className="flex items-baseline gap-2 mt-2.5">
-                <span className="font-display text-[44px] font-semibold tracking-[-0.03em] leading-none">
-                  {t.price}
-                </span>
-                <span
-                  className={cn(
-                    "text-[13px]",
-                    t.emphasis ? "text-white/60" : "text-ink-3",
-                  )}
-                >
-                  {t.period}
-                </span>
+              <div className="type-label !text-red">{t.name}</div>
+              {/* Tagline replaces the dollar block — keeps the visual
+                  weight of a "price line" without quoting numbers. */}
+              <div className="font-display text-[28px] font-semibold tracking-[-0.02em] leading-tight mt-2.5">
+                {t.tagline}
               </div>
               <p
                 className={cn(
@@ -631,7 +816,7 @@ function Pricing() {
               >
                 {t.description}
               </p>
-              <ul className="mt-5 space-y-2 text-[13px]">
+              <ul className="mt-5 space-y-2 text-[13px] flex-1">
                 {t.bullet.map((b) => (
                   <li key={b} className="flex gap-2 items-start">
                     <Check
@@ -640,27 +825,37 @@ function Pricing() {
                         t.emphasis ? "text-red" : "text-grass",
                       )}
                     />
-                    <span className={t.emphasis ? "text-white/90" : "text-ink-2"}>{b}</span>
+                    <span className={t.emphasis ? "text-white/90" : "text-ink-2"}>
+                      {b}
+                    </span>
                   </li>
                 ))}
               </ul>
-              <Link
-                href={
-                  t.name === "Coach"
-                    ? "/signup?role=coach"
-                    : t.name === "Athlete"
-                      ? "/signup?role=player"
-                      : "/signup?role=recruiter"
-                }
-                className={cn(
-                  "mt-7 w-full inline-flex items-center justify-center rounded-sm h-[42px] text-[13.5px] font-semibold",
-                  t.emphasis
-                    ? "bg-red text-white hover:bg-red/90"
-                    : "bg-ink text-white hover:bg-red",
-                )}
-              >
-                {t.cta}
-              </Link>
+              {t.ctaIsLink ? (
+                <Link
+                  href={t.ctaHref}
+                  className={cn(
+                    "mt-7 w-full inline-flex items-center justify-center rounded-sm h-[42px] text-[13.5px] font-semibold",
+                    t.emphasis
+                      ? "bg-red text-white hover:bg-red/90"
+                      : "bg-ink text-white hover:bg-red",
+                  )}
+                >
+                  {t.cta}
+                </Link>
+              ) : (
+                <a
+                  href={t.ctaHref}
+                  className={cn(
+                    "mt-7 w-full inline-flex items-center justify-center rounded-sm h-[42px] text-[13.5px] font-semibold",
+                    t.emphasis
+                      ? "bg-red text-white hover:bg-red/90"
+                      : "bg-ink text-white hover:bg-red",
+                  )}
+                >
+                  {t.cta}
+                </a>
+              )}
             </div>
           ))}
         </div>
@@ -676,25 +871,32 @@ function FinalCTA() {
     <section id="cta" className="py-24">
       <div className="max-w-[980px] mx-auto px-8 text-center">
         <h2 className="font-display font-semibold text-[44px] md:text-[60px] leading-[1.02] tracking-[-0.04em] mb-5">
-          Run your program.
+          Run your team.
           <br />
           Build the career.
         </h2>
-        <p className="text-[17px] text-ink-2 max-w-[580px] mx-auto mb-8 leading-relaxed">
-          Start free during preseason. Have your full roster in by week one.
+        <p className="text-[17px] text-ink-2 max-w-[600px] mx-auto mb-8 leading-relaxed">
+          Coaches: get in touch and we'll set you up. Players: claim your
+          profile in 30 seconds — free, forever.
         </p>
         <div className="flex gap-3 justify-center flex-wrap">
           <Link
             href="/signup"
             className="inline-flex items-center gap-2 px-[22px] py-3.5 bg-red hover:bg-red/90 text-white rounded-sm text-[15px] font-semibold transition-colors"
           >
-            Start free trial <ArrowRight className="w-4 h-4" />
+            Try it free <ArrowRight className="w-4 h-4" />
           </Link>
-          <a
-            href="mailto:hello@rostr.app?subject=Rostr%20demo%20request"
+          <Link
+            href="/demo"
             className="inline-flex items-center gap-2 px-[22px] py-3.5 bg-card border border-hair hover:border-ink text-ink rounded-sm text-[15px] font-semibold transition-colors"
           >
-            Book a demo
+            See the product tour
+          </Link>
+          <a
+            href="mailto:hello@rostr.app?subject=Rostr%20-%20coach%20account%20inquiry"
+            className="inline-flex items-center gap-2 px-[22px] py-3.5 text-ink-3 hover:text-ink rounded-sm text-[15px] font-semibold transition-colors"
+          >
+            Talk to sales
           </a>
         </div>
       </div>
@@ -711,14 +913,12 @@ function Footer() {
         <div className="grid md:grid-cols-4 gap-10">
           <div>
             <Link href="/" className="flex items-center gap-2.5 font-display text-[18px] font-bold">
-              <span className="relative inline-flex w-[26px] h-[26px] rounded-sm bg-white text-ink items-center justify-center font-display text-[15px] font-bold brand-dashed">
-                R
-              </span>
+              <LogoMark size="sm" variant="light" />
               rostr
             </Link>
-            <p className="mt-4 text-[12.5px] text-white/55 max-w-[220px] leading-relaxed">
-              The operating system for coaches. Built for high school and elite club
-              programs.
+            <p className="mt-4 text-[12.5px] text-white/55 max-w-[240px] leading-relaxed">
+              The operating system for coaches. Built for any team — youth,
+              travel, school, or club.
             </p>
           </div>
           {[
@@ -728,6 +928,7 @@ function Footer() {
               { label: "Practice planner", href: "/app/practice" },
               { label: "Tryouts", href: "/app/tryouts" },
               { label: "Profiles", href: "/p/marcusjohnson21" },
+              { label: "Demo tour", href: "/demo" },
             ] },
             { heading: "Company", links: [
               { label: "About", href: "/#audiences" },

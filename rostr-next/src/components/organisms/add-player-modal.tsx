@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AlertCircle } from "lucide-react";
@@ -42,7 +42,8 @@ export function AddPlayerModal({
     editing?.playerNumber != null ? String(editing.playerNumber) : "",
   );
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const loading = isPending;
 
   const reset = () => {
     setFirstName(""); setLastName(""); setGrade(""); setPositions([]);
@@ -53,10 +54,9 @@ export function AddPlayerModal({
     setPositions((curr) => curr.includes(p) ? curr.filter((x) => x !== p) : [...curr, p]);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
     const payload = {
       firstName,
       lastName,
@@ -66,21 +66,22 @@ export function AddPlayerModal({
       throws: throws || null,
       playerNumber: playerNumber ? parseInt(playerNumber, 10) : null,
     };
-    const result = editing
-      ? await updatePlayerAction({ id: editing.id, ...payload })
-      : await createPlayerAction(payload);
-    setLoading(false);
-    if (result.error) {
-      setError(result.error);
-      return;
-    }
-    toast.success(
-      editing ? "Player updated" : "Player added",
-      { description: `${firstName} ${lastName}` },
-    );
-    reset();
-    onOpenChange(false);
-    router.refresh();
+    startTransition(async () => {
+      const result = editing
+        ? await updatePlayerAction({ id: editing.id, ...payload })
+        : await createPlayerAction(payload);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      toast.success(
+        editing ? "Player updated" : "Player added",
+        { description: `${firstName} ${lastName}` },
+      );
+      reset();
+      onOpenChange(false);
+      router.refresh();
+    });
   };
 
   return (

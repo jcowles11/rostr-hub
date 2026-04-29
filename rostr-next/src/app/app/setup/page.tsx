@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionUser, displayName } from "@/lib/auth";
 import { getCurrentCoach } from "@/lib/services/coach";
+import { LogoMark } from "@/components/atoms/logo";
 import { SetupForm } from "./setup-form";
 
 /**
@@ -20,9 +21,7 @@ export default async function SetupPage() {
     <div className="min-h-screen bg-paper flex items-center justify-center p-8">
       <div className="w-full max-w-[560px]">
         <div className="flex items-center gap-2.5 justify-center mb-7">
-          <span className="relative inline-flex w-[28px] h-[28px] rounded-sm bg-ink text-red items-center justify-center font-display text-[16px] font-bold brand-dashed">
-            R
-          </span>
+          <LogoMark size="md" variant="dark" />
           <span className="font-display text-[19px] font-bold">rostr</span>
         </div>
         <div className="bg-card border border-hair rounded-lg p-8">

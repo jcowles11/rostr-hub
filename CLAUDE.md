@@ -1,269 +1,410 @@
 # CLAUDE.md — Rostr Engineering Context
 
-## 1. Project Identity
+**Last updated: April 29 2026.**
 
-Rostr is a sports team operating system for coaches, evaluators, and program administrators. It digitizes tryout evaluations, roster management, practice planning, game-day operations, and player development tracking.
+## 0. Workspace shape
 
-**Current phase:** UI Productization Sprint
-**Current goal:** Polished, operationally trustworthy, demo/pilot-ready product — not new features.
+This worktree contains two projects sharing one Supabase database:
 
-**This is a Vite + React 18 + TypeScript + TailwindCSS + Supabase SPA.**
+| Path | What it is | Status |
+|------|------------|--------|
+| `./rostr-next/` | **Next.js 14 + Supabase + Anthropic. This is what's deployed.** | **Active.** All current engineering work happens here. |
+| `./` (root) | Vite + React 18 SPA — the original Rostr build. | **Dormant.** Kept as reference; not deployed; not maintained. |
 
-- This is **NOT Next.js**. There is no SSR, no server components, no App Router, no API routes.
-- All data flows through the Supabase JS client (`@supabase/supabase-js`).
-- The app is deployed as a static build.
-- ES Module project (`"type": "module"` in package.json).
-- Mobile-first design with a `max-w-lg` container constraint.
+When in doubt, you're working in `rostr-next/`. The two projects share `supabase/migrations/` and the same remote database (`fubylvgkvnjjrpvdavjy.supabase.co`).
 
 ---
 
-## 2. Tech Stack and Commands
+## 1. Project Identity
 
-### Stack
+Rostr is a sports team operating system for high-school baseball coaches, evaluators, and program administrators. It digitizes tryout evaluations, roster management, practice planning, game-day operations, live scoring, and player development tracking.
+
+**Current phase:** Pilot deploy. Operationally hardened, not feature-driven.
+**Current goal:** Get the app on a real URL, in front of one trusted coach, watch them use it. Iterate on what breaks.
+
+Sport-agnostic at the data layer (positions / metrics / sessions are configuration, not schema). Baseball is the launch sport.
+
+---
+
+## 2. Tech Stack (rostr-next)
 
 | Layer | Technology |
 |-------|------------|
-| Framework | Vite 5 + React 18 (via `@vitejs/plugin-react-swc`) |
+| Framework | Next.js 14 (App Router) — server components + client components + server actions |
 | Language | TypeScript 5 (strict) |
-| Styling | TailwindCSS 3 + tailwind-merge + tailwindcss-animate |
-| UI Components | Radix UI primitives + shadcn/ui pattern |
-| Data | Supabase (PostgreSQL + Auth + RLS + Edge Functions) |
-| Validation | Zod |
-| State | React Context (AuthContext, SessionContext) |
-| React Query | Installed (`@tanstack/react-query`) but underutilized — most pages use manual `useState`/`useEffect` |
-| Routing | react-router-dom v6 |
-| Testing | Vitest (67 unit tests for core business logic) |
+| Styling | TailwindCSS 3 + custom design tokens (`ink`, `paper`, `red`, `grass`, `sky`, `hair`) |
+| UI | Radix primitives + custom organisms (TopBar, Modal, sidebar) — no shadcn/ui dependency |
+| Data | Supabase (Postgres + Auth + RLS) via `@supabase/ssr` |
+| Auth | Supabase email/password; middleware-gated `/app/*`, `/me`, `/scout/*` |
+| AI | Anthropic SDK (`@anthropic-ai/sdk`), model `claude-haiku-4-5` |
+| Validation | Zod (server actions only) |
 | Icons | lucide-react |
+| Deploy | Vercel (root directory = `rostr-next/`) |
 
-### Commands
+### Commands (run from `rostr-next/`)
 
 ```bash
-npm run dev          # Start dev server on :8080
-npm run build        # Production build (vite build)
-npm run typecheck    # TypeScript verification (tsc --noEmit)
-npm run test         # Run unit tests (vitest run)
-npm run lint         # ESLint
+npm run dev          # Next dev server on :3000
+npm run build        # Production build
+npm run start        # Run prod build locally (after build)
+npm run lint         # ESLint (advisory; lint-debt exists; doesn't gate prod build)
+npx tsc --noEmit     # Strict typecheck
 ```
 
 ### Verification — run after every change
 
 ```bash
-npm run typecheck && npm run build
+npx tsc --noEmit && npm run build
 ```
 
-Both must pass with zero errors. This is the definition of "app remains runnable."
+Both must pass with zero errors. This is the floor.
 
-### Known Caveats
+### Known caveats
 
-- **Vite cacheDir:** Set to `.vite` (project root) instead of `node_modules/.vite/` to avoid EPERM errors on mounted filesystems. See `vite.config.ts` and KI-15 in KNOWN_ISSUES.md.
-- **Path alias:** `@/` maps to `./src/` via both `vite.config.ts` and `tsconfig.json`.
+- `next.config.mjs` sets `eslint.ignoreDuringBuilds: true` because pre-existing lint debt would otherwise block prod builds. Strict typecheck still runs and gates the build.
+- The Bash tool's CWD drifts between subshells — always cd absolute when running long commands.
+- Build artifacts go to `.next/` inside `rostr-next/`. Wipe with `rm -rf .next` if a build mysteriously fails on chunk references.
 
 ---
 
 ## 3. Architecture Rules
 
-### Service Layer Pattern
+### Server actions
 
-All production data mutations go through `src/services/`. Each service returns `{ data, error }` and handles Supabase calls, validation, and error formatting internally. Pages should not contain inline `.from('table').insert(...)` calls for mutations.
+All mutations go through Next.js server actions, never direct Supabase calls from client components. The pattern:
 
-Services: `playerService`, `evaluationService`, `metricService`, `sessionService`, `coachService`, `teamService`, `practiceService`, `analyticsService`, `noteService`.
+```ts
+"use server";
 
-`demoSeedService` is demo-only tooling — do not use its patterns (bulk inserts, seed data generation) as templates for production code.
+import { isDemoRequest, DEMO_GUARD_MESSAGE } from "@/lib/demo-guard";
+import { getCurrentCoach } from "@/lib/services/coach";
 
-### Data Integrity
+export async function fooAction(input: FooInput): Promise<{ error: string | null }> {
+  if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program." };
+  // ... validate, mutate, revalidatePath
+}
+```
 
-- Zod validation exists on all critical mutation paths (player creation, score entry, session CRUD, metric CRUD, PlayerDetail eval add/edit).
-- Score Entry has a synchronous duplicate guard + retry queue (`useRetryQueue` hook) for network failures.
-- Maintain `{ data, error }` return contracts on all service functions.
+**Rules:**
+- Always check `isDemoRequest()` first on any mutation. Demo prospects clicking modal submits otherwise see raw "No program" toasts.
+- Always check coach context next. RLS is the ultimate gate, but explicit "No program" is friendlier.
+- Use Zod (`safeParse`) on inputs that come from a form or untrusted client. Existing schemas live in `src/lib/validation/schemas.ts`.
+- Return `{ error: string | null, ...payload }` — error null on success, error string on failure.
+- Call `revalidatePath()` for any route that should refresh after the mutation.
 
-### General Rules
+### Demo mode pattern
 
-- **Keep the app runnable at all times.** Every change must pass `typecheck && build`.
-- **Prefer targeted improvements over rewrites.** Fix what's broken, polish what's rough, build what's missing.
-- **Preserve sport-agnostic architecture.** Nothing in the data model or core logic should be baseball-specific. Sport-specific details (metric categories, position lists) live in configuration, not schema.
-- **Do not introduce inline Supabase queries in page components.** Route through the service layer.
-- **Do not restructure the auth system casually.** AuthContext (716 lines) is monolithic but functional — changes risk breaking 4-role auth flows.
+The `/demo/*` route tree mirrors `/app/*` with mock data so prospects can play with a fully interactive product without signing up.
+
+**How it works:**
+
+- `/demo/page.tsx`, `/demo/roster/page.tsx`, etc. each render the same client view component used in `/app/*` (`HubView`, `RosterView`, `PracticeEditor`, etc.) with mock props from `src/lib/mock-data.ts`.
+- Mock data is **dynamic, anchored on `new Date()`** — `getMockWeek()`, `getMockGames()`, `getMockScheduleEvents()` always pivot on the upcoming Friday so the schedule never goes stale. Pages that consume these export `dynamic = "force-dynamic"`.
+- The middleware (`src/middleware.ts`) rewrites `/app/*` requests with a `/demo*` referer to the equivalent `/demo/*` path. So a click in the demo Hub that targets `/app/practice` lands on `/demo/practice` — keeps the tour seamless.
+- `/demo/[...rest]/page.tsx` is a catch-all for paths that don't have a `/demo` mirror (e.g. `/demo/games/abc123`). Renders a friendly "not in the tour" card with a sign-up CTA.
+- `isDemoRequest()` (`src/lib/demo-guard.ts`) detects the demo via the `Referer` header and short-circuits mutations + AI calls.
+- AI server actions explicitly refuse in demo (`notConfigured: true`) — no Anthropic spend on prospects.
+
+**When you add a new page:**
+
+1. Build `/app/<feature>/page.tsx` against real data (`getCurrentCoach()` + `fetchX(coach.program_id)`).
+2. Mirror at `/demo/<feature>/page.tsx` against mock data from `src/lib/mock-data.ts`.
+3. Add the sidebar link in `src/app/demo/layout.tsx` (`DEMO_SECTIONS`).
+4. Verify `/app/<feature>` from `/demo` referer redirects to `/demo/<feature>`.
+5. If your page has navigation links to other `/app/*` routes, the middleware rewrite handles them automatically.
+
+### Error boundaries + observability
+
+Every route segment that does server-side work has both `error.tsx` and `loading.tsx`. Coverage spans `/app`, `/app/games`, `/app/games/[id]`, `/app/games/[id]/score`, `/app/practice`, `/app/practice/live-abs`, `/app/practice/live-abs/[id]`, `/app/practice/live-abs/stats`, `/app/practice/intrasquad`, `/app/today`, `/app/stats`, `/app/settings`, `/app/messages`, `/app/messages/[id]`, `/app/roster`, `/app/schedule`, `/app/tryouts`, `/app/tryouts/[id]`, plus public surfaces. Plus `src/app/global-error.tsx` for the catastrophic case.
+
+All `error.tsx` files use `RouteErrorCard` (`src/components/organisms/error-boundary.tsx`) which:
+- Surfaces a friendly retry + back-link card.
+- Logs the error to the browser console.
+- Posts the structured error report to `/api/log-error` via `captureError()` (`src/lib/observability.ts`). Reports use `navigator.sendBeacon` so they survive page unloads.
+
+Errors land in Vercel function logs today. Swapping in Sentry / Datadog later is a one-file change in `src/app/api/log-error/route.ts` — every caller already routes through the abstraction.
+
+### Rate limiting
+
+AI server actions (`askAICoachAction`, `generatePracticePlanAction`) enforce per-coach rate limits via `src/lib/rate-limit.ts`:
+
+- 5 calls/minute (burst)
+- 20 calls/hour (sustained)
+
+Hit returns `{ error: "Slow down — try again in 38s" }` style. Bumps are easy if real coaches need more; the point is to put a ceiling on Anthropic spend.
+
+In-memory implementation. Per-instance only. Swap to Upstash KV when traffic justifies it — public API of `checkAIRateLimit(coachId)` stays identical.
+
+### Migration-resilience pattern
+
+Several services try a SELECT that includes columns from later migrations, and fall back to a base SELECT if the column doesn't exist. Pattern:
+
+```ts
+const tryFull = await supabase.from("games").select(FULL_COLUMNS).eq(...).maybeSingle();
+if (tryFull.error && /column .* does not exist/i.test(tryFull.error.message)) {
+  const fallback = await supabase.from("games").select(BASE_COLUMNS).eq(...).maybeSingle();
+  // ... use fallback.data
+}
+```
+
+Active in `fetchGameDetail`, `fetchRoster`. Lets the app degrade gracefully when a migration isn't applied — but as of April 29 2026, all migrations ARE applied, so the fallback paths are now defensive-only.
+
+### General rules
+
+- **Keep the app runnable at all times.** Every change must pass `npx tsc --noEmit && npm run build`.
+- **Server actions handle mutations. Server components handle reads.** No `"use client"` component should call Supabase directly.
+- **Demo mirror every coach-facing page.** If a feature lands in `/app/*` without a `/demo` equivalent, prospects can't see it.
+- **Apply demo guards uniformly.** Every mutation action starts with `if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };`.
+- **Don't ship pages without `error.tsx` + `loading.tsx`.** A blank screen is worse than a thrown error.
+- **Don't add new dependencies casually.** Especially heavyweight ones (Sentry SDK, Redis client, ORM). The current dep list is intentionally tight.
+- **Migrations are idempotent (`IF NOT EXISTS` patterns) and can be applied programmatically.** `supabase db push --linked` works; the project is already linked.
 
 ---
 
-## 4. UI Productization Rules
+## 4. Auth + RLS
 
-### Core Principle
+Three roles: **coach** (default), **athlete** (`/me/*`), **recruiter** (`/scout/*`). Plus parents linked to athletes.
 
-The current sprint is about making existing pages feel polished and operationally trustworthy. Do not redesign from scratch. Improve hierarchy, typography, spacing, card consistency, and discoverability within the established patterns.
+`src/middleware.ts` gates `/app/*`, `/me`, `/scout/*` — redirects to `/login?next=...` when no session. Marketing and public profile routes are always open.
 
-### Established Patterns
+`getCurrentCoach()` (`src/lib/services/coach.ts`) is the canonical "is there a logged-in coach with a program" check used by every server action and server component that needs program context. Returns `null` for anyone else (including authenticated athletes / recruiters who aren't coaches on a program).
 
-**Section headings:**
+RLS policies live in the migrations. The pattern is:
+```sql
+USING (program_id IN (SELECT program_id FROM coaches WHERE user_id = auth.uid()))
 ```
-text-xs font-extrabold uppercase tracking-widest text-muted-foreground
-```
+Coach can only read/write rows in their program. Athletes/recruiters have separate, narrower policies.
 
-**Filter pills (active):**
-```
-bg-foreground text-background border-foreground rounded-lg
-```
-
-**Filter pills (inactive):**
-```
-bg-card text-muted-foreground border-border hover:text-foreground rounded-lg
-```
-
-**Standard card:**
-```
-rounded-xl border bg-card px-3 py-2.5 hover:bg-muted/30 transition-colors
-```
-
-**Empty state:**
-```
-rounded-xl border border-dashed bg-card/50 p-6 text-center
-```
-With: icon, bold title, muted explanatory text, contextual CTAs.
-
-**Loading skeleton:**
-```
-animate-pulse wrapper with bg-muted rounded blocks matching layout structure
-```
-
-**Level badge colors:**
-- Varsity: `bg-primary/10 text-primary` (blue)
-- JV: `bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400` (orange)
-- Freshman: `bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400` (green)
-- Cut: `bg-destructive/10 text-destructive` (red)
-- Unassigned: `bg-muted text-muted-foreground` (gray)
-
-### Rules
-
-- Do not introduce one-off styling patterns that diverge from the above.
-- Do not add gradient heroes, glass-card effects, or decorative UI elements. The current direction is clean and functional.
-- Page headers use `text-2xl font-extrabold tracking-tight` with a muted subtitle below.
-- Preserve the bottom nav structure: Home, Roster, Schedule, Score, More.
+**Never bypass RLS by using a service-role key in server actions.** Use the per-request anon-key client (`createSupabaseServerClient()`) so the user's RLS context applies.
 
 ---
 
-## 5. Scope Discipline
+## 5. Migrations
+
+**Status as of April 29 2026: fully synchronized.**
+
+The remote project (`fubylvgkvnjjrpvdavjy`) has every migration in `supabase/migrations/` applied through `20260315000028`. Confirmed via `supabase migration list --linked` (Local + Remote columns match for all 28).
+
+### Applying a new migration
+
+The Supabase CLI is authenticated and the project is linked:
+
+```bash
+# From rostr-next/ or workspace root — same linkage applies
+export SUPABASE_DB_PASSWORD=$(grep "^SUPABASE_DB_PASSWORD=" rostr-next/.env.local | sed 's/^[^=]*=//' | tr -d '"')
+
+# Inspect what's local-only
+supabase migration list --linked --password "$SUPABASE_DB_PASSWORD"
+
+# Push pending migrations
+supabase db push --linked --password "$SUPABASE_DB_PASSWORD"
+
+# Verify a specific schema change
+echo "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='games' AND column_name='live_status');" \
+  | supabase db query --linked --output table
+```
+
+### Writing a new migration
+
+1. Number sequentially: next is `20260315000029_*.sql`.
+2. Use idempotent patterns:
+   - `CREATE TABLE IF NOT EXISTS`
+   - `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
+   - `CREATE INDEX IF NOT EXISTS`
+   - `DO $$ BEGIN IF NOT EXISTS (...) THEN CREATE POLICY ... END IF; END $$;`
+3. Don't write destructive operations (`DROP COLUMN`, `ALTER COLUMN ... NOT NULL`, etc.) without explicit confirmation. Add a `released_at` column → backfill → mark NOT NULL in a follow-up if needed.
+4. Apply via `supabase db push --linked` and verify.
+
+### Migration history (high-level)
+
+| # | Purpose |
+|---|---------|
+| 000001–000015 | Original schema: programs, players, coaches, evaluations, tryout stations, scoring, etc. |
+| 000016 | Live game scoring fields (`opponent_program_id`, `live_status`, `live_started_at`) |
+| 000017 | Game events log (append-only stream for live scoring) |
+| 000018 | Batting stats views (computed live from game events) |
+| 000019 | Pitching stats views |
+| 000020 | Saved-search "new matches" tracking |
+| 000021 | GameChanger imported stats tables (`player_imported_batting`, `player_imported_pitching`) |
+| 000022 | Player media + game-prep fields (avatar/header/highlight URL, commitment, report/release time, uniform, etc.) |
+| 000023 | Practice at-bats |
+| 000024 | Practice pitches (per-pitch detail) |
+| 000025 | K-looking distinguished from K-swinging |
+| 000026 | Practice plans (planner schema + drill library + seed function) |
+| 000027 | AI plan generation logging (`ai_plan_generations`, `ai_plan_feedback`) |
+| 000028 | Soft delete for players (`released_at`, `released_by`, `release_note` + `active_players` view) |
+
+---
+
+## 6. Implemented features (rostr-next)
+
+### Coach app (`/app/*`)
+
+| Route | Purpose | Notes |
+|-------|---------|-------|
+| `/app` | Coach Hub | Stats tiles, availability, this-week schedule, AI Coach card, inbox, spotlight, activity feed |
+| `/app/today` | Daily standup | Today's events, availability rollup, prep checklist, AI digest |
+| `/app/roster` | Active roster | Sortable table, level pills, bulk operations, soft delete, sample-data seeder for empty states |
+| `/app/practice` | Practice planner | AI-generated plans (haiku-4-5), drill library, blocks with lanes, append/replace flow, 👍/👎 feedback |
+| `/app/practice/live-abs` | Live AB sessions | Pitch-by-pitch + outcome tracking, hot/cold leaderboards |
+| `/app/practice/live-abs/[id]` | Scoring view | Tap-to-score, prominent undo button (⌘Z keyboard), per-AB delete |
+| `/app/practice/live-abs/stats` | Team-wide live AB stats | Filter pills (All / Live ABs only / Intrasquad only), hitter + pitcher leaderboards |
+| `/app/practice/intrasquad` | Intrasquad scrimmage builder | Squad split (auto-balanced), pitcher rotation, base rules (count starts, ghost runners, mercy), printable game plan |
+| `/app/games` | Games list | Real games (no demo fallback for signed-in coaches), upcoming + recent record, empty state with CTA |
+| `/app/games/[id]` | Game detail | Roster, lineup builder, prep notes, score recording, **printable lineup card** |
+| `/app/games/[id]/score` | Live scoring | Mobile-first, append-only events |
+| `/app/schedule` | Week view | Games + practices unified |
+| `/app/stats` | Team leaderboards | Live from game events |
+| `/app/tryouts` + `/app/tryouts/[id]` | Tryouts | Multi-day, station-based, live leaderboard |
+| `/app/messages` + `/app/messages/[id]` | Inbox + threads | Coach ↔ parents/athletes/recruiters |
+| `/app/settings` | Program config | Levels, staff invites, notifications, data tools |
+| `/app/help` | FAQ + getting started | Static |
+| `/app/analytics` | Season trends stub | Hardcoded charts; full version pending |
+
+### Demo mode (`/demo/*`)
+
+Mirrors every coach-facing page above (except `/app/games/[id]`, `/app/practice/live-abs/[id]`, `/app/tryouts/[id]` — heavy detail views deferred to catch-all). Anchors all dates dynamically on `new Date()`. AI is hard-disabled. Mutations show "This is a demo — sign up free" toast.
+
+### Public surfaces
+
+| Route | Purpose |
+|-------|---------|
+| `/` | Marketing page |
+| `/login`, `/signup` | Auth |
+| `/p/[handle]` | Public player profile (opt-in; recruiter view tracking; tab navigation; per-player measurables / academics / recruiting / career timeline) |
+| `/me/*` | Athlete view of their own data |
+| `/scout/*` | Recruiter search + lists |
+| `/legal/privacy`, `/legal/terms` | Substantive pilot-phase legal docs (FERPA, COPPA, sub-processor list) |
+
+### API routes
+
+| Route | Purpose |
+|-------|---------|
+| `/api/log-error` | Sink for client-side error reports (POST, public) |
+| `/api/ical/[programId]` | Public iCal feed for parents to subscribe to in Google/Apple Calendar |
+
+### Top-bar search
+
+`TopBarSearchBox` (`src/components/organisms/top-bar-search.tsx`) — ⌘K command palette. Searches:
+- Page shortcuts (Hub, Today, Roster, Practice, etc.)
+- Demo: MOCK_PLAYERS + MOCK_WEEK
+- App: real roster + games + practices via `searchProgramAction` (debounced 200ms)
+
+### Sample-data seeder
+
+Empty-roster CTA on `/app/roster` calls `seedSampleRosterAction` to insert 15 plausible "Sample Adams"–"Sample Olson" players. Lets new coaches play around before importing real roster. Wipe via `clearSampleRosterAction` from Settings → Data.
+
+---
+
+## 7. UI patterns
+
+### Established components
+
+- **`TopBar`** (`src/components/organisms/top-bar.tsx`) — sticky page header with breadcrumbs, search, action buttons. Always at the top of an `/app/*` page.
+- **`Modal`** (`src/components/molecules/modal.tsx`) — wraps Radix Dialog. Use for create/edit forms.
+- **`RouteErrorCard`** (`src/components/organisms/error-boundary.tsx`) — shared error.tsx body. Always use this; never roll your own.
+- **`Avatar`**, **`Button`**, **`Input`**, **`Chip`**, **`Kbd`** — atomic primitives in `src/components/atoms/`.
+- **`SearchInput`** (legacy) — being replaced by `TopBarSearchBox` for the global palette. Per-list filtering still uses `Input` directly.
+
+### Design tokens
+
+Tailwind config defines a custom palette: `ink` / `paper` / `red` / `grass` / `sky` / `gold` / `amber` / `dirt` / `hair`. Plus Radix-style semantic tokens (`foreground`, `background`, `border`, `muted-foreground`).
+
+**Common patterns:**
+- Card: `bg-card border border-hair rounded-lg`
+- Empty state: `bg-card border border-dashed border-hair rounded-lg p-8 text-center`
+- Filter pill (active): `bg-foreground text-background border-foreground rounded-lg`
+- Filter pill (inactive): `bg-card text-muted-foreground border-border hover:text-foreground rounded-lg`
+- Section heading: `type-label` utility class (extra-bold uppercase tracking-widest)
+- Page heading: `font-display text-[28px] sm:text-[30px] font-semibold tracking-[-0.03em]`
+- Stat tile: `bg-card border border-hair rounded-lg p-4` with `type-label` + `font-mono` value
+
+### Print styles
+
+`src/app/globals.css` has a `@media print` block. Anything inside a `.print-card` div with `.print-root` parent renders cleanly. The lineup card on `/app/games/[id]` uses this; the intrasquad builder's "game plan" card uses it. `window.print()` triggers the browser print dialog.
+
+---
+
+## 8. Deploy
+
+**Target:** Vercel.
+**Root directory:** `rostr-next/` (the Next.js project, not the worktree root).
+
+### Required env vars
+
+| Variable | Source | Notes |
+|----------|--------|-------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project settings | Public; used by client |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase project settings | Public; used by client |
+| `ANTHROPIC_API_KEY` | Anthropic console | **Server-only.** Required for AI Coach. |
+| `NEXT_PUBLIC_APP_URL` | Whatever Vercel assigns | Used for share links + public profile URLs |
+
+`SUPABASE_DB_PASSWORD` lives in `rostr-next/.env.local` for migration pushes. Not needed at runtime.
+
+### First-deploy steps
+
+See `rostr-next/DEPLOY.md` for the canonical walkthrough. Short version:
+
+1. Connect GitHub repo to Vercel (root directory = `rostr-next/`).
+2. Set the four env vars above.
+3. Trigger first deploy.
+4. **Update Supabase auth redirect URLs** at https://supabase.com/dashboard/project/fubylvgkvnjjrpvdavjy/auth/url-configuration — set Site URL to the Vercel URL and add `<vercel-url>/**` to Redirect URLs. Without this, signup confirmation emails link to `localhost:3000` and don't work.
+
+### Post-deploy verification
+
+1. `/` returns 200 (marketing page renders).
+2. `/demo` returns 200 (interactive tour, mock data, current week).
+3. `/login` returns 200; signup → email confirmation → `/app/setup` lands.
+4. `/api/ical/<your-program-id>` returns a `text/calendar` response.
+5. `/api/log-error` returns 405 on GET, 200 on POST (verify in Vercel function logs).
+6. AI Coach card on `/app` doesn't say "Set ANTHROPIC_API_KEY" — confirms env loaded.
+
+---
+
+## 9. Scope discipline
 
 **Do not:**
-- Self-direct roadmap changes or build features not explicitly assigned
-- Build speculative future systems (recruiting marketplace, messaging, social features, NIL tools)
-- Drift into multi-sport implementation beyond maintaining sport-agnostic architecture
-- Introduce framework migrations (no Next.js, no Remix, no server components)
-- Add major dependencies without explicit justification
-- Rewrite working systems that just need polish
-- Build for scouts, ADs, or club organizations before coach/evaluator workflows are excellent
+- Self-direct roadmap changes or build features not explicitly assigned.
+- Build speculative future systems (recruiting marketplace, NIL tools, social feed).
+- Drift into multi-sport implementation beyond maintaining sport-agnostic data.
+- Add heavyweight dependencies (Sentry SDK, Redis client, ORM, third-party UI library) without explicit justification.
+- Rewrite working systems that just need polish.
 
-**Always ask:** "Does this make the coach's daily workflow better, or does it serve a user we haven't earned yet?"
+**Always ask:** "Does this make a coach's daily workflow better, or does it serve a user we haven't earned yet?"
 
-See PRODUCT_VISION.md § "Not Tonight's Scope Unless Assigned" for the full exclusion list.
+The Vite app's product docs (PRODUCT_VISION.md, LAUNCH_READINESS.md, PILOT_RUNBOOK.md at the worktree root) describe the product thesis and are still authoritative on the "what" and "why."
 
 ---
 
-## 6. Current Product State
-
-### Implemented Modules
-
-| Module | Route(s) | Status |
-|--------|----------|--------|
-| Team Home | `/` | Polished — command center, skeleton loader |
-| Roster | `/roster` | Polished — level badges, filters, search, skeleton |
-| Schedule | `/schedule` | Polished — unified games+practices, skeleton |
-| Dashboard (Stats & Rankings) | `/dashboard` | Polished — filters, rank numbers, skeleton |
-| Score Entry | `/score` | Functional — standard + Station Mode, retry queue |
-| Player Detail | `/player/:id` | Functional — metrics, trends, evaluations, prev/next nav |
-| Team Management | `/teams` | Functional — team-level views, game scheduling |
-| Game Detail | `/game/:id` | Functional — roster, lineup builder, print |
-| Practice Planner | `/practices`, `/practice/:id` | Functional — time blocks, coach assignments, print |
-| Settings | `/settings` | Functional — metrics, sessions, coaches, demo tools |
-| Public Profile | `/p/:slug` | Functional — verified metrics, QR, share, trends |
-| Player Search | `/search` | Functional — scout-only, metric-based |
-| Player Comparison | `/compare` | Functional — side-by-side profiles |
-| Pilot Analytics | `/analytics` | Functional — usage stats for head coaches |
-| Auth | `/auth`, `/setup` | Functional — signup, login, program creation |
-
-### Recent Productization Work (Completed)
-
-- Roster: level badges, filter pills, enhanced search, tighter rows, improved empty state
-- TeamHome: section heading system, card padding standardization, empty states, skeleton
-- Schedule: clean header, color-coded type badges, tighter event cards, skeleton
-- Dashboard: rank numbers, metric/position/grade filters, skeleton
-- Demo seeder: 25 players, 11 games, 9 practices, 8 metrics, 3 sessions, ~500 evaluations
-
-### Current High-Priority Gaps
-
-1. **7 Supabase migrations not applied** — multiple features depend on them (see §7)
-2. **Station Mode stationIndex desync** — scoring confusion in edge case (KI-9b)
-3. **No error boundaries at route level** — unhandled error crashes the whole app
-4. **No team level badge on Dashboard player cards or PlayerDetail header** (KI-10a)
-5. **DataImport bypasses service layer** — no Zod validation on imported scores (KI-5a)
-6. **AuthContext is monolithic** (716 lines) — decomposition deferred, works correctly (KI-3)
-7. **No component or E2E tests** — only 67 unit tests for core business logic (KI-4)
-
----
-
-## 7. Migrations and Data Notes
-
-### Prepared Migrations (Not Yet Applied)
-
-Seven SQL migrations exist in `supabase/migrations/` (20260315000001–000007). They are **not applied** to the live Supabase instance. Features that depend on them will error or silently degrade:
-
-| Migration | Purpose | Impact If Missing |
-|-----------|---------|-------------------|
-| 000001 | Evaluation unique constraint | No DB-level duplicate prevention |
-| 000002 | Coach email linking function | Coach invitations can't link on signup |
-| 000003 | Analytics events table | Analytics instrumentation silently drops |
-| 000004 | Analytics SQL views | Analytics page shows nothing |
-| 000005 | Team management tables (games, game_rosters, lineup_entries) | Team Management + Game Detail pages error |
-| 000006 | Public profile aggregation fix + trend data | Wrong aggregation on public profiles, no sparklines |
-| 000007 | Practice plans + practice blocks tables | Practice Plans + Schedule pages error on practice data |
-
-### Rules
-
-- **Migrations are applied manually by the project owner** via Supabase Dashboard or CLI. Do not attempt to apply them programmatically or assume they have been applied.
-- If a page errors on data fetch, **check whether the required migration has been applied** before assuming a code bug.
-- Do not write new migrations without documenting them in KNOWN_ISSUES.md and TASK_QUEUE.md.
-- If you create a new migration, add it to the sequential numbering (next would be 000008).
-
-### Supabase Instance
-
-Remote: `qpvkicddhvglugsleecu.supabase.co`
-The `.env` file is gitignored. A `.env.example` exists with the required variable names.
-
----
-
-## 8. Required Reading Order
-
-Before beginning major implementation work, read these files in order:
-
-1. **CLAUDE.md** — this file (engineering guardrails)
-2. **PRODUCT_VISION.md** — product thesis, scope discipline, out-of-scope list
-3. **LAUNCH_READINESS.md** — pilot readiness rubric, must-pass workflows, blockers
-4. **ROLE_MATRIX.md** — role definitions, implementation priority
-5. **ARCHITECTURE.md** — technical architecture, routing, service layer, data flow
-6. **TASK_QUEUE.md** — active and upcoming tasks by phase
-7. **KNOWN_ISSUES.md** — tracked bugs with severity and mitigation status
-8. **DECISIONS.md** — 51+ technical decision records with rationale
-9. **PROGRESS.md** — chronological build log
-10. **BUILD_SUMMARY.md** — comprehensive snapshot of what was built (line counts, phases, file tree)
-11. **PILOT_RUNBOOK.md** — coach-facing pilot walkthrough
-
-For source code context:
-- `src/services/index.ts` — service layer exports
-- `src/App.tsx` — route structure and role-based routing
-- `src/contexts/AuthContext.tsx` — auth state, role detection, program switching
-
----
-
-## 9. Required Deliverable Format
+## 10. Required deliverable format
 
 After completing each task, return:
 
-1. **Implementation summary** — what was done and why (2-5 sentences)
-2. **Files changed** — list of files created, modified, or deleted
-3. **Decisions made** — any architecture, schema, or UI decisions with brief rationale
-4. **Tradeoffs or limitations** — what was deferred or imperfect and why
-5. **Remaining gaps** — in priority order, what should be done next
+1. **Implementation summary** — what was done and why (2-5 sentences).
+2. **Files changed** — list of files created, modified, or deleted.
+3. **Decisions made** — any architecture, schema, or UI decisions with brief rationale.
+4. **Tradeoffs or limitations** — what was deferred or imperfect and why.
+5. **Remaining gaps** — in priority order, what should be done next.
 
-If a decision is significant (affects architecture, schema, permissions, or establishes a new pattern), document it in DECISIONS.md following the existing format (D-number, date, status, problem/options/choice/rationale).
+If a decision is significant (affects architecture, schema, permissions, or establishes a new pattern), document it in the worktree-root `DECISIONS.md` following the existing format (D-number, date, status, problem/options/choice/rationale). DO NOT update `PROGRESS.md` or `TASK_QUEUE.md` for rostr-next work — those track the dormant Vite app.
 
-Update PROGRESS.md after completing a sprint or significant batch of work.
-Update TASK_QUEUE.md to mark completed items and add any new items discovered.
+---
+
+## 11. What's still genuinely deferred
+
+Things known to be missing or rough; not blockers, but worth flagging:
+
+- **Mobile audit on a real iPhone.** App is mobile-first per the original vision but hasn't been stress-tested in the dugout in low light.
+- **Real Sentry integration.** Today errors land in Vercel function logs. The error boundaries already check `window.Sentry?.captureException` defensively, so adding `@sentry/nextjs` later is a one-file swap.
+- **Bulk message / email blast.** Inbox UI exists; backend send-flow needs SendGrid or Twilio.
+- **Demo mirrors for game detail / live scoring / tryout detail.** Heavy interactive surfaces; current `/demo/[...rest]` catch-all renders a "not in tour" card for them.
+- **Demo guards on `tryouts/`, `messages/`, `settings/`, `setup/` server actions.** Lower-impact since those surfaces aren't reachable via `/demo` navigation today; auth check still rejects writes. Apply uniformly when you next touch each file.
+- **Lint debt.** `next.config.mjs` skips lint during build to unblock pilot. Worth a dedicated cleanup sprint at some point.
+- **Concurrent-edit handling on lineup builder.** Last-write-wins today.
+- **Roster CSV / PDF export.** Coaches will ask for it for season recaps.
+- **PWA install prompt + Web Push.** Game-day reminders are a parent-facing feature waiting to happen.
+- **Real-time updates.** Live scoring is single-user today; multi-coach real-time would use Supabase realtime.
+
+These are the kinds of things to add only when a real coach asks for them.

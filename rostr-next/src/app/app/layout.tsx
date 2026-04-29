@@ -8,11 +8,18 @@ import {
   MessageSquare,
   BarChart3,
   Settings,
+  Sun,
+  TrendingUp,
+  HelpCircle,
+  Zap,
 } from "lucide-react";
 import { AppSidebar, type NavSection } from "@/components/organisms/app-sidebar";
+import { MobileAppBar } from "@/components/organisms/mobile-app-bar";
+import { NavigationProgress } from "@/components/atoms/navigation-progress";
 import { SetupBanner } from "@/components/molecules/setup-banner";
 import { getSessionUser, displayName, initialsFrom } from "@/lib/auth";
 import { getCurrentCoach } from "@/lib/services/coach";
+import { fetchUpcomingGames } from "@/lib/services/schedule";
 
 /**
  * /app layout — authenticated coach workspace.
@@ -34,9 +41,12 @@ const BASE_SECTIONS: BaseSection[] = [
   {
     label: "Daily",
     items: [
+      { label: "Today", href: "/app/today", icon: <Sun className="w-4 h-4" /> },
       { label: "Hub", href: "/app", icon: <Home className="w-4 h-4" /> },
       { label: "Roster", href: "/app/roster", icon: <Users className="w-4 h-4" />, badgeKey: "player_count" },
+      { label: "Stats", href: "/app/stats", icon: <TrendingUp className="w-4 h-4" /> },
       { label: "Practice", href: "/app/practice", icon: <ClipboardList className="w-4 h-4" /> },
+      { label: "Live ABs", href: "/app/practice/live-abs", icon: <Zap className="w-4 h-4" /> },
     ],
   },
   {
@@ -44,15 +54,21 @@ const BASE_SECTIONS: BaseSection[] = [
     items: [
       { label: "Games", href: "/app/games", icon: <Swords className="w-4 h-4" /> },
       { label: "Schedule", href: "/app/schedule", icon: <CalendarDays className="w-4 h-4" /> },
-      { label: "Tryouts", href: "/app/tryouts", icon: <Trophy className="w-4 h-4" /> },
     ],
   },
   {
     label: "Program",
     items: [
       { label: "Messages", href: "/app/messages", icon: <MessageSquare className="w-4 h-4" />, badgeKey: "unread_msgs" },
+      { label: "Tryouts", href: "/app/tryouts", icon: <Trophy className="w-4 h-4" /> },
       { label: "Analytics", href: "/app/analytics", icon: <BarChart3 className="w-4 h-4" /> },
       { label: "Settings", href: "/app/settings", icon: <Settings className="w-4 h-4" /> },
+    ],
+  },
+  {
+    label: "Help",
+    items: [
+      { label: "Help & docs", href: "/app/help", icon: <HelpCircle className="w-4 h-4" /> },
     ],
   },
 ];
@@ -80,26 +96,57 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     })),
   }));
 
+  // "Up next" block in the sidebar — soonest scheduled game
+  let upNext: { id: string; opponent: string; dateLabel: string; reportLabel: string | null } | null = null;
+  if (coach) {
+    const games = await fetchUpcomingGames(coach.program_id);
+    const next = games[0];
+    if (next) {
+      const d = new Date(`${next.date}T00:00:00`);
+      const dateLabel = d.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
+      // Pull report time if set
+      const reportLabel: string | null = null; // populated below
+      upNext = {
+        id: next.id,
+        opponent: next.opponent ?? "TBD",
+        dateLabel,
+        reportLabel,
+      };
+    }
+  }
+
+  const team = { name: teamName, sport, level, playerCount };
+  const userCtx = {
+    name,
+    role: coach
+      ? coach.role === "head_coach"
+        ? "Head Coach"
+        : "Assistant Coach"
+      : ((user?.user_metadata?.role as string | undefined) === "player"
+          ? "Player"
+          : (user?.user_metadata?.role as string | undefined) === "recruiter"
+            ? "Recruiter"
+            : "Coach"),
+    initials: initialsFrom(name),
+  };
+
   return (
-    <div className="grid grid-cols-[220px_1fr] h-screen bg-paper">
-      <AppSidebar
-        team={{ name: teamName, sport, level, playerCount }}
-        sections={sections}
-        user={{
-          name,
-          role: coach
-            ? coach.role === "head_coach"
-              ? "Head Coach"
-              : "Assistant Coach"
-            : ((user?.user_metadata?.role as string | undefined) === "player"
-                ? "Player"
-                : (user?.user_metadata?.role as string | undefined) === "recruiter"
-                  ? "Recruiter"
-                  : "Coach"),
-          initials: initialsFrom(name),
-        }}
-      />
-      <main className="flex flex-col overflow-hidden">
+    <div className="flex lg:grid lg:grid-cols-[240px_1fr] h-screen bg-paper">
+      {/* Global thin progress bar shown on every nav (link click +
+          searchParam swap). Sits above all other chrome. */}
+      <NavigationProgress />
+      {/* Docked desktop sidebar — hidden below lg breakpoint. */}
+      <div className="hidden lg:block">
+        <AppSidebar team={team} sections={sections} user={userCtx} upNext={upNext} />
+      </div>
+
+      <main className="flex-1 lg:flex-initial flex flex-col overflow-hidden min-w-0">
+        {/* Mobile-only top chrome with hamburger drawer. */}
+        <MobileAppBar team={team} sections={sections} user={userCtx} />
         {!coach && <SetupBanner />}
         {children}
       </main>

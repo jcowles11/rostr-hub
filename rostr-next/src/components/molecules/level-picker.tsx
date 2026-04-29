@@ -13,36 +13,27 @@ import type { RosterLevel } from "@/lib/mock-data";
  * LevelPicker — inline roster-level editor, dynamic levels edition.
  *
  * Reads the coach's configured levels (e.g. ["Varsity", "JV",
- * "Freshman", "Sophomore"]) via ProgramLevelsContext and renders a
- * picker over all of them + Cut + Unassigned. Stores the selection in
- * roster_assignments. The DB enum is constrained to varsity/jv/freshman/cut;
- * custom names beyond those map to the closest enum slot by index
- * (0 → varsity, 1 → jv, 2+ → freshman). Noted as a known issue until a
- * schema migration lifts the enum.
+ * "Sophomore", "Freshman"]) via programs.levels and renders a picker
+ * over all of them + Cut + Unassigned. Stores the selection as the
+ * level's exact lowercase name in roster_assignments.assignment
+ * (TEXT column — accepts any level name, not restricted to an enum).
  */
 
-function mapLevelToEnum(
+function normalizeLevel(
   levelName: string,
-  configuredLevels: string[],
-): "varsity" | "jv" | "freshman" | "cut" | null {
-  const lower = levelName.toLowerCase();
-  if (lower === "cut") return "cut";
+): string | null {
+  const trimmed = levelName.trim();
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
   if (lower === "unassigned" || lower === "none") return null;
-
-  // Match by exact position in configured levels
-  const idx = configuredLevels.findIndex((l) => l.toLowerCase() === lower);
-  if (idx === 0) return "varsity";
-  if (idx === 1) return "jv";
-  if (idx >= 2) return "freshman";
-
-  // Fallback: match by name directly
-  if (lower === "varsity") return "varsity";
-  if (lower === "jv" || lower === "junior varsity") return "jv";
-  if (lower === "freshman" || lower === "frosh" || lower === "sophomore") return "freshman";
-  return null;
+  // Normalize common aliases so "JV" and "Junior Varsity" map to the same
+  // stored string regardless of how a coach typed the level name.
+  if (lower === "junior varsity") return "jv";
+  if (lower === "frosh") return "freshman";
+  return lower;
 }
 
-/** Map the stored DB enum back to the configured level name for display. */
+/** Map the stored assignment back to the configured level name for display. */
 export function enumToLevelName(
   assignment: string | null | undefined,
   configuredLevels: string[],
@@ -50,9 +41,14 @@ export function enumToLevelName(
   if (!assignment) return "Unassigned";
   const lower = assignment.toLowerCase();
   if (lower === "cut") return "Cut";
+  // Prefer exact case-insensitive match against the coach's configured
+  // levels so "Sophomore", "JV2", etc. round-trip cleanly.
+  const match = configuredLevels.find((l) => l.toLowerCase() === lower);
+  if (match) return match;
+  // Legacy fallback for rows written before the enum was lifted.
   if (lower === "varsity") return configuredLevels[0] ?? "Varsity";
   if (lower === "jv") return configuredLevels[1] ?? "JV";
-  if (lower === "freshman") return configuredLevels[2] ?? "Freshman";
+  if (lower === "freshman") return configuredLevels[configuredLevels.length - 1] ?? "Freshman";
   return "Unassigned";
 }
 
@@ -92,7 +88,8 @@ export function LevelPicker({
     setCurrent(name);
     setOpen(false);
     startTransition(async () => {
-      const dbValue = mapLevelToEnum(name, levels);
+      // Store the exact level-name (lowercased) or 'cut' / null — no enum.
+      const dbValue = name.toLowerCase() === "cut" ? "cut" : normalizeLevel(name);
       const result = await setPlayerLevelAction(playerId, dbValue);
       if (result.error) {
         setCurrent(prev);

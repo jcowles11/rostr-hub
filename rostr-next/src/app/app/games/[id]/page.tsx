@@ -38,6 +38,11 @@ export default async function GamePage({ params }: { params: { id: string } }) {
           location: "Lincoln HS · Main field",
           level: "Varsity",
           home: true,
+          status: "scheduled",
+          ourScore: null,
+          opponentScore: null,
+          result: null,
+          recapNotes: null,
         }}
         players={MOCK_PLAYERS}
         initialRosterIds={MOCK_PLAYERS.filter((p) => p.level === "V").map((p) => p.id)}
@@ -52,6 +57,13 @@ export default async function GamePage({ params }: { params: { id: string } }) {
   const timeLabel = game.gameTime ? game.gameTime.slice(0, 5) : "";
   const isHome = game.homeAway === "home";
 
+  // Auto-populate the game roster from the program roster when no
+  // per-game selections have been made yet. Coaches shouldn't have to
+  // re-pick their team for every game — they start with everyone
+  // included and uncheck who's unavailable.
+  const effectiveRosterIds =
+    rosterPlayerIds.length > 0 ? rosterPlayerIds : players.map((p) => p.id);
+
   return (
     <GameView
       gameId={game.id}
@@ -63,9 +75,16 @@ export default async function GamePage({ params }: { params: { id: string } }) {
         location: game.location ?? (isHome ? "Home" : "Away"),
         level: game.teamLevel,
         home: isHome,
+        status: game.status,
+        ourScore: game.ourScore,
+        opponentScore: game.opponentScore,
+        result: game.result,
+        recapNotes: game.recapNotes,
+        opponentProgramId: game.opponentProgramId,
+        liveStatus: game.liveStatus,
       }}
-      players={players.length > 0 ? players : MOCK_PLAYERS}
-      initialRosterIds={rosterPlayerIds}
+      players={players}
+      initialRosterIds={effectiveRosterIds}
       initialLineup={lineup}
     />
   );

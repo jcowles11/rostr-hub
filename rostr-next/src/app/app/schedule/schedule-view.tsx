@@ -37,9 +37,9 @@ export function ScheduleView({ week: WEEK }: { week: ScheduleEvent[] }) {
           { kind: "primary", label: "Add event", icon: <Plus className="w-[15px] h-[15px]" />, onClick: () => setAddOpen(true) },
         ]}
       />
-      <div className="flex-1 overflow-auto px-8 pt-7 pb-12">
+      <div className="flex-1 overflow-auto px-4 sm:px-6 lg:px-8 pt-5 sm:pt-7 pb-12">
         <div className="max-w-layout-hub mx-auto">
-          <div className="flex items-end justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
             <div>
               <h1 className="font-display text-[30px] font-semibold tracking-[-0.03em] leading-[1.1]">
                 Schedule
@@ -94,7 +94,7 @@ function EventRow({ event: e }: { event: ScheduleEvent }) {
   return (
     <Link
       href={e.href}
-      className="flex items-center gap-4 px-[18px] py-3 border-b border-hair-2 last:border-b-0 hover:bg-paper transition-colors"
+      className="flex items-center gap-3 sm:gap-4 px-3 sm:px-[18px] py-3 border-b border-hair-2 last:border-b-0 hover:bg-paper transition-colors"
     >
       <div className="w-[56px] text-center shrink-0">
         <div className="text-[10px] font-bold text-ink-3 uppercase tracking-[0.08em]">

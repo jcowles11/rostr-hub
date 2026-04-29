@@ -23,16 +23,18 @@ import { Badge } from "@/components/atoms/badge";
 import { cn } from "@/lib/utils";
 import {
   MOCK_PLAYERS,
-  MOCK_MESSAGES,
-  MOCK_SPOTLIGHT,
-  MOCK_AI_SUGGESTIONS,
   type MockScheduleItem,
   type MockPlayer,
 } from "@/lib/mock-data";
+import type { ActivityEvent, SpotlightPlayer } from "@/lib/services/activity";
+import type { InboxThread } from "@/lib/services/messaging";
+import type { ProgramRecord } from "@/lib/services/game";
+import { avatarColorFromSeed } from "@/components/atoms/avatar";
 import { useState } from "react";
 import { AddPlayerModal } from "@/components/organisms/add-player-modal";
 import { ImportRosterModal } from "@/components/organisms/import-roster-modal";
 import { AddEventModal } from "@/components/organisms/add-event-modal";
+import { AICoachCard as LiveAICoachCard } from "@/components/organisms/ai-coach-card";
 
 interface HubViewProps {
   greetingName: string;
@@ -47,6 +49,10 @@ interface HubViewProps {
   weekItems: MockScheduleItem[];
   availabilityPlayers: MockPlayer[];
   playerCount: number;
+  activity: ActivityEvent[];
+  spotlight: SpotlightPlayer | null;
+  inboxThreads: InboxThread[];
+  record: ProgramRecord | null;
 }
 
 /**
@@ -62,6 +68,10 @@ export function HubView({
   weekItems,
   availabilityPlayers,
   playerCount,
+  activity,
+  spotlight,
+  inboxThreads,
+  record,
 }: HubViewProps) {
   const MOCK_WEEK = weekItems;
   const PLAYERS_FOR_AVAIL = availabilityPlayers;
@@ -75,7 +85,33 @@ export function HubView({
     if (h < 17) return "Afternoon";
     return "Evening";
   }
+
+  const today = new Date();
+  const todayLabel = today.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
   const extraCount = Math.max(0, playerCount - PLAYERS_FOR_AVAIL.slice(0, 7).length);
+
+  // Honest stat row — derived from the real data that flows through this page.
+  // We deliberately avoid faking a win/loss record, team BA, ERA, or conf. rank
+  // until we have verified per-game stat capture. See CLAUDE.md §Scope Discipline.
+  const availableCount = PLAYERS_FOR_AVAIL.filter((p) => p.availabilityStatus === "ok").length;
+  const questionableCount = PLAYERS_FOR_AVAIL.filter(
+    (p) => p.availabilityStatus === "questionable",
+  ).length;
+  const outCount = PLAYERS_FOR_AVAIL.filter((p) => p.availabilityStatus === "out").length;
+  const weekGameCount = MOCK_WEEK.filter((i) => i.tag === "GAME").length;
+  const weekPracticeCount = MOCK_WEEK.filter((i) => i.tag === "PRAC").length;
+
+  const subtitle = buildSubtitle({
+    nextGame,
+    weekGameCount,
+    weekPracticeCount,
+    outCount,
+    questionableCount,
+  });
   return (
     <>
       <TopBar
@@ -96,21 +132,19 @@ export function HubView({
           { kind: "primary", label: "Start practice", href: "/app/practice" },
         ]}
       />
-      <div className="flex-1 overflow-auto px-8 pt-7 pb-12">
+      <div className="flex-1 overflow-auto px-4 sm:px-6 lg:px-8 pt-5 sm:pt-7 pb-12">
         <div className="max-w-layout-hub mx-auto">
           {/* ── Hub header ────────────────────────────────── */}
-          <div className="flex items-end justify-between mb-[22px] gap-6">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between mb-[22px] gap-4 lg:gap-6">
             <div>
               <span className="inline-flex items-center gap-2 px-[11px] py-1.5 bg-red-soft text-red rounded-full text-[11px] font-bold uppercase tracking-[0.04em]">
                 <span className="w-1.5 h-1.5 rounded-full bg-red" />
-                Tuesday · Apr 21
+                {todayLabel}
               </span>
               <h1 className="mt-2.5 font-display text-display-md">
                 {greeting()}, {greetingName.split(" ")[0] || "Coach"}.
               </h1>
-              <p className="mt-1 text-ink-3 text-[14px]">
-                Practice at 3:30. Game Friday vs Central Hawks. 2 parent messages need a reply.
-              </p>
+              <p className="mt-1 text-ink-3 text-[14px]">{subtitle}</p>
             </div>
             <div className="flex gap-2 shrink-0">
               <Button
@@ -133,43 +167,88 @@ export function HubView({
           </div>
 
           {/* ── Grid ────────────────────────────────────────── */}
-          <div className="grid grid-cols-[1fr_340px] gap-[22px]">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-[22px]">
             {/* MAIN COLUMN */}
-            <div className="flex flex-col gap-[22px]">
+            <div className="flex flex-col gap-[22px] min-w-0">
               <TodayHeroCard nextGame={nextGame} playerCount={playerCount} />
 
-              {/* Stat row */}
-              <div className="grid grid-cols-4 gap-2.5">
-                <StatTile label="Record" value="12–4" delta="+3 vs last season" deltaDirection="up" />
-                <StatTile label="Team BA" value=".298" delta="+.014 last 5" deltaDirection="up" />
-                <StatTile label="ERA" value="3.42" delta="+0.21 last 5" deltaDirection="down" />
-                <StatTile label="Conf. rank" value="2nd" delta="of 8" />
+              {/* Stat row — honest counts derived from real program data. */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                {record && record.gamesCompleted > 0 ? (
+                  <StatTile
+                    label="Record"
+                    value={
+                      record.ties > 0
+                        ? `${record.wins}–${record.losses}–${record.ties}`
+                        : `${record.wins}–${record.losses}`
+                    }
+                    delta={`${record.gamesCompleted} game${record.gamesCompleted === 1 ? "" : "s"} · ${record.runsFor} RF / ${record.runsAgainst} RA`}
+                    deltaDirection={
+                      record.wins > record.losses
+                        ? "up"
+                        : record.losses > record.wins
+                          ? "down"
+                          : undefined
+                    }
+                  />
+                ) : (
+                  <StatTile
+                    label="Roster"
+                    value={String(playerCount)}
+                    delta={playerCount === 1 ? "player" : "players"}
+                  />
+                )}
+                <StatTile
+                  label="Available"
+                  value={String(availableCount)}
+                  delta={`of ${PLAYERS_FOR_AVAIL.length} today`}
+                  deltaDirection={
+                    availableCount === PLAYERS_FOR_AVAIL.length && PLAYERS_FOR_AVAIL.length > 0
+                      ? "up"
+                      : undefined
+                  }
+                />
+                <StatTile
+                  label="Q / Out"
+                  value={`${questionableCount} / ${outCount}`}
+                  delta={
+                    questionableCount + outCount === 0
+                      ? "everyone's in"
+                      : "needs attention"
+                  }
+                  deltaDirection={questionableCount + outCount > 0 ? "down" : undefined}
+                />
+                <StatTile
+                  label="This week"
+                  value={String(weekGameCount + weekPracticeCount)}
+                  delta={`${weekGameCount}g · ${weekPracticeCount}p`}
+                />
               </div>
 
               {/* Availability */}
               <AvailabilityPanel players={PLAYERS_FOR_AVAIL} extraCount={extraCount} />
 
               {/* Schedule + Plan row */}
-              <div className="grid grid-cols-2 gap-[22px]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-[22px]">
                 <ThisWeekPanel items={MOCK_WEEK} />
                 <TodayPlanPanel />
               </div>
 
               {/* Activity feed */}
-              <ActivityFeedPanel />
+              <ActivityFeedPanel events={activity} />
             </div>
 
             {/* SIDE COLUMN */}
             <div className="flex flex-col gap-[18px]">
-              <AICoachCard />
+              <LiveAICoachCard />
               <QuickActionsPanel
                 onAddPlayer={() => setAddPlayerOpen(true)}
                 onImport={() => setImportOpen(true)}
                 onNewGame={() => setAddEventOpen("game")}
                 onNewPractice={() => setAddEventOpen("practice")}
               />
-              <MessagesPanel />
-              <PlayerSpotlightPanel />
+              <MessagesPanel threads={inboxThreads} />
+              <PlayerSpotlightPanel spotlight={spotlight} />
             </div>
           </div>
         </div>
@@ -230,7 +309,7 @@ function TodayHeroCard({
             {playerCount} players
           </span>
         </div>
-        <div className="mt-4.5 flex gap-2">
+        <div className="mt-4.5 flex gap-2 flex-wrap">
           <Link
             href="/app/practice"
             className="inline-flex items-center bg-red hover:bg-red/90 text-white rounded-sm px-3.5 h-[34px] text-[12.5px] font-semibold"
@@ -282,17 +361,26 @@ function AvailabilityPanel({
           <Link
             key={p.id}
             href={`/p/${p.handle}`}
-            className="grid grid-cols-[28px_1fr_90px_110px_80px] gap-3 px-[18px] py-2.5 border-b border-hair-2 last:border-b-0 items-center hover:bg-paper transition-colors text-[13px]"
+            className="flex items-center gap-3 px-3 sm:px-[18px] py-2.5 border-b border-hair-2 last:border-b-0 hover:bg-paper transition-colors text-[13px]"
           >
-            <div className="font-mono text-[11px] text-ink-3">#{p.jerseyNumber}</div>
-            <div className="flex items-center gap-2 font-semibold">
-              <Avatar size="sm" color={p.avatarColor} initials={p.initials} />
-              {p.firstName} {p.lastName}
+            <div className="font-mono text-[11px] text-ink-3 w-[28px] shrink-0 hidden sm:block">
+              #{p.jerseyNumber}
             </div>
-            <div className="font-mono text-[11.5px] text-ink-3">
+            <div className="flex items-center gap-2 font-semibold flex-1 min-w-0">
+              <Avatar size="sm" color={p.avatarColor} initials={p.initials} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate">
+                  {p.firstName} {p.lastName}
+                </div>
+                <div className="font-mono text-[10.5px] text-ink-3 sm:hidden">
+                  #{p.jerseyNumber} · {p.classYear} · {p.positions.join("/")}
+                </div>
+              </div>
+            </div>
+            <div className="hidden md:block w-[90px] font-mono text-[11.5px] text-ink-3 shrink-0">
               {p.classYear} · {p.positions.join("/")}
             </div>
-            <div>
+            <div className="shrink-0">
               {p.availabilityStatus === "ok" && <Badge variant="keep">Available</Badge>}
               {p.availabilityStatus === "questionable" && (
                 <Badge variant="bubble">{p.availabilityNote ?? "Q"}</Badge>
@@ -303,7 +391,7 @@ function AvailabilityPanel({
             </div>
             <div
               className={cn(
-                "font-mono text-[11px] text-right",
+                "hidden sm:block w-[80px] font-mono text-[11px] text-right shrink-0",
                 p.statEmphasis === "attention" ? "text-red" : "text-ink-3",
               )}
             >
@@ -406,78 +494,47 @@ function TodayPlanPanel() {
   );
 }
 
-function ActivityFeedPanel() {
+function ActivityFeedPanel({ events }: { events: ActivityEvent[] }) {
   return (
     <Panel>
       <PanelHead
         title="Activity"
         actions={
-          <>
-            <PanelTab active>All</PanelTab>
-            <PanelTab>Mine</PanelTab>
-            <PanelTab>Players</PanelTab>
-          </>
+          <span className="text-[11px] text-ink-3 font-mono">
+            {events.length > 0 ? `last ${events.length}` : "last 2 weeks"}
+          </span>
         }
       />
-      <div>
-        <FeedItem icon="EJ" iconColor="dirt" meta="9:42 AM · Parent message">
-          <b>Ellen Johnson</b> sent a message re: Marcus&apos;s doctor note.
-        </FeedItem>
-        <FeedItem icon="JK" iconColor="sky" meta="8:18 AM · Profile">
-          <b>Jordan Kim</b>&apos;s profile was viewed by <b>Arizona State</b> (recruiter).
-        </FeedItem>
-        <FeedItem icon="+3" iconColor="grass" meta="Yesterday · Roster">
-          <b>3 players</b> claimed their profiles. Roster now 100% linked.
-        </FeedItem>
-        <FeedItem icon="CR" iconColor="amber" meta="Yesterday · Practice">
-          <b>Coach Rivera</b> completed the Defense &amp; baserunning plan for Wednesday.
-        </FeedItem>
-        <FeedItem icon="W" iconColor="red" meta="Mon · Game result">
-          Final: Lincoln HS <b>7</b> — Oakridge <b>4</b>. Johnson 3-for-4, 2 RBI.
-        </FeedItem>
-      </div>
+      {events.length === 0 ? (
+        <div className="p-8 text-center">
+          <div className="text-[13px] font-semibold text-ink-2">
+            No activity yet
+          </div>
+          <div className="mt-1 text-[11.5px] text-ink-3 max-w-[320px] mx-auto leading-relaxed">
+            Score tryouts, add player notes, schedule games — your activity feed
+            fills in as your program gets going.
+          </div>
+        </div>
+      ) : (
+        <div>
+          {events.map((e) => (
+            <FeedItem key={e.id} icon={e.icon} iconColor={e.iconColor} meta={e.meta}>
+              <span
+                // e.content is built server-side from our own code, not user
+                // input — safe to render as HTML. If this ever starts
+                // including player-supplied strings, sanitize first.
+                dangerouslySetInnerHTML={{ __html: e.content }}
+              />
+            </FeedItem>
+          ))}
+        </div>
+      )}
     </Panel>
   );
 }
 
 // ── Side column sections ─────────────────────────────────────────
-
-function AICoachCard() {
-  return (
-    <div className="relative overflow-hidden rounded-lg bg-ink text-white p-[18px]">
-      <div
-        aria-hidden
-        className="absolute -top-10 -right-10 w-40 h-40 rounded-full"
-        style={{
-          background: "radial-gradient(circle, rgba(200,58,58,.25), transparent 70%)",
-        }}
-      />
-      <div className="relative">
-        <div className="inline-flex items-center gap-1.5 text-[10px] text-red font-bold uppercase tracking-[0.1em]">
-          <span className="w-1.5 h-1.5 rounded-full bg-red" />
-          AI Co-coach
-        </div>
-        <h4 className="mt-1.5 font-display text-[16px] font-semibold tracking-tight leading-snug">
-          What would you like to tackle first?
-        </h4>
-        <div className="mt-2.5 flex flex-col gap-1.5">
-          {MOCK_AI_SUGGESTIONS.map((s, i) => (
-            <button
-              key={i}
-              onClick={() => comingSoon(`AI: ${s.label}`, "Live AI co-coach wires to Claude in the next sprint.")}
-              className="flex items-center justify-between gap-2 px-2.5 py-2.5 bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] rounded-sm text-left text-[12px] transition-colors"
-            >
-              <span>{s.label}</span>
-              <span className="font-mono text-[11px] text-red font-semibold shrink-0">
-                {s.meta}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+// (LiveAICoachCard imported from components/organisms/ai-coach-card)
 
 function QuickActionsPanel({
   onAddPlayer,
@@ -531,82 +588,210 @@ function QuickActionsPanel({
   );
 }
 
-function MessagesPanel() {
+function MessagesPanel({ threads }: { threads: InboxThread[] }) {
+  const unreadTotal = threads.reduce((n, t) => n + t.unreadCount, 0);
+  const preview = threads.slice(0, 4);
   return (
     <Panel>
       <PanelHead
         title="Messages"
         actions={
-          <Link href="/app/messages" className="text-[13px] text-ink-3 hover:text-ink px-1.5 py-1">
-            Inbox →
-          </Link>
+          <div className="flex items-center gap-2">
+            {unreadTotal > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-red text-white text-[10px] font-bold px-1">
+                {unreadTotal}
+              </span>
+            )}
+            <Link
+              href="/app/messages"
+              className="text-[13px] text-ink-3 hover:text-ink px-1.5 py-1"
+            >
+              Inbox →
+            </Link>
+          </div>
         }
       />
-      <div>
-        {MOCK_MESSAGES.map((m) => (
-          <Link
-            key={m.id}
-            href="/app/messages"
-            className="flex gap-2.5 px-[18px] py-3 border-b border-hair-2 last:border-b-0 hover:bg-paper transition-colors cursor-pointer"
-          >
-            <Avatar size="md" color={m.avatarColor} initials={m.initials} />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-baseline gap-1.5 mb-0.5">
-                <span className="text-[13px] font-semibold truncate">{m.author}</span>
-                <span className="ml-auto shrink-0 font-mono text-[10.5px] text-ink-4">{m.time}</span>
+      {preview.length === 0 ? (
+        <div className="p-5">
+          <div className="type-label mb-1">Quiet so far</div>
+          <div className="text-[12.5px] text-ink-3 leading-relaxed">
+            Start a DM with any player on your roster, or send a team-wide
+            announcement from{" "}
+            <Link href="/app/messages" className="text-red font-semibold">
+              Messages
+            </Link>
+            .
+          </div>
+        </div>
+      ) : (
+        <div>
+          {preview.map((t) => (
+            <Link
+              key={t.threadId}
+              href={`/app/messages/${t.threadId}`}
+              className="flex gap-2.5 px-[18px] py-3 border-b border-hair-2 last:border-b-0 hover:bg-paper transition-colors"
+            >
+              <Avatar
+                size="md"
+                color={(t.counterparty?.avatarColor ?? "ink") as "ink"}
+                initials={(t.counterparty?.displayName ?? "?")
+                  .split(" ")
+                  .map((w) => w[0] ?? "")
+                  .join("")
+                  .slice(0, 2)
+                  .toUpperCase()}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline gap-1.5 mb-0.5">
+                  <span
+                    className={cn(
+                      "text-[13px] truncate",
+                      t.unreadCount > 0 ? "font-bold" : "font-semibold",
+                    )}
+                  >
+                    {t.counterparty?.displayName ?? "Unknown"}
+                  </span>
+                  <span className="ml-auto shrink-0 font-mono text-[10.5px] text-ink-4">
+                    {formatShortTime(t.lastMessageAt)}
+                  </span>
+                </div>
+                <div
+                  className={cn(
+                    "text-[12px] truncate",
+                    t.unreadCount > 0 ? "text-ink font-medium" : "text-ink-2",
+                  )}
+                >
+                  {t.preview ?? "—"}
+                </div>
               </div>
-              <div className="text-[12px] text-ink-2 truncate">{m.preview}</div>
-            </div>
-            {m.unread && <span className="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full bg-red" />}
-          </Link>
-        ))}
-      </div>
+              {t.unreadCount > 0 && (
+                <span className="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full bg-red" />
+              )}
+            </Link>
+          ))}
+        </div>
+      )}
     </Panel>
   );
 }
 
-function PlayerSpotlightPanel() {
+function formatShortTime(iso: string): string {
+  const d = new Date(iso);
+  const diffMs = Date.now() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "now";
+  if (diffMin < 60) return `${diffMin}m`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `${diffH}h`;
+  const diffD = Math.floor(diffH / 24);
+  if (diffD < 7) return `${diffD}d`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function PlayerSpotlightPanel({ spotlight }: { spotlight: SpotlightPlayer | null }) {
+  if (!spotlight) {
+    return (
+      <Panel>
+        <PanelHead title="Player spotlight" />
+        <div className="p-5">
+          <div className="type-label mb-1">Lights up after tryouts</div>
+          <div className="text-[13px] font-semibold">
+            We&apos;ll pick a standout for you
+          </div>
+          <div className="mt-1.5 text-[11.5px] text-ink-3 leading-relaxed">
+            Once your players have tryout measurables, we&apos;ll highlight the
+            top performer here automatically — the kind of player worth
+            surfacing on your social feed or to a recruiter.
+          </div>
+        </div>
+      </Panel>
+    );
+  }
+
   return (
     <Panel>
-      <PanelHead
-        title="Player spotlight"
-        actions={
-          <button className="text-[13px] text-ink-3 hover:text-ink px-1.5 py-1">
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
-        }
-      />
+      <PanelHead title="Player spotlight" />
       <div className="p-[18px]">
-        <Link href="/p/jkim_ss12" className="flex items-center gap-3 mb-3.5 hover:opacity-90">
-          <Avatar size="lg" color="ink" initials={MOCK_SPOTLIGHT.initials} />
+        <Link
+          href={`/p/${spotlight.handle}`}
+          className="flex items-center gap-3 mb-3.5 hover:opacity-90"
+        >
+          <Avatar
+            size="lg"
+            color={avatarColorFromSeed(spotlight.playerId)}
+            initials={spotlight.initials.toUpperCase()}
+          />
           <div className="min-w-0">
-            <div className="font-display text-[16px] font-semibold tracking-tight">
-              {MOCK_SPOTLIGHT.name}
+            <div className="font-display text-[16px] font-semibold tracking-tight truncate">
+              {spotlight.firstName} {spotlight.lastName}
             </div>
             <div className="font-mono text-[11px] text-ink-3 mt-0.5">
-              {MOCK_SPOTLIGHT.meta}
+              {spotlight.jerseyNumber ? `#${spotlight.jerseyNumber} · ` : ""}
+              {spotlight.classYear}
+              {spotlight.positions.length > 0 ? ` · ${spotlight.positions.join("/")}` : ""}
             </div>
           </div>
         </Link>
         <div className="text-[12.5px] text-ink-2 px-3 py-2.5 bg-paper rounded-md border-l-[3px] border-l-red leading-relaxed">
-          {MOCK_SPOTLIGHT.reason}
+          {spotlight.reason}
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-1.5">
-          {MOCK_SPOTLIGHT.stats.map((s, i) => (
-            <div key={i} className="text-center px-1 py-2 bg-paper rounded-sm">
-              <div className="font-mono text-[15px] font-semibold">{s.value}</div>
-              <div className="mt-0.5 text-[9.5px] font-bold uppercase tracking-[0.06em] text-ink-3">
-                {s.label}
+        {spotlight.stats.length > 0 && (
+          <div className="mt-3 grid grid-cols-3 gap-1.5">
+            {spotlight.stats.map((s, i) => (
+              <div key={i} className="text-center px-1 py-2 bg-paper rounded-sm">
+                <div className="font-mono text-[14px] font-semibold">{s.value}</div>
+                <div className="mt-0.5 text-[9.5px] font-bold uppercase tracking-[0.06em] text-ink-3">
+                  {s.label}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </Panel>
   );
 }
 
 // ── Bits ─────────────────────────────────────────────────────────
+
+/**
+ * buildSubtitle — compose an honest one-line status for the header.
+ * Prefers live signals: next game, unavailable players, weekly counts.
+ */
+function buildSubtitle({
+  nextGame,
+  weekGameCount,
+  weekPracticeCount,
+  outCount,
+  questionableCount,
+}: {
+  nextGame: HubViewProps["nextGame"];
+  weekGameCount: number;
+  weekPracticeCount: number;
+  outCount: number;
+  questionableCount: number;
+}): string {
+  const parts: string[] = [];
+  if (nextGame) {
+    parts.push(
+      `Next up: ${nextGame.dateLabel} vs ${nextGame.opponent}${nextGame.location ? ` at ${nextGame.location}` : ""}.`,
+    );
+  }
+  const weekTotal = weekGameCount + weekPracticeCount;
+  if (weekTotal > 0) {
+    parts.push(
+      `${weekGameCount} game${weekGameCount === 1 ? "" : "s"} · ${weekPracticeCount} practice${weekPracticeCount === 1 ? "" : "s"} this week.`,
+    );
+  }
+  if (outCount + questionableCount > 0) {
+    const bits: string[] = [];
+    if (outCount > 0) bits.push(`${outCount} out`);
+    if (questionableCount > 0) bits.push(`${questionableCount} questionable`);
+    parts.push(`${bits.join(", ")}.`);
+  }
+  if (parts.length === 0) return "No upcoming events scheduled yet — quick-add a game or practice to get started.";
+  return parts.join(" ");
+}
 
 function ScheduleTag({ kind }: { kind: "PRAC" | "GAME" | "TRV" }) {
   const styles: Record<typeof kind, string> = {

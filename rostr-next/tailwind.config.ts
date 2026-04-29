@@ -100,6 +100,10 @@ const config: Config = {
           from: { transform: "translateX(100%)" },
           to: { transform: "translateX(0)" },
         },
+        "slide-in-left": {
+          from: { transform: "translateX(-100%)" },
+          to: { transform: "translateX(0)" },
+        },
         shimmer: {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
@@ -108,6 +112,7 @@ const config: Config = {
       animation: {
         "pulse-live": "pulse-live 1.4s infinite ease-in-out",
         "slide-in-right": "slide-in-right 250ms ease-out",
+        "slide-in-left": "slide-in-left 220ms ease-out",
         shimmer: "shimmer 1.5s infinite linear",
       },
       maxWidth: {

@@ -61,16 +61,8 @@
     border-color: var(--red);
   }
 
-  /* Dashed red accent inside the brand mark */
-  .brand-dashed::after {
-    content: "";
-    position: absolute;
-    inset: 4px;
-    border: 1.5px dashed var(--red);
-    border-radius: 3px;
-    opacity: 0.7;
-    pointer-events: none;
-  }
+  /* (Old .brand-dashed accent removed — replaced by atoms/logo.tsx
+      which uses baseball-seam SVG paths for sport identity.) */
 }
 
 @layer utilities {
@@ -89,4 +81,35 @@
     text-transform: uppercase;
     color: var(--ink-3);
   }
+}
+
+/* Print styles — one-shot lineup cards, practice plans, etc.
+   Everything gets hidden except explicit .print-root containers. */
+@media print {
+  @page {
+    size: letter;
+    margin: 0.4in;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 12px;
+  }
+  .print-root {
+    position: static !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  .print-card {
+    page-break-inside: avoid;
+  }
+}
+
+/* Route-level loading bar — used by loading.tsx files */
+@keyframes loading-bar {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(200%); }
+  100% { transform: translateX(400%); }
 }

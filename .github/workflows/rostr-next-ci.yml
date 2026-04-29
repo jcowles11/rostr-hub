@@ -1,0 +1,96 @@
+name: rostr-next CI
+
+# Catches type errors + build breakage on every PR before they hit
+# Vercel. Fast (typecheck-only path is ~15s); the build path matches
+# what Vercel runs in production.
+
+on:
+  pull_request:
+    paths:
+      - "rostr-next/**"
+      - "supabase/migrations/**"
+      - ".github/workflows/rostr-next-ci.yml"
+  push:
+    branches:
+      - main
+      - "claude/**"
+    paths:
+      - "rostr-next/**"
+      - "supabase/migrations/**"
+      - ".github/workflows/rostr-next-ci.yml"
+
+# Cancel an in-flight run when a new commit lands on the same branch
+# — saves CI minutes on rapid-fire pushes.
+concurrency:
+  group: rostr-next-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: rostr-next
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: rostr-next/package-lock.json
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: rostr-next
+    # Build needs typecheck to pass first — saves CI minutes on dumb breaks.
+    needs: typecheck
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: rostr-next/package-lock.json
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      # Next.js needs these to be present at build time, even if they're
+      # placeholder values. Real values are set in Vercel's project env.
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
+          NEXT_PUBLIC_APP_URL: https://placeholder.vercel.app
+        run: npm run build
+
+  lint:
+    name: Lint (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: rostr-next
+    # Lint runs but doesn't gate merges — there's pre-existing lint
+    # debt and we don't want every PR blocked. Reports inline so PR
+    # authors see what's accumulating.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: rostr-next/package-lock.json
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Lint
+        run: npm run lint

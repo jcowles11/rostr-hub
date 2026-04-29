@@ -3,6 +3,9 @@ import { getSessionUser, displayName } from "@/lib/auth";
 import { getCurrentCoach } from "@/lib/services/coach";
 import { fetchRoster } from "@/lib/services/players";
 import { fetchUpcomingGames, fetchUpcomingPractices } from "@/lib/services/schedule";
+import { fetchProgramRecord, type ProgramRecord } from "@/lib/services/game";
+import { fetchRecentActivity, fetchSpotlight, type ActivityEvent, type SpotlightPlayer } from "@/lib/services/activity";
+import { fetchInbox, type InboxThread } from "@/lib/services/messaging";
 import {
   MOCK_PLAYERS,
   MOCK_TEAM,
@@ -21,8 +24,15 @@ import {
 export default async function HubPage() {
   const [user, coach] = await Promise.all([getSessionUser(), getCurrentCoach()]);
 
-  let players: MockPlayer[] = MOCK_PLAYERS;
-  let weekItems: MockScheduleItem[] = MOCK_WEEK;
+  // Data policy:
+  //   - Real coach → pull real data. Empty collections render empty
+  //     states in the UI, NOT Lincoln HS demo content.
+  //   - Anonymous preview (no coach row yet) → show MOCK_* for the
+  //     marketing demo.
+  const isDemo = !coach;
+
+  let players: MockPlayer[] = isDemo ? MOCK_PLAYERS : [];
+  let weekItems: MockScheduleItem[] = isDemo ? MOCK_WEEK : [];
   let nextGame: {
     id: string;
     opponent: string;
@@ -31,16 +41,27 @@ export default async function HubPage() {
     location: string;
   } | null = null;
 
+  let activity: ActivityEvent[] = [];
+  let spotlight: SpotlightPlayer | null = null;
+  let inboxThreads: InboxThread[] = [];
+  let record: ProgramRecord | null = null;
+
   if (coach) {
-    const [roster, games, practices] = await Promise.all([
+    const [roster, games, practices, activityData, spotlightData, inboxData, recordData] = await Promise.all([
       fetchRoster(coach.program_id),
       fetchUpcomingGames(coach.program_id),
       fetchUpcomingPractices(coach.program_id),
+      fetchRecentActivity(coach.program_id),
+      fetchSpotlight(coach.program_id),
+      fetchInbox(),
+      fetchProgramRecord(coach.program_id),
     ]);
+    activity = activityData;
+    spotlight = spotlightData;
+    inboxThreads = inboxData;
+    record = recordData;
 
-    if (roster.length > 0) {
-      players = roster as unknown as MockPlayer[];
-    }
+    players = roster as unknown as MockPlayer[];
 
     const realWeek: MockScheduleItem[] = [];
     for (const g of games.slice(0, 5)) {
@@ -59,10 +80,8 @@ export default async function HubPage() {
         tag: "PRAC",
       });
     }
-    if (realWeek.length > 0) {
-      realWeek.sort((a, b) => a.date.day - b.date.day);
-      weekItems = realWeek;
-    }
+    realWeek.sort((a, b) => a.date.day - b.date.day);
+    weekItems = realWeek;
 
     if (games[0]) {
       const parts = isoToDateParts(games[0].date);
@@ -78,7 +97,7 @@ export default async function HubPage() {
 
   const name = coach?.full_name ?? displayName(user) ?? "Coach";
   const programName = coach?.program_name ?? MOCK_TEAM.name;
-  const playerCount = coach?.player_count ?? MOCK_PLAYERS.length;
+  const playerCount = coach?.player_count ?? (isDemo ? MOCK_PLAYERS.length : players.length);
 
   return (
     <HubView
@@ -88,6 +107,10 @@ export default async function HubPage() {
       weekItems={weekItems}
       availabilityPlayers={players}
       playerCount={playerCount}
+      activity={activity}
+      spotlight={spotlight}
+      inboxThreads={inboxThreads}
+      record={record}
     />
   );
 }

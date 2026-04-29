@@ -3,9 +3,10 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, LogOut, User as UserIcon, ExternalLink } from "lucide-react";
+import { ChevronDown, LogOut, User as UserIcon, ExternalLink, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/atoms/avatar";
+import { LogoMark } from "@/components/atoms/logo";
 
 /**
  * AppSidebar — organisms/app-sidebar
@@ -38,22 +39,28 @@ export interface NavSection {
   items: NavItem[];
 }
 
+export interface UpNextItem {
+  id: string;
+  opponent: string;
+  dateLabel: string;
+  reportLabel: string | null;
+}
+
 export interface AppSidebarProps {
   team: TeamContext;
   sections: NavSection[];
   user: UserContext;
+  upNext?: UpNextItem | null;
 }
 
-export function AppSidebar({ team, sections, user }: AppSidebarProps) {
+export function AppSidebar({ team, sections, user, upNext }: AppSidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="w-[220px] bg-ink text-white flex flex-col px-3 py-4 shrink-0">
+    <aside className="w-[240px] bg-ink text-white flex flex-col px-3 py-4 shrink-0 h-screen">
       {/* Brand mark */}
       <div className="flex items-center gap-2.5 px-2 py-1">
-        <span className="relative inline-flex w-7 h-7 rounded-sm bg-white text-ink items-center justify-center font-display text-[16px] font-bold brand-dashed">
-          R
-        </span>
+        <LogoMark size="md" variant="light" />
         <span className="font-display text-[17px] font-bold tracking-tight">
           rostr
         </span>
@@ -80,17 +87,24 @@ export function AppSidebar({ team, sections, user }: AppSidebarProps) {
         </div>
       </button>
 
-      {/* Nav sections */}
-      <nav className="flex flex-col gap-0.5">
+      {/* Nav sections — scrollable so we never overflow the column */}
+      <nav className="flex flex-col gap-0.5 flex-1 overflow-y-auto -mx-3 px-3 min-h-0">
         {sections.map((section) => (
           <div key={section.label}>
             <div className="px-2.5 pt-3.5 pb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-white/40">
               {section.label}
             </div>
             {section.items.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/app" && pathname.startsWith(item.href));
+              // Exact-match root paths (/app, /demo) so they don't claim
+              // every sub-route as "active". For deeper hrefs, require a
+              // trailing-slash boundary so /demo/games doesn't accidentally
+              // match /demo/g... — only true sub-routes.
+              const isRootPath =
+                item.href === "/app" || item.href === "/demo";
+              const isActive = isRootPath
+                ? pathname === item.href
+                : pathname === item.href ||
+                  pathname.startsWith(item.href + "/");
               return (
                 <Link
                   key={item.href}
@@ -122,6 +136,25 @@ export function AppSidebar({ team, sections, user }: AppSidebarProps) {
           </div>
         ))}
       </nav>
+
+      {/* "Up next" block — fills empty space + drives the coach to the next event */}
+      {upNext && (
+        <Link
+          href={`/app/games/${upNext.id}`}
+          className="mt-3 mb-3 block p-3 bg-red/10 border border-red/30 rounded-md hover:bg-red/15 transition-colors"
+        >
+          <div className="flex items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-[0.08em] text-red">
+            <Clock className="w-3 h-3" /> Up next
+          </div>
+          <div className="font-display text-[13.5px] font-semibold mt-1 truncate">
+            vs {upNext.opponent}
+          </div>
+          <div className="font-mono text-[11px] text-white/70 mt-0.5 truncate">
+            {upNext.dateLabel}
+            {upNext.reportLabel ? ` · Report ${upNext.reportLabel}` : ""}
+          </div>
+        </Link>
+      )}
 
       {/* User menu */}
       <UserMenu user={user} />
