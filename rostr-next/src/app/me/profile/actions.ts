@@ -266,11 +266,33 @@ export async function removeHighlightAction(
   if (!user) return { error: "You must be signed in." };
 
   // Get the highlight's player and verify ownership.
-  const { data: row, error: rErr } = await supabase
+  // Migration-resilient: select verified_by_coach with a fallback so
+  // older environments (pre-migration-35) don't error on the join.
+  const tryFull = await supabase
     .from("player_highlights")
-    .select("id, player_id, players!inner(claimed_by_user_id)")
+    .select(
+      "id, player_id, verified_by_coach, players!inner(claimed_by_user_id)",
+    )
     .eq("id", highlightId)
     .maybeSingle();
+  let row = tryFull.data as
+    | {
+        id: string;
+        player_id: string;
+        verified_by_coach?: boolean | null;
+        players?: unknown;
+      }
+    | null;
+  let rErr = tryFull.error;
+  if (rErr && /column .* does not exist/i.test(rErr.message)) {
+    const fallback = await supabase
+      .from("player_highlights")
+      .select("id, player_id, players!inner(claimed_by_user_id)")
+      .eq("id", highlightId)
+      .maybeSingle();
+    row = fallback.data as typeof row;
+    rErr = fallback.error;
+  }
   if (rErr || !row) return { error: "Highlight not found." };
 
   // The join shape uses the related-row name as the property — Supabase
@@ -282,6 +304,18 @@ export async function removeHighlightAction(
     ? ((playersField[0] as { claimed_by_user_id?: string | null } | undefined)?.claimed_by_user_id ?? null)
     : ((playersField as { claimed_by_user_id?: string | null } | undefined)?.claimed_by_user_id ?? null);
   if (owner !== user.id) return { error: "Not allowed." };
+
+  // Phase-4 immutability: if a coach has verified this clip, refuse
+  // the delete with a friendly message. The DB-layer trigger from
+  // migration 36 enforces the same rule so a direct client.from()
+  // call from a malicious script also fails. App-layer error is
+  // friendlier.
+  if (row.verified_by_coach === true) {
+    return {
+      error:
+        "This clip is coach-verified and can't be deleted. Ask your coach to unverify it first.",
+    };
+  }
 
   const { error: delErr } = await supabase
     .from("player_highlights")

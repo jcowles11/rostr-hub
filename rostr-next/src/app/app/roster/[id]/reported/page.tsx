@@ -12,10 +12,8 @@ import {
   fetchPlayerPrivacy,
   resolveVideoEmbed,
 } from "@/lib/services/player-profile";
-import {
-  PlayerReportedBadge,
-  VerifiedBadge,
-} from "@/components/atoms/data-source-badge";
+import { PlayerReportedBadge } from "@/components/atoms/data-source-badge";
+import { VerifyHighlightButton } from "./verify-highlight-button";
 
 /**
  * /app/roster/[id]/reported — coach-side read-only review of every
@@ -300,11 +298,18 @@ export default async function PlayerReportedReviewPage({
                     <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-ink-3">
                       {provider}
                     </span>
-                    {h.verifiedByCoach ? (
-                      <VerifiedBadge size="sm" source="Coach" />
-                    ) : (
-                      <PlayerReportedBadge size="sm" />
-                    )}
+                    {!h.verifiedByCoach && <PlayerReportedBadge size="sm" />}
+                    {/* Verify button is the primary action — when already
+                        verified the component renders a static Verified
+                        pill instead. */}
+                    <span className="ml-auto">
+                      <VerifyHighlightButton
+                        highlightId={h.id}
+                        caption={h.caption}
+                        url={h.url}
+                        alreadyVerified={h.verifiedByCoach}
+                      />
+                    </span>
                   </div>
                   {h.caption && (
                     <div className="mt-1 text-[13px] font-semibold">{h.caption}</div>
@@ -317,6 +322,11 @@ export default async function PlayerReportedReviewPage({
                   >
                     {h.url}
                   </a>
+                  {h.verifiedByCoach && h.verifiedAt && (
+                    <div className="mt-1 text-[10.5px] text-ink-3 font-mono">
+                      Verified {new Date(h.verifiedAt).toLocaleDateString()}
+                    </div>
+                  )}
                 </div>
               );
             })}
