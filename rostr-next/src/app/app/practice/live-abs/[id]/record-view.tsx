@@ -342,7 +342,8 @@ export function SessionRecordView({
   const undoLast = () => {
     const last = atBats[0];
     if (!last) return;
-    if (!confirm(`Undo last AB? (${last.hitterName} ${last.outcome})`)) return;
+    // PHASE 5 — removed confirm. The success toast names the undone
+    // AB; coach can re-log if it was a misclick.
     startTransition(async () => {
       const r = await deleteAtBatAction(last.id, session.id);
       if (r.error) {
