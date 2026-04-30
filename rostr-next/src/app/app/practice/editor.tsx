@@ -256,7 +256,33 @@ export function PracticeEditor({
     [activePlan],
   );
 
-  const [blocks, applyOptimistic] = useOptimistic(serverBlocks, applyBlockAction);
+  /**
+   * Demo override: in /demo mode the server actions all return
+   * "no program" errors (no auth), and useOptimistic's transient
+   * state would revert as soon as the action resolves — which means
+   * reordering, adding, removing, etc. would all flash and snap
+   * back. To let prospects actually play with the planner, we keep
+   * a local copy of the blocks that mutates in-memory and feeds
+   * useOptimistic as its "server" source. Real /app keeps the
+   * normal flow untouched.
+   */
+  const [demoBlocks, setDemoBlocks] = useState<UIBlock[] | null>(null);
+  // Reset demo overrides when the underlying activePlan switches.
+  useEffect(() => {
+    if (isDemo) setDemoBlocks(null);
+  }, [activePlan?.id, isDemo]);
+  const sourceBlocks = isDemo && demoBlocks ? demoBlocks : serverBlocks;
+
+  const [blocks, applyOptimistic] = useOptimistic(sourceBlocks, applyBlockAction);
+
+  /**
+   * Apply a BlockAction in demo mode by mutating the persistent
+   * local copy. Skips the server roundtrip entirely so prospects can
+   * actually feel the planner work without auth or DB writes.
+   */
+  const applyDemoAction = (action: BlockAction) => {
+    setDemoBlocks((prev) => applyBlockAction(prev ?? serverBlocks, action));
+  };
 
   // Field constraint persists to the plan
   const [fieldConstraint, setFieldConstraint] = useState<FieldConstraint>(
@@ -288,6 +314,23 @@ export function PracticeEditor({
       return;
     }
     const tempId = `tmp-${Date.now()}`;
+    // Demo: mutate locally only; skip the server roundtrip.
+    if (isDemo) {
+      applyDemoAction({
+        kind: "add",
+        tempId,
+        category: drill.category,
+        drillName: drill.name,
+        durationMin: drill.defaultDuration,
+        lane,
+        focusText: drill.focus,
+        drillId: drill.id ?? null,
+      });
+      toast.success(`Added: ${drill.name}`, {
+        description: lane === "secondary" ? "Runs in parallel with the previous main block." : undefined,
+      });
+      return;
+    }
     startTransition(async () => {
       applyOptimistic({
         kind: "add",
@@ -322,6 +365,10 @@ export function PracticeEditor({
 
   const removeBlock = (blockId: string) => {
     if (!activePlan) return;
+    if (isDemo) {
+      applyDemoAction({ kind: "remove", blockId });
+      return;
+    }
     startTransition(async () => {
       applyOptimistic({ kind: "remove", blockId });
       const r = await removeBlockAction(blockId);
@@ -339,6 +386,10 @@ export function PracticeEditor({
     if (next < 0 || next >= ids.length) return;
     const reordered = [...ids];
     [reordered[idx], reordered[next]] = [reordered[next], reordered[idx]];
+    if (isDemo) {
+      applyDemoAction({ kind: "reorder", orderedIds: reordered });
+      return;
+    }
     startTransition(async () => {
       applyOptimistic({ kind: "reorder", orderedIds: reordered });
       const r = await reorderBlocksAction(activePlan.id, reordered);
@@ -350,6 +401,10 @@ export function PracticeEditor({
   const updateDuration = (blockId: string, duration: number) => {
     if (!activePlan) return;
     const safe = Math.max(1, Math.min(180, duration));
+    if (isDemo) {
+      applyDemoAction({ kind: "update", blockId, durationMin: safe });
+      return;
+    }
     startTransition(async () => {
       applyOptimistic({ kind: "update", blockId, durationMin: safe });
       const r = await updateBlockAction({
@@ -367,6 +422,10 @@ export function PracticeEditor({
     const block = blocks.find((b) => b.id === blockId);
     if (!block) return;
     const newLane: PlanLane = block.lane === "main" ? "secondary" : "main";
+    if (isDemo) {
+      applyDemoAction({ kind: "update", blockId, lane: newLane });
+      return;
+    }
     startTransition(async () => {
       applyOptimistic({ kind: "update", blockId, lane: newLane });
       const r = await updateBlockAction({

@@ -613,15 +613,14 @@ function ProofStrip() {
           <div className="type-label !text-[10px] mb-2 md:mb-0 shrink-0">
             Built for the way real programs run
           </div>
-          {/* Mobile: horizontal scroll-snap row of pill tags. Desktop:
-              flex-wrap inline list. The scrolling row reads like Apple
-              Music's category strips and gives the marketing page a
-              hit of motion the moment a finger touches it. */}
-          <div className="flex gap-2 md:gap-7 text-[12.5px] md:text-[13px] text-ink-2 font-medium overflow-x-auto md:overflow-visible md:flex-wrap -mx-4 px-4 md:mx-0 md:px-0 no-scrollbar">
+          {/* Wrap on mobile (no horizontal scroll) so the page never
+              forces the user to swipe sideways. Desktop keeps the
+              wrapping inline list it always had. */}
+          <div className="flex flex-wrap gap-2 md:gap-7 text-[12px] md:text-[13px] text-ink-2 font-medium">
             {proofs.map((p) => (
               <span
                 key={p}
-                className="px-3 py-1 md:p-0 rounded-full bg-paper md:bg-transparent border border-hair md:border-0 whitespace-nowrap shrink-0"
+                className="px-2.5 py-1 md:p-0 rounded-full bg-paper md:bg-transparent border border-hair md:border-0"
               >
                 {p}
               </span>
