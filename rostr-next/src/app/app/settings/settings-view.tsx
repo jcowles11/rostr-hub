@@ -83,9 +83,10 @@ export function SettingsView({
 
   return (
     <>
+      {/* PHASE 5 — removed Notifications bell. */}
       <TopBar
         breadcrumbs={[{ label: programName }, { label: "Settings" }]}
-        actions={[{ kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") }]}
+        actions={[]}
       />
       <div className="flex-1 overflow-auto">
         <div className="grid grid-cols-[240px_1fr] max-w-layout-hub mx-auto">

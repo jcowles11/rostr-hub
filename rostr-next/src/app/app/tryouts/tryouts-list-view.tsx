@@ -32,10 +32,10 @@ export function TryoutsListView({
 
   return (
     <>
+      {/* PHASE 5 — removed Notifications bell. */}
       <TopBar
         breadcrumbs={[{ label: programName }, { label: "Tryouts" }]}
         actions={[
-          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
           {
             kind: "primary",
             label: "New tryout",

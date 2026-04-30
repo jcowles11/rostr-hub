@@ -1,20 +1,8 @@
 "use client";
 
-import {
-  Bell,
-  Plus,
-  Clock,
-  MapPin,
-  Users,
-  RefreshCw,
-  Download,
-  MoreHorizontal,
-} from "lucide-react";
+import { Clock, MapPin, Users } from "lucide-react";
 import Link from "next/link";
-import { toast } from "sonner";
-import { Button } from "@/components/atoms/button";
 import { TopBar } from "@/components/organisms/top-bar";
-import { comingSoon } from "@/lib/coming-soon";
 import { Panel, PanelHead, PanelTab } from "@/components/molecules/panel";
 import { StatTile } from "@/components/molecules/stat-tile";
 import { FeedItem } from "@/components/molecules/feed-item";
@@ -133,21 +121,14 @@ export function HubView({
   });
   return (
     <>
+      {/* PHASE 5 — removed the "Notifications" bell + "Quick add" ghost
+          buttons. Both fired comingSoon toasts; bell has no real
+          backing feature, and Quick add duplicates the mobile FAB +
+          desktop QuickActionsPanel. Kept the primary "Start practice"
+          since it routes to a real page. */}
       <TopBar
         breadcrumbs={[{ label: programName }, { label: "Today" }]}
         actions={[
-          {
-            kind: "icon",
-            icon: <Bell className="w-[15px] h-[15px]" />,
-            notification: true,
-            onClick: () => comingSoon("Notifications", "Activity-based in-app notifications come with messaging v2."),
-          },
-          {
-            kind: "ghost",
-            label: "Quick add",
-            icon: <Plus className="w-[15px] h-[15px]" />,
-            onClick: () => comingSoon("Quick add", "Command-K for players, games, practices, drills is next."),
-          },
           { kind: "primary", label: "Start practice", href: "/app/practice" },
         ]}
       />
@@ -165,24 +146,10 @@ export function HubView({
               </h1>
               <p className="mt-1 text-ink-3 text-[13px] sm:text-[14px]">{subtitle}</p>
             </div>
-            <div className="flex gap-2 shrink-0">
-              <Button
-                variant="secondary"
-                size="md"
-                onClick={() => toast.success("Synced", { description: "All GameChanger + MaxPreps sources up to date." })}
-              >
-                <RefreshCw className="w-[15px] h-[15px]" />
-                Sync
-              </Button>
-              <Button
-                variant="secondary"
-                size="md"
-                onClick={() => comingSoon("Export week", "Weekly PDF + CSV digest — next sprint.")}
-              >
-                <Download className="w-[15px] h-[15px]" />
-                Export week
-              </Button>
-            </div>
+            {/* PHASE 2.1 + PHASE 5 — removed fake "Sync" toast (no real
+                GameChanger/MaxPreps sync exists) and removed the
+                "Export week" coming-soon button. Header is action-free
+                here; coaches use Quick add on the side rail or the FAB. */}
           </div>
 
           {/* ── Grid ────────────────────────────────────────── */}
@@ -360,13 +327,18 @@ function TodayHeroCard({
   nextGame: HubViewProps["nextGame"];
   playerCount: number;
 }) {
+  // Real data only — no fake "Practice · Situational hitting & pitching"
+  // / "3:30 – 5:30 PM" / "Field A" defaults that would mislead a coach
+  // into thinking a practice was scheduled when nothing's on the books.
   const hasGame = Boolean(nextGame);
-  const label = hasGame ? "Next game" : "Next up · in 2h 14m";
+  const label = hasGame ? "Next game" : "Nothing on deck";
   const title = hasGame
     ? `vs ${nextGame!.opponent}`
-    : "Practice · Situational hitting & pitching";
-  const dateLabel = hasGame ? `${nextGame!.dateLabel}${nextGame!.timeLabel ? " · " + nextGame!.timeLabel : ""}` : "3:30 – 5:30 PM";
-  const locationLabel = hasGame ? nextGame!.location : "Field A";
+    : "Add your first game or practice";
+  const dateLabel = hasGame
+    ? `${nextGame!.dateLabel}${nextGame!.timeLabel ? " · " + nextGame!.timeLabel : ""}`
+    : null;
+  const locationLabel = hasGame ? nextGame!.location : null;
   return (
     <div className="relative overflow-hidden rounded-2xl p-5 sm:p-6 bg-[linear-gradient(135deg,#0e1116_0%,#191d24_100%)] text-white shadow-[0_18px_50px_-20px_rgba(14,17,22,0.55)]">
       <div
@@ -384,50 +356,62 @@ function TodayHeroCard({
           {title}
         </div>
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[13px] sm:text-[12.5px] text-white/75 tabular-nums">
-          <span className="inline-flex items-center gap-1.5 font-mono">
-            <Clock className="w-[15px] h-[15px]" strokeWidth={2.25} />
-            {dateLabel}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <MapPin className="w-[15px] h-[15px]" strokeWidth={2.25} />
-            {locationLabel}
-          </span>
+          {dateLabel && (
+            <span className="inline-flex items-center gap-1.5 font-mono">
+              <Clock className="w-[15px] h-[15px]" strokeWidth={2.25} />
+              {dateLabel}
+            </span>
+          )}
+          {locationLabel && (
+            <span className="inline-flex items-center gap-1.5">
+              <MapPin className="w-[15px] h-[15px]" strokeWidth={2.25} />
+              {locationLabel}
+            </span>
+          )}
           <span className="inline-flex items-center gap-1.5 font-mono">
             <Users className="w-[15px] h-[15px]" strokeWidth={2.25} />
-            {playerCount} players
+            {playerCount} {playerCount === 1 ? "player" : "players"}
           </span>
         </div>
         <div className="mt-4 flex gap-2 flex-wrap">
-          <Link
-            href="/app/practice"
-            className={cn(
-              "inline-flex items-center bg-red text-white rounded-full px-4 h-9 text-[12.5px] font-bold shadow-[0_4px_14px_-4px_rgba(200,58,58,0.6)]",
-              "transition-transform duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-              "active:scale-[0.94] hover:bg-red/90",
-            )}
-          >
-            Open practice plan →
-          </Link>
-          <Link
-            href="/app/practice"
-            className={cn(
-              "inline-flex items-center bg-white/[0.1] text-white rounded-full px-4 h-9 text-[12.5px] font-semibold",
-              "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-              "active:scale-[0.94] hover:bg-white/[0.16]",
-            )}
-          >
-            Field runner mode
-          </Link>
-          <Link
-            href="/app/practice"
-            className={cn(
-              "inline-flex items-center bg-white/[0.1] text-white rounded-full px-4 h-9 text-[12.5px] font-semibold",
-              "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-              "active:scale-[0.94] hover:bg-white/[0.16]",
-            )}
-          >
-            Edit
-          </Link>
+          {hasGame ? (
+            <>
+              <Link
+                href={`/app/games/${nextGame!.id}`}
+                className={cn(
+                  "inline-flex items-center bg-red text-white rounded-full px-4 h-9 text-[12.5px] font-bold shadow-[0_4px_14px_-4px_rgba(200,58,58,0.6)]",
+                  "transition-transform duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                  "active:scale-[0.94] hover:bg-red/90",
+                )}
+              >
+                Open game →
+              </Link>
+              <Link
+                href="/app/practice"
+                className={cn(
+                  "inline-flex items-center bg-white/[0.1] text-white rounded-full px-4 h-9 text-[12.5px] font-semibold",
+                  "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                  "active:scale-[0.94] hover:bg-white/[0.16]",
+                )}
+              >
+                Practice plan
+              </Link>
+            </>
+          ) : (
+            // No game scheduled — point the coach at the schedule so
+            // they can put one on the books. No fake "Open practice
+            // plan / Field runner mode" buttons that would mislead.
+            <Link
+              href="/app/schedule"
+              className={cn(
+                "inline-flex items-center bg-red text-white rounded-full px-4 h-9 text-[12.5px] font-bold shadow-[0_4px_14px_-4px_rgba(200,58,58,0.6)]",
+                "transition-transform duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                "active:scale-[0.94] hover:bg-red/90",
+              )}
+            >
+              Add to schedule →
+            </Link>
+          )}
         </div>
       </div>
     </div>
@@ -498,13 +482,8 @@ function AvailabilityPanel({
             <PanelTab active={filter === "out"} onClick={() => setFilter("out")}>
               Out ({outCount})
             </PanelTab>
-            <button
-              className="p-1 text-ink-3 hover:text-ink rounded-[5px]"
-              onClick={() => comingSoon("Roster export", "Coming with the v2 messaging release.")}
-              aria-label="More options"
-            >
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
+            {/* PHASE 5 — removed the MoreHorizontal "Roster export"
+                comingSoon button. No real export feature backs it. */}
           </>
         }
       />

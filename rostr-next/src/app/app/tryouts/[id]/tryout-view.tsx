@@ -117,13 +117,8 @@ export function TryoutView({
           { label: tryout.name },
         ]}
         actions={[
-          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
-          {
-            kind: "ghost",
-            label: "Export",
-            icon: <Download className="w-[15px] h-[15px]" />,
-            onClick: () => comingSoon("Export", "CSV of rankings + verdicts — next sprint."),
-          },
+          // PHASE 5 — removed Notifications bell + Export comingSoon
+          // (no real CSV export wired yet).
           tryout.status === "scheduled"
             ? {
                 kind: "primary",

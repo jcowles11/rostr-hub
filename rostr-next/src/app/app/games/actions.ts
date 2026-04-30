@@ -482,6 +482,62 @@ export async function aiFillPrepFromPromptAction(
   }
 }
 
+// ── Edit basics (Phase 3.1) ──────────────────────────────────────
+
+export interface UpdateGameScheduleInput {
+  gameId: string;
+  gameDate: string;        // YYYY-MM-DD
+  gameTime?: string | null; // HH:MM
+  opponent?: string | null;
+  location?: string | null;
+  homeAway?: "home" | "away" | "neutral";
+}
+
+/**
+ * updateGameScheduleAction — let a coach change the basic schedule
+ * fields on a game (date, time, opponent, location, home/away) from
+ * the schedule edit modal. Doesn't touch live scoring fields.
+ *
+ * Same demo + ownership guards as the rest of this file.
+ */
+export async function updateGameScheduleAction(
+  input: UpdateGameScheduleInput,
+): Promise<{ error: string | null }> {
+  if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
+  if (!input.gameId) return { error: "Missing game id." };
+  if (!input.gameDate) return { error: "Date is required." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.gameDate)) {
+    return { error: "Date must be YYYY-MM-DD." };
+  }
+  if (input.gameTime && !/^\d{1,2}:\d{2}(:\d{2})?$/.test(input.gameTime)) {
+    return { error: "Time must be HH:MM." };
+  }
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program." };
+  const supabase = createSupabaseServerClient();
+
+  const update: Record<string, unknown> = {
+    game_date: input.gameDate,
+    game_time: input.gameTime?.trim() || null,
+  };
+  if (input.opponent !== undefined) update.opponent = input.opponent?.trim() || null;
+  if (input.location !== undefined) update.location = input.location?.trim() || null;
+  if (input.homeAway !== undefined) update.home_away = input.homeAway;
+
+  const { error } = await supabase
+    .from("games")
+    .update(update)
+    .eq("id", input.gameId)
+    .eq("program_id", coach.program_id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/app");
+  revalidatePath("/app/games");
+  revalidatePath("/app/schedule");
+  revalidatePath(`/app/games/${input.gameId}`);
+  return { error: null };
+}
+
 export async function deleteGameAction(gameId: string): Promise<{ error: string | null }> {
   if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
   const coach = await getCurrentCoach();

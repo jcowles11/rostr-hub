@@ -104,6 +104,51 @@ export async function createPracticeAction(
   return { error: null, practiceId: data.id };
 }
 
+// Phase 3.1 — Edit basics for a practice plan from the schedule.
+export interface UpdatePracticeScheduleInput {
+  practiceId: string;
+  title?: string;
+  practiceDate: string; // YYYY-MM-DD
+  teamLevel?: string | null;
+  startTime?: string | null;
+  location?: string | null;
+}
+
+export async function updatePracticeScheduleAction(
+  input: UpdatePracticeScheduleInput,
+): Promise<{ error: string | null }> {
+  if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
+  if (!input.practiceId) return { error: "Missing practice id." };
+  if (!input.practiceDate) return { error: "Date is required." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.practiceDate)) {
+    return { error: "Date must be YYYY-MM-DD." };
+  }
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program." };
+  const supabase = createSupabaseServerClient();
+
+  const update: Record<string, unknown> = {
+    practice_date: input.practiceDate,
+  };
+  if (input.title !== undefined) update.title = input.title.trim() || "Practice";
+  if (input.teamLevel !== undefined) update.team_level = input.teamLevel || null;
+  if (input.startTime !== undefined) update.start_time = input.startTime || null;
+  // location lives on practice_plans only if migration added it; keep
+  // the field in the input but don't set it on update for now to avoid
+  // a "column does not exist" surprise across schema versions.
+
+  const { error } = await supabase
+    .from("practice_plans")
+    .update(update)
+    .eq("id", input.practiceId)
+    .eq("program_id", coach.program_id);
+  if (error) return { error: error.message };
+
+  revalidatePractice();
+  revalidatePath("/app/schedule");
+  return { error: null };
+}
+
 export async function deletePracticeAction(practiceId: string): Promise<{ error: string | null }> {
   if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
   const coach = await getCurrentCoach();

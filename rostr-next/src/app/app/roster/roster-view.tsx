@@ -164,11 +164,10 @@ export function RosterView({
 
   return (
     <>
+      {/* PHASE 5 — removed Notifications bell + Export comingSoon. */}
       <TopBar
         breadcrumbs={[{ label: programName }, { label: "Roster" }]}
         actions={[
-          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
-          { kind: "ghost", label: "Export", icon: <Download className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Export roster", "GameChanger + MaxPreps CSV out — next sprint.") },
           { kind: "ghost", label: "Import roster", icon: <Upload className="w-[15px] h-[15px]" />, onClick: () => setImportOpen(true) },
           { kind: "ghost", label: "Import stats", icon: <Upload className="w-[15px] h-[15px]" />, onClick: () => setImportStatsOpen(true) },
           { kind: "primary", label: "Add player", icon: <Plus className="w-[15px] h-[15px]" />, onClick: () => setAddOpen(true) },

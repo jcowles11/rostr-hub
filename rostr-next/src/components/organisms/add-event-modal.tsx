@@ -48,7 +48,14 @@ export function AddEventModal({
     setError(null);
   };
 
-  const submit = (e: React.FormEvent) => {
+  /**
+   * PHASE 3.2 — `keepOpen` lets the coach punch through a full season
+   * one row at a time without dismissing the modal. We clear the
+   * fields most likely to change (opponent / date / time / location)
+   * and KEEP the structural ones (kind, level, homeAway) so the
+   * coach doesn't reset their mode every save.
+   */
+  const submit = (e: React.FormEvent, keepOpen = false) => {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
@@ -80,9 +87,21 @@ export function AddEventModal({
         toast.success("Practice scheduled", { description: `${title} · ${date}` });
       }
 
-      reset();
-      onOpenChange(false);
       router.refresh();
+      if (keepOpen) {
+        // Bulk-add path: clear opponent / title / time / location for
+        // the next entry; keep kind / homeAway / level / date so the
+        // coach doesn't have to retype the whole context every game.
+        setOpponent("");
+        setTitle("");
+        setTime("");
+        setLocation("");
+        setNotes("");
+        setError(null);
+      } else {
+        reset();
+        onOpenChange(false);
+      }
     });
   };
 
@@ -240,6 +259,17 @@ export function AddEventModal({
             className="px-4 h-[38px] rounded-sm text-[13px] font-semibold text-ink-2 hover:text-ink"
           >
             Cancel
+          </button>
+          {/* PHASE 3.2 — "Save & add another" lets the coach punch
+              through their full season without dismissing the modal.
+              ~30 seconds per game, full season in well under 10 min. */}
+          <button
+            type="button"
+            onClick={(e) => submit(e as unknown as React.FormEvent, true)}
+            disabled={loading}
+            className="px-4 h-[38px] rounded-sm bg-paper border border-hair hover:border-ink text-ink text-[13px] font-semibold disabled:opacity-60"
+          >
+            {loading ? "Adding…" : "Save & add another"}
           </button>
           <button
             type="submit"

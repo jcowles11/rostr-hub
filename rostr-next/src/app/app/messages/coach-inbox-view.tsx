@@ -36,11 +36,7 @@ export function CoachInboxView({
       <TopBar
         breadcrumbs={[{ label: programName }, { label: "Messages" }]}
         actions={[
-          {
-            kind: "icon",
-            icon: <Bell className="w-[15px] h-[15px]" />,
-            onClick: () => comingSoon("Notifications"),
-          },
+          // PHASE 5 — removed Notifications bell (no real backing).
           {
             kind: "ghost",
             label: "Announce",
