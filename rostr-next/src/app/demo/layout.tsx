@@ -4,7 +4,6 @@ import {
   ClipboardList,
   Swords,
   CalendarDays,
-  Eye,
   Sun,
   TrendingUp,
   Trophy,
@@ -12,13 +11,13 @@ import {
   Mail,
   Settings,
   HelpCircle,
-  ArrowLeft,
 } from "lucide-react";
-import Link from "next/link";
 import { AppSidebar, type NavSection } from "@/components/organisms/app-sidebar";
 import { MobileAppBar } from "@/components/organisms/mobile-app-bar";
 import { BottomNav, DEMO_BOTTOM_TABS } from "@/components/organisms/bottom-nav";
 import { MobileFab, DEMO_FAB_ACTIONS } from "@/components/organisms/mobile-fab";
+import { DemoBanner } from "@/components/organisms/demo-banner";
+import { InstallPrompt } from "@/components/organisms/install-prompt";
 import { initialsFrom } from "@/lib/auth";
 import { MOCK_TEAM, MOCK_COACH, MOCK_PLAYERS } from "@/lib/mock-data";
 
@@ -100,49 +99,26 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
       <main className="flex-1 lg:flex-initial flex flex-col overflow-hidden min-w-0">
         <MobileAppBar team={team} sections={DEMO_SECTIONS} user={userCtx} />
         <DemoBanner />
-        {children}
+        {/* Page-enter wrapper. This div is itself a flex-col flex-1
+            child of <main>, mirroring main's own column. Children
+            (page components) flow inside it normally. The animation
+            applies to this wrapper, so every route swap fades + slides
+            in on mount. The wrapper re-renders on route change because
+            Next.js's app-router uses pathname as an implicit React key
+            for the children slot — re-mounted div = replayed animation. */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 animate-page-enter">
+          {children}
+        </div>
         {/* Mobile-only bottom tab bar — mirrors the /app version but
             points at /demo destinations. */}
         <BottomNav tabs={DEMO_BOTTOM_TABS} moreSections={DEMO_SECTIONS} />
       </main>
       {/* Mobile FAB — same iOS-style quick-add sheet, /demo links. */}
       <MobileFab actions={DEMO_FAB_ACTIONS} />
-    </div>
-  );
-}
-
-/**
- * Sticky DEMO banner — sits below the mobile app bar, above all
- * page content. Tells visitors this is fake data + how to get the
- * real thing. Single tap on the CTA goes to signup.
- */
-function DemoBanner() {
-  return (
-    <div className="sticky top-0 z-[40] bg-amber-soft border-b-2 border-amber">
-      <div className="px-4 py-2 flex items-center gap-3 flex-wrap max-w-layout-app mx-auto">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-ink-3 hover:text-ink whitespace-nowrap"
-          title="Back to Rostr home"
-        >
-          <ArrowLeft className="w-3 h-3" />
-          Home
-        </Link>
-        <span className="text-ink-4">·</span>
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs bg-amber text-white text-[10px] font-bold uppercase tracking-[0.08em]">
-          <Eye className="w-3 h-3" />
-          Demo
-        </span>
-        <span className="text-[12.5px] text-ink-2 leading-snug flex-1 min-w-[180px]">
-          Fictional Lincoln HS data — click anywhere, nothing saves.
-        </span>
-        <Link
-          href="/signup"
-          className="inline-flex items-center gap-1 text-[12.5px] font-bold text-red hover:underline whitespace-nowrap"
-        >
-          Sign up to use it for real →
-        </Link>
-      </div>
+      {/* Add-to-Home-Screen prompt — only renders on iOS Safari /
+          Android Chrome when not already installed. The single biggest
+          "feels like an app" upgrade we can offer in a browser. */}
+      <InstallPrompt />
     </div>
   );
 }

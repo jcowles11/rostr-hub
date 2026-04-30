@@ -17,6 +17,7 @@ import { AppSidebar, type NavSection } from "@/components/organisms/app-sidebar"
 import { MobileAppBar } from "@/components/organisms/mobile-app-bar";
 import { BottomNav, APP_BOTTOM_TABS } from "@/components/organisms/bottom-nav";
 import { MobileFab, APP_FAB_ACTIONS } from "@/components/organisms/mobile-fab";
+import { InstallPrompt } from "@/components/organisms/install-prompt";
 import { NavigationProgress } from "@/components/atoms/navigation-progress";
 import { SetupBanner } from "@/components/molecules/setup-banner";
 import { getSessionUser, displayName, initialsFrom } from "@/lib/auth";
@@ -163,6 +164,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           pattern. Hovers above the bottom nav, opens an iOS-style
           bottom sheet of quick-add actions. Only renders on mobile. */}
       <MobileFab actions={APP_FAB_ACTIONS} />
+      {/* Add-to-Home-Screen prompt — only renders on iOS Safari /
+          Android Chrome when not already installed. Single biggest
+          "feels like a real app" upgrade we can offer in browser. */}
+      <InstallPrompt />
     </div>
   );
 }
