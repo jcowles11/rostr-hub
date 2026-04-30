@@ -92,7 +92,12 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
   };
 
   return (
-    <div className="flex lg:grid lg:grid-cols-[240px_1fr] h-screen bg-paper">
+    /* h-[100dvh] respects the mobile browser's dynamic viewport — it
+       shrinks when iOS Safari's URL bar is showing and grows when it
+       hides on scroll. h-screen (100vh) reports the largest possible
+       viewport, which pushes the bottom nav below the visible area
+       until the URL bar collapses. Big mobile-feel bug fix. */
+    <div className="flex lg:grid lg:grid-cols-[240px_1fr] h-[100dvh] bg-paper">
       <div className="hidden lg:block">
         <AppSidebar team={team} sections={DEMO_SECTIONS} user={userCtx} upNext={null} />
       </div>
