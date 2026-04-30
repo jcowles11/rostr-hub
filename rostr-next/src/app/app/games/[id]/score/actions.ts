@@ -211,6 +211,60 @@ export async function logAtBatAction(
   return { error: null, eventId, pitchPersistError };
 }
 
+// ── Inning / half advancement (Phase 1) ───────────────────────────
+
+export interface RecordInningChangeInput {
+  gameId: string;
+  newInning: number;
+  newHalf: "top" | "bottom";
+  homeScore: number;
+  awayScore: number;
+}
+
+/**
+ * recordInningChangeAction — persist an `inning_change` event after a
+ * 3rd out so the half / inning advance survives across refresh.
+ *
+ * Without this, the client would compute nextHalf / nextInning locally,
+ * the at-bat causing the 3rd out would log with the CURRENT half (which
+ * is correct — that AB happened in the current half), and the next
+ * at-bat would derive its (inning, half) from that same lastEvent —
+ * staying pinned to the wrong half. Subsequent runs would credit the
+ * wrong team. This event flips the derived state cleanly and is
+ * visible to every consumer (live view, public game viewer, box score).
+ *
+ * Idempotent at the application layer: callers compute (newInning,
+ * newHalf) from the AB they're logging and only call this when the
+ * 3rd out resolves. The view derivation reads `lastEvent` and uses
+ * its (inning, top_bottom) directly — no special-case for inning_change.
+ */
+export async function recordInningChangeAction(
+  input: RecordInningChangeInput,
+): Promise<{ error: string | null; eventId?: string }> {
+  if (!input.gameId) return { error: "Missing game id." };
+  if (input.newHalf !== "top" && input.newHalf !== "bottom") {
+    return { error: "Invalid half." };
+  }
+  if (!Number.isInteger(input.newInning) || input.newInning < 1) {
+    return { error: "Invalid inning." };
+  }
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "No program." };
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase.rpc("log_inning_change", {
+    _game_id: input.gameId,
+    _new_inning: input.newInning,
+    _new_half: input.newHalf,
+    _home_score: input.homeScore,
+    _away_score: input.awayScore,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/g/${input.gameId}`);
+  return { error: null, eventId: data as string };
+}
+
 export async function endLiveGameAction(
   gameId: string,
 ): Promise<{ error: string | null }> {
