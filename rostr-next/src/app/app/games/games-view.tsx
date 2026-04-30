@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Swords, Plus, Bell, MapPin, Clock, ChevronRight, Trash2, Pencil } from "lucide-react";
+import { Swords, Plus, MapPin, Clock, ChevronRight, Trash2, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { TopBar } from "@/components/organisms/top-bar";
 import { cn } from "@/lib/utils";
-import { comingSoon } from "@/lib/coming-soon";
 import { AddEventModal } from "@/components/organisms/add-event-modal";
 import { RowActions } from "@/components/molecules/row-actions";
 import { deleteGameAction } from "./actions";
@@ -31,11 +30,13 @@ export function GamesView({ games: GAMES }: { games: Game[] }) {
 
   return (
     <>
+      {/* PHASE 5 — removed Notifications bell (no real notifications
+          feature) and "Export schedule" comingSoon button. Hardcoded
+          "Lincoln HS" breadcrumb removed too — was leaking demo data
+          into real coaches' headers. */}
       <TopBar
-        breadcrumbs={[{ label: "Lincoln HS" }, { label: "Games" }]}
+        breadcrumbs={[{ label: "Games" }]}
         actions={[
-          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
-          { kind: "ghost", label: "Export schedule", onClick: () => comingSoon("Export schedule", "iCal + CSV + GC export — next sprint.") },
           { kind: "primary", label: "Add game", icon: <Plus className="w-[15px] h-[15px]" />, onClick: () => setAddOpen(true) },
         ]}
       />
@@ -193,12 +194,15 @@ function GameRow({ game }: { game: Game }) {
         </div>
       )}
       <div onClick={(e) => e.stopPropagation()}>
+        {/* PHASE 5 — replaced "Edit game" comingSoon with a route to
+            /app/schedule, which has the working EditEventModal. Avoids
+            duplicating the modal here while keeping a clear path. */}
         <RowActions
           items={[
             {
-              label: "Edit game",
+              label: "Edit on Schedule",
               icon: <Pencil className="w-3.5 h-3.5" />,
-              onSelect: () => comingSoon("Edit game", "Inline edit modal ships with dugout console."),
+              onSelect: () => router.push("/app/schedule"),
             },
             {
               label: "Delete game",

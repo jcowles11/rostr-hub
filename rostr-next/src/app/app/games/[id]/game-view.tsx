@@ -192,7 +192,7 @@ export function GameView({
           { label: game.opponent ? `${game.home ? "vs" : "@"} ${game.opponent}` : "Game" },
         ]}
         actions={[
-          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
+          // PHASE 5 — removed Notifications bell (no real backing).
           {
             kind: "ghost",
             label: "Print card",
@@ -300,10 +300,22 @@ export function GameView({
                   {saving ? "Saving…" : "Save roster"}
                 </Button>
               )}
+              {/* PHASE 5 — replaced "Share" comingSoon with a real
+                  copy-to-clipboard of the public fan-game viewer URL.
+                  /g/[id] is already shipping; coaches can text it to
+                  parents directly. */}
               <Button
                 variant="secondary"
                 size="md"
-                onClick={() => comingSoon("Share", "Game-day link + parent-text share — next sprint.")}
+                onClick={async () => {
+                  const url = `${window.location.origin}/g/${gameId}`;
+                  try {
+                    await navigator.clipboard.writeText(url);
+                    toast.success("Fan link copied", { description: url });
+                  } catch {
+                    toast.error("Couldn't copy", { description: url });
+                  }
+                }}
               >
                 <Share2 className="w-[15px] h-[15px]" /> Share
               </Button>

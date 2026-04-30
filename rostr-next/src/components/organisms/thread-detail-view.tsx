@@ -183,13 +183,8 @@ export function ThreadDetailView({
           { label: backLabel, href: backHref },
           { label: headerTitle },
         ]}
-        actions={[
-          {
-            kind: "icon",
-            icon: <Bell className="w-[15px] h-[15px]" />,
-            onClick: () => comingSoon("Notifications"),
-          },
-        ]}
+        // PHASE 5 — removed Notifications bell.
+        actions={[]}
       />
       <div className="flex-1 overflow-hidden flex flex-col">
         <div className="max-w-[720px] w-full mx-auto flex-1 flex flex-col min-h-0">

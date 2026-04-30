@@ -208,12 +208,19 @@ function mapEnumToConfiguredName(
 
 export async function fetchPlayerBySlug(slug: string): Promise<RealPlayer | null> {
   const supabase = createSupabaseServerClient();
+  // PHASE 4.2 — only return players who've opted into a public profile
+  // AND haven't been soft-deleted. The page caller (notFound() on
+  // null) gives anonymous visitors a 404 for any non-public handle,
+  // closing the "guess the URL" leak path. Coaches viewing their own
+  // (private) players go through fetchRoster, not this slug fetcher.
   const { data, error } = await supabase
     .from("players")
     .select(
-      "id, first_name, last_name, grade, positions, player_number, profile_slug, profile_public, program_id",
+      "id, first_name, last_name, grade, positions, player_number, profile_slug, profile_public, program_id, released_at",
     )
     .eq("profile_slug", slug)
+    .eq("profile_public", true)
+    .is("released_at", null)
     .limit(1)
     .maybeSingle();
 

@@ -620,22 +620,19 @@ export function PracticeEditor({
           { label: activePlan?.name ?? "Plans" },
         ]}
         actions={[
-          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
+          // PHASE 5 — removed Notifications bell + "Publish to team"
+          // comingSoon. Coach team broadcasts ship with the v2
+          // messaging layer; for now, the schedule + Hub already
+          // surface the practice on /me automatically.
           {
             kind: "ghost",
             label: "Duplicate",
             onClick: duplicateActive,
           },
           {
-            kind: "ghost",
+            kind: "primary",
             label: "Rename",
             onClick: renameActive,
-          },
-          {
-            kind: "primary",
-            label: "Publish to team",
-            onClick: () =>
-              comingSoon("Publish to team", "Player + parent broadcast — next sprint."),
           },
         ]}
       />
@@ -1499,14 +1496,9 @@ function FieldRunnerCard({ nextBlock }: { nextBlock: UIBlock | undefined }) {
             <Clock className="w-3 h-3" />
             {nextBlock ? `${nextBlock.durationMin} min` : "—"}
           </div>
-          <button
-            onClick={() => comingSoon("Field runner mode", "Mobile run-the-practice UI ships next sprint.")}
-            disabled={!nextBlock}
-            className="mt-4 w-full py-2.5 bg-red hover:bg-red/90 rounded-sm text-[11.5px] font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
-          >
-            <Play className="w-3 h-3" />
-            Start practice
-          </button>
+          {/* PHASE 5 — removed "Start practice / Field runner mode"
+              comingSoon button. Mobile run-the-practice UI doesn't
+              exist yet; the static "Up next" copy is enough cue. */}
         </div>
       </div>
     </div>

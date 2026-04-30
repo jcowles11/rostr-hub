@@ -4,36 +4,49 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarDays, Plus, Bell, MapPin, Swords, Dumbbell, Trash2 } from "lucide-react";
+import { CalendarDays, Plus, MapPin, Swords, Dumbbell, Trash2, Pencil } from "lucide-react";
 import { TopBar } from "@/components/organisms/top-bar";
 import { cn } from "@/lib/utils";
-import { comingSoon } from "@/lib/coming-soon";
 import { AddEventModal } from "@/components/organisms/add-event-modal";
 import { RowActions } from "@/components/molecules/row-actions";
 import { deleteGameAction } from "@/app/app/games/actions";
 import { deletePracticeAction } from "@/app/app/practice/actions";
+import { EditEventModal, type EditEventTarget } from "@/components/organisms/edit-event-modal";
 
 type Kind = "game" | "practice";
 export interface ScheduleEvent {
   id: string;
   kind: Kind;
   date: { day: number; month: string; weekday: string };
+  /** ISO date string (YYYY-MM-DD) — passed to the edit modal so the
+   *  date input pre-populates. Optional for backward compat. */
+  isoDate?: string;
+  /** ISO time string (HH:MM) — same idea. */
+  isoTime?: string | null;
   time: string;
   title: string;
   sub: string;
+  /** Original location/opponent fields for the edit modal. */
+  opponent?: string | null;
+  location?: string | null;
   emphasis?: boolean;
   href: string;
 }
 
 export function ScheduleView({ week: WEEK }: { week: ScheduleEvent[] }) {
   const [addOpen, setAddOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<EditEventTarget | null>(null);
   return (
     <>
+      {/* PHASE 2.2 — removed hardcoded "Lincoln HS" breadcrumb (it
+          showed up for real coaches whose program had a different
+          name). PHASE 5 — removed Bell + "Export week" coming-soon
+          buttons; both fired toasts with no real backing. Only the
+          "Add event" primary remains since it routes to the working
+          AddEventModal. */}
       <TopBar
-        breadcrumbs={[{ label: "Lincoln HS" }, { label: "Schedule" }]}
+        breadcrumbs={[{ label: "Schedule" }]}
         actions={[
-          { kind: "icon", icon: <Bell className="w-[15px] h-[15px]" />, onClick: () => comingSoon("Notifications") },
-          { kind: "ghost", label: "Export week", onClick: () => comingSoon("Export week", "iCal + PDF + parent-text digest — next sprint.") },
           { kind: "primary", label: "Add event", icon: <Plus className="w-[15px] h-[15px]" />, onClick: () => setAddOpen(true) },
         ]}
       />
@@ -48,34 +61,71 @@ export function ScheduleView({ week: WEEK }: { week: ScheduleEvent[] }) {
                 Games, practices, and tryouts · next 14 days
               </p>
             </div>
-            <div className="flex gap-2">
-              <div className="flex bg-paper-deep p-1 rounded-sm">
-                <button className="px-3 py-1.5 bg-card text-ink rounded-xs shadow-card text-[12px] font-semibold">
-                  Week
-                </button>
-                <button className="px-3 py-1.5 text-ink-3 hover:text-ink rounded-xs text-[12px] font-semibold">
-                  Month
-                </button>
-                <button className="px-3 py-1.5 text-ink-3 hover:text-ink rounded-xs text-[12px] font-semibold">
-                  All
-                </button>
-              </div>
-            </div>
+            {/* PHASE 5 — removed the fake "Week / Month / All" view
+                toggle. None of those views existed; tapping any
+                button did nothing. */}
           </div>
 
-          <div className="bg-card border border-hair rounded-lg overflow-hidden">
-            {WEEK.map((e) => (
-              <EventRow key={e.id} event={e} />
-            ))}
-          </div>
+          {WEEK.length === 0 ? (
+            // PHASE 2.2 — true empty state (no Lincoln HS fallback).
+            <div className="bg-card border border-dashed border-hair rounded-lg p-10 text-center">
+              <CalendarDays className="w-9 h-9 text-ink-4 mx-auto mb-3" />
+              <h3 className="font-display text-[18px] font-semibold tracking-tight">
+                Nothing on the schedule yet
+              </h3>
+              <p className="text-[13px] text-ink-3 mt-2 max-w-[420px] mx-auto leading-relaxed">
+                Add your first game or practice. Once on the schedule, it
+                shows up here, on your Hub, and on every player&apos;s /me
+                page automatically.
+              </p>
+              <button
+                onClick={() => setAddOpen(true)}
+                className="mt-4 inline-flex items-center gap-2 px-4 h-10 bg-red text-white rounded-full text-[13.5px] font-bold shadow-[0_4px_14px_-4px_rgba(200,58,58,0.55)] active:scale-[0.96] transition-transform"
+              >
+                <Plus className="w-4 h-4" strokeWidth={2.5} />
+                Add to schedule
+              </button>
+            </div>
+          ) : (
+            <div className="bg-card border border-hair rounded-lg overflow-hidden">
+              {WEEK.map((e) => (
+                <EventRow
+                  key={e.id}
+                  event={e}
+                  onEdit={() =>
+                    setEditTarget({
+                      id: e.id,
+                      kind: e.kind,
+                      title: e.title,
+                      isoDate: e.isoDate ?? null,
+                      isoTime: e.isoTime ?? null,
+                      opponent: e.opponent ?? null,
+                      location: e.location ?? null,
+                    })
+                  }
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
       <AddEventModal open={addOpen} onOpenChange={setAddOpen} />
+      <EditEventModal
+        target={editTarget}
+        open={editTarget !== null}
+        onOpenChange={(o) => !o && setEditTarget(null)}
+      />
     </>
   );
 }
 
-function EventRow({ event: e }: { event: ScheduleEvent }) {
+function EventRow({
+  event: e,
+  onEdit,
+}: {
+  event: ScheduleEvent;
+  onEdit: () => void;
+}) {
   const router = useRouter();
   const Icon = e.kind === "game" ? Swords : Dumbbell;
 
@@ -144,6 +194,11 @@ function EventRow({ event: e }: { event: ScheduleEvent }) {
       <div onClick={(ev) => ev.stopPropagation()}>
         <RowActions
           items={[
+            {
+              label: `Edit ${e.kind}`,
+              icon: <Pencil className="w-3.5 h-3.5" />,
+              onSelect: onEdit,
+            },
             {
               label: `Delete ${e.kind}`,
               icon: <Trash2 className="w-3.5 h-3.5" />,

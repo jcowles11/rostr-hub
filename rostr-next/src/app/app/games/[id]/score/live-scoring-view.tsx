@@ -4,6 +4,7 @@ import { useEffect, useMemo, useReducer, useRef, useState, useTransition } from 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import * as Dialog from "@radix-ui/react-dialog";
 import {
   ArrowLeft,
   Play,
@@ -333,20 +334,37 @@ export function LiveScoringView({
     }
   };
 
+  // PHASE 6 — SB/CS base picker state. When the runner population
+  // is ambiguous (>1 on base), we open this picker instead of the
+  // native window.prompt that the previous helper used. Mobile
+  // coaches got prompts that fought iOS Safari's keyboard; the
+  // dialog gives them three big base-buttons in a sheet.
+  const [sbCsPicker, setSbCsPicker] = useState<{
+    kind: "stolen_base" | "caught_stealing";
+    occupied: Array<1 | 2 | 3>;
+    defensiveIndifference: boolean;
+  } | null>(null);
+
   // ── Base runner state ────────────────────────────────────
-  // Derived from the most recent at_bat event's payload.runnersAfter.
-  // When inning flips (3 outs), bases reset — derived from outs_after
-  // on the latest event.
+  // PHASE 1.1 FIX — derive bases ONLY from the most recent at_bat
+  // event's payload.runnersAfter. The previous code short-circuited
+  // to EMPTY_BASES whenever currentOuts === 0, which incorrectly
+  // erased runners after a leadoff hit (outs still 0, but a runner
+  // is on first). The 3rd-out reset case is already handled inside
+  // the AB itself: when nextOuts >= 3 the client writes
+  // runnersAfter = EMPTY_BASES into the payload before insert, so
+  // reading from the AB's payload gives empty runners after a half
+  // flip without needing the outs-based guard.
+  //
+  // Inning_change events don't carry runnersAfter; they're skipped
+  // by the eventType filter so we always reach back to the last
+  // at_bat (which IS the 3rd-out AB after a half flip → empty).
   const currentBases = useMemo<Bases>(() => {
-    if (currentOuts === 0) {
-      // Inning just flipped (or game just started). Bases empty.
-      return EMPTY_BASES;
-    }
     const lastAtBat = [...events]
       .reverse()
       .find((e) => e.eventType === "at_bat");
     return basesFromPayload(lastAtBat?.payload ?? null);
-  }, [events, currentOuts]);
+  }, [events]);
 
   const toggleMode = () => {
     const next: ScoringMode = mode === "simple" ? "pitch_by_pitch" : "simple";
@@ -1238,7 +1256,15 @@ export function LiveScoringView({
                   isPending ||
                   (!currentBases[1] && !currentBases[2] && !currentBases[3])
                 }
-                onTap={() => promptSBOrCS("stolen_base", currentBases, recordMidGame)}
+                onTap={() =>
+                  resolveSBOrCS(
+                    "stolen_base",
+                    currentBases,
+                    recordMidGame,
+                    (kind, occupied) =>
+                      setSbCsPicker({ kind, occupied, defensiveIndifference: false }),
+                  )
+                }
               />
               <MidGameButton
                 label="DI"
@@ -1248,8 +1274,12 @@ export function LiveScoringView({
                   (!currentBases[1] && !currentBases[2] && !currentBases[3])
                 }
                 onTap={() =>
-                  promptSBOrCS("stolen_base", currentBases, (kind, base) =>
-                    recordMidGame(kind, base, true),
+                  resolveSBOrCS(
+                    "stolen_base",
+                    currentBases,
+                    (kind, base) => recordMidGame(kind, base, true),
+                    (kind, occupied) =>
+                      setSbCsPicker({ kind, occupied, defensiveIndifference: true }),
                   )
                 }
               />
@@ -1260,7 +1290,15 @@ export function LiveScoringView({
                   isPending ||
                   (!currentBases[1] && !currentBases[2] && !currentBases[3])
                 }
-                onTap={() => promptSBOrCS("caught_stealing", currentBases, recordMidGame)}
+                onTap={() =>
+                  resolveSBOrCS(
+                    "caught_stealing",
+                    currentBases,
+                    recordMidGame,
+                    (kind, occupied) =>
+                      setSbCsPicker({ kind, occupied, defensiveIndifference: false }),
+                  )
+                }
               />
               <MidGameButton
                 label="WP"
@@ -1444,14 +1482,27 @@ export function LiveScoringView({
                   // the rollback before realtime catches up. Realtime
                   // doesn't broadcast DELETEs on this channel, so this
                   // also patches the long-term display until refresh.
+                  // PHASE 1.2 — also remove any inning_change events
+                  // sequenced after the undone AB (paired half-flip).
+                  // The server action deletes them too; we mirror that
+                  // here so the client view reverts to the correct
+                  // (inning, half, outs, bases) without a refresh.
                   setEvents((prev) =>
-                    prev.filter(
-                      (e) =>
-                        !(
-                          e.eventType === "at_bat" &&
-                          e.sequence === lastAtBat.sequence
-                        ),
-                    ),
+                    prev.filter((e) => {
+                      if (
+                        e.eventType === "at_bat" &&
+                        e.sequence === lastAtBat.sequence
+                      ) {
+                        return false;
+                      }
+                      if (
+                        e.eventType === "inning_change" &&
+                        e.sequence > lastAtBat.sequence
+                      ) {
+                        return false;
+                      }
+                      return true;
+                    }),
                   );
                   // Batter index auto-rolls back: derived from the
                   // event log, and we just removed the last at-bat
@@ -1491,7 +1542,103 @@ export function LiveScoringView({
           setSubModalOpen(false);
         }}
       />
+      {/* PHASE 6 — SB/CS picker dialog. Replaces the legacy
+          window.prompt with three big tap targets in a Radix Dialog
+          that respects safe-area-insets and stays out of iOS Safari's
+          way. Only renders when the coach taps SB / DI / CS with
+          multiple runners on base. */}
+      <SbCsPicker
+        state={sbCsPicker}
+        onClose={() => setSbCsPicker(null)}
+        onPick={(kind, base, di) => {
+          setSbCsPicker(null);
+          recordMidGame(kind, base, di);
+        }}
+      />
     </div>
+  );
+}
+
+/**
+ * SbCsPicker — small dialog asking which base the runner came from.
+ * Shows one big tap-target per occupied base (1B / 2B / 3B). Tapping
+ * fires `onPick` with the base + the picker's kind (SB or CS) +
+ * defensiveIndifference flag (set when the SB button was tapped via DI).
+ */
+function SbCsPicker({
+  state,
+  onClose,
+  onPick,
+}: {
+  state: {
+    kind: "stolen_base" | "caught_stealing";
+    occupied: Array<1 | 2 | 3>;
+    defensiveIndifference: boolean;
+  } | null;
+  onClose: () => void;
+  onPick: (
+    kind: "stolen_base" | "caught_stealing",
+    base: 1 | 2 | 3,
+    defensiveIndifference: boolean,
+  ) => void;
+}) {
+  const verb = state?.kind === "stolen_base" ? "stolen" : "caught";
+  const title = state?.defensiveIndifference
+    ? "Defensive indifference"
+    : state?.kind === "stolen_base"
+      ? "Stolen base"
+      : "Caught stealing";
+  return (
+    <Dialog.Root open={state !== null} onOpenChange={(o) => !o && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[95] data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        <Dialog.Content
+          className={cn(
+            "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[96]",
+            "w-[88vw] max-w-[360px] bg-card rounded-2xl shadow-modal border border-hair p-5",
+          )}
+        >
+          <Dialog.Title className="font-display text-[17px] font-bold tracking-tight text-ink">
+            {title}
+          </Dialog.Title>
+          <Dialog.Description className="text-[12.5px] text-ink-3 mt-1">
+            Which base is the runner {verb} from?
+          </Dialog.Description>
+          <div className="grid grid-cols-3 gap-2 mt-4">
+            {([1, 2, 3] as const).map((b) => {
+              const enabled = state?.occupied.includes(b);
+              return (
+                <button
+                  key={b}
+                  type="button"
+                  disabled={!enabled}
+                  onClick={() =>
+                    state &&
+                    onPick(state.kind, b, state.defensiveIndifference)
+                  }
+                  className={cn(
+                    "h-16 rounded-xl font-display text-[20px] font-bold tracking-tight",
+                    "transition-transform duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.94]",
+                    enabled
+                      ? "bg-ink text-white shadow-[0_4px_14px_-4px_rgba(0,0,0,0.4)]"
+                      : "bg-paper-deep text-ink-4 opacity-50",
+                  )}
+                >
+                  {b === 1 ? "1B" : b === 2 ? "2B" : "3B"}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-3 w-full h-10 rounded-full bg-paper-deep text-ink-2 text-[13px] font-semibold active:scale-[0.97] transition-transform"
+          >
+            Cancel
+          </button>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -1685,15 +1832,22 @@ function MidGameButton({
 }
 
 /**
- * promptSBOrCS — quick window.prompt to ask which base. Acceptable
- * UX for pilot scale; a real picker modal would be a follow-up.
- *
- * Accepts "1", "2", or "3" — anything else cancels.
+ * PHASE 6 — promptSBOrCS now resolves a base choice WITHOUT calling
+ * the native browser prompt (terrible UX on mobile, especially when
+ * the keyboard pops to type a digit). If ≤1 runner is on, fires
+ * immediately. If multiple, the caller is expected to open a picker
+ * UI and call `onPick` from there. We keep the helper so the existing
+ * call sites stay terse — but multi-runner cases now open the
+ * SbCsPicker dialog rendered at the bottom of the view.
  */
-function promptSBOrCS(
+function resolveSBOrCS(
   kind: "stolen_base" | "caught_stealing",
   bases: Bases,
   onPick: (kind: "stolen_base" | "caught_stealing", from: 1 | 2 | 3) => void,
+  onNeedPicker: (
+    kind: "stolen_base" | "caught_stealing",
+    occupied: Array<1 | 2 | 3>,
+  ) => void,
 ) {
   const occupied: Array<1 | 2 | 3> = [];
   if (bases[1]) occupied.push(1);
@@ -1704,16 +1858,7 @@ function promptSBOrCS(
     onPick(kind, occupied[0]);
     return;
   }
-  const verb = kind === "stolen_base" ? "stolen" : "caught";
-  const raw = window.prompt(
-    `Which base is the runner ${verb} from? (${occupied.join(", ")})`,
-    String(occupied[0]),
-  );
-  if (!raw) return;
-  const n = parseInt(raw, 10);
-  if (n !== 1 && n !== 2 && n !== 3) return;
-  if (!bases[n as 1 | 2 | 3]) return;
-  onPick(kind, n as 1 | 2 | 3);
+  onNeedPicker(kind, occupied);
 }
 
 /**

@@ -797,12 +797,35 @@ export async function undoLastAtBatAction(
     if (p) playerName = `${p.first_name} ${p.last_name}`.trim();
   }
 
-  // 2. Delete it.
+  // 2. Delete the at-bat itself.
   const { error: delErr } = await supabase
     .from("game_events")
     .delete()
     .eq("id", latest.id);
   if (delErr) return { error: delErr.message };
+
+  // 2b. PHASE 1.2 FIX — if this AB triggered an inning_change (the
+  // 3rd-out AB persists a paired inning_change event right after it
+  // with sequence + 1), delete the orphaned inning_change too. Without
+  // this, undo would leave a dangling half-flip event whose
+  // (inning, top_bottom) became the derived state — putting the game
+  // in a half it shouldn't be in.
+  //
+  // Match by sequence > deleted.sequence, same side, event_type =
+  // inning_change, and no other at_bat between them. We delete by
+  // sequence-ordered window so a benign concurrent insert can't
+  // accidentally be removed.
+  await supabase
+    .from("game_events")
+    .delete()
+    .eq("game_id", gameId)
+    .eq("logged_by_side", "home")
+    .eq("event_type", "inning_change")
+    .gt("sequence", latest.sequence);
+  // Note: in current single-scorekeeper flow there's only ever a
+  // single inning_change between the 3rd-out AB and any later events.
+  // The wider sequence range is a safety net — multi-scorer scenarios
+  // would need a transactional RPC.
 
   // 3. Re-sync the games row from the prior at-bat (or zeros).
   const { data: prior } = await supabase
