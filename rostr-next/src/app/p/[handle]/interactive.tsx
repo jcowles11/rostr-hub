@@ -62,7 +62,11 @@ export function PlayerProfileTabs({ tabs }: { tabs: PlayerProfileTab[] }) {
   if (tabs.length === 0) return null;
 
   return (
-    <div className="flex gap-1 border-b border-hair mt-8 overflow-x-auto">
+    /* Horizontal scroll on mobile if tabs overflow. iOS Safari momentum
+       scroll already covers the gesture; we just need overflow-x-auto.
+       Tighter padding on mobile so 6+ tabs fit closer to the visible
+       row width on a 360px iPhone. */
+    <div className="flex gap-1 border-b border-hair mt-5 sm:mt-8 overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 no-scrollbar">
       {tabs.map((t) => {
         const isActive = t.anchor === active;
         return (
@@ -78,7 +82,7 @@ export function PlayerProfileTabs({ tabs }: { tabs: PlayerProfileTab[] }) {
               }
             }}
             className={cn(
-              "px-[18px] py-3.5 text-[13.5px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors",
+              "px-3 sm:px-[18px] py-3 sm:py-3.5 text-[13px] sm:text-[13.5px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors active:scale-[0.97]",
               isActive
                 ? "text-ink border-red"
                 : "text-ink-3 border-transparent hover:text-ink",
@@ -119,10 +123,15 @@ export function PlayerProfileActions({
   };
 
   return (
-    <div className="flex gap-2 pt-16 shrink-0">
+    /* On mobile (parent renders us as a row below the identity), the
+       button group is full-width with grid-3 so the three buttons
+       split the row evenly. On sm+, parent renders us inline next
+       to the identity and we revert to the original auto-width row. */
+    <div className="grid grid-cols-3 gap-2 sm:flex sm:gap-2 sm:pt-16 sm:shrink-0">
       <Button
         variant={following ? "primary" : "secondary"}
         size="lg"
+        className="w-full sm:w-auto"
         onClick={() => {
           setFollowing((v) => !v);
           toast.success(following ? `Unfollowed ${name}` : `Following ${name}`);
@@ -130,7 +139,7 @@ export function PlayerProfileActions({
       >
         {following ? (
           <>
-            <Check className="w-[15px] h-[15px]" /> Following
+            <Check className="w-[15px] h-[15px]" /> <span className="hidden sm:inline">Following</span><span className="sm:hidden">Following</span>
           </>
         ) : (
           <>
@@ -141,12 +150,15 @@ export function PlayerProfileActions({
       <Button
         variant="secondary"
         size="lg"
+        className="w-full sm:w-auto"
         onClick={() => comingSoon("Message", "Recruiter-routed messaging wires up with NCAA compliance next.")}
       >
         <MessageSquare className="w-[15px] h-[15px]" /> Message
       </Button>
-      <Button variant="primary" size="lg" onClick={copyLink}>
-        <Share2 className="w-[15px] h-[15px]" /> Share profile
+      <Button variant="primary" size="lg" className="w-full sm:w-auto" onClick={copyLink}>
+        <Share2 className="w-[15px] h-[15px]" />{" "}
+        <span className="hidden sm:inline">Share profile</span>
+        <span className="sm:hidden">Share</span>
       </Button>
     </div>
   );
