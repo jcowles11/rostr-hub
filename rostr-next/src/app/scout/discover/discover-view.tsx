@@ -11,7 +11,7 @@ import {
   Filter,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PlayerSearchResult } from "@/lib/services/recruiter";
+import type { RankedPlayer } from "@/lib/services/scout-signal";
 import { Avatar } from "@/components/atoms/avatar";
 
 /**
@@ -57,7 +57,7 @@ export function ScoutDiscoverView({
 }: {
   recruiterName: string;
   initialFilters: DiscoverFilters;
-  players: PlayerSearchResult[];
+  players: RankedPlayer[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -260,13 +260,24 @@ export function ScoutDiscoverView({
 
       {/* Result grid */}
       <div className="max-w-[960px] mx-auto px-4 sm:px-6 py-5 pb-20">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 gap-2">
           <div className="text-[12.5px] text-ink-3">
-            {pending ? "Searching…" : `${players.length} ${players.length === 1 ? "player" : "players"}`}
+            {pending
+              ? "Searching…"
+              : `${players.length} ${players.length === 1 ? "player" : "players"}`}
           </div>
+          {!pending && players.length > 0 && (
+            <div className="text-[10.5px] font-mono uppercase tracking-[0.06em] text-ink-3">
+              Sorted by verified signal
+            </div>
+          )}
         </div>
         {players.length === 0 ? (
-          <EmptyState hasFilters={hasAnyFilter} onClear={clearAll} />
+          <EmptyState
+            hasFilters={hasAnyFilter}
+            verifiedOnly={draft.verifiedOnly}
+            onClear={clearAll}
+          />
         ) : (
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {players.map((p) => (
@@ -283,27 +294,17 @@ export function ScoutDiscoverView({
 
 // ── Subcomponents ────────────────────────────────────────────────
 
-function PlayerCard({ player }: { player: PlayerSearchResult }) {
+function PlayerCard({ player }: { player: RankedPlayer }) {
   const fullName = `${player.firstName} ${player.lastName}`.trim();
   const initials =
     `${player.firstName[0] ?? "?"}${player.lastName[0] ?? "?"}`.toUpperCase();
   const classYear = player.grade ? classYearForGrade(player.grade) : null;
   const positions = player.positions.join("/");
 
-  // "Has verified data" — same definition as the server-side filter.
-  // Players with at least one tryout measurable get a small Verified
-  // chip on the card so a scout scanning the grid can see it instantly.
-  const hasVerified = Boolean(
-    player.best60yd != null ||
-      player.bestEV != null ||
-      player.bestVelo != null ||
-      player.bestField != null ||
-      player.bestBP != null,
-  );
-
-  // Primary "key stat" preview: pick the most-impressive populated
-  // verified measurable, then fall back to BA / IP. Keeps the card
-  // single-line at the bottom.
+  // Total verified data points across all sources — drives the
+  // "N Verified Data Points" chip per the brief. Zero counts get
+  // no chip (clean card; recruiter sees nothing rather than "0 verified").
+  const totalVerified = player.signal.totalVerifiedCount;
   const keyStat = pickKeyStat(player);
 
   return (
@@ -322,13 +323,13 @@ function PlayerCard({ player }: { player: PlayerSearchResult }) {
             <div className="font-display text-[14.5px] font-semibold tracking-tight truncate">
               {fullName}
             </div>
-            {hasVerified && (
+            {totalVerified > 0 && (
               <span
-                title="Has verified measurables"
+                title={signalTooltip(player)}
                 className="inline-flex items-center gap-0.5 rounded-full font-bold uppercase tracking-[0.06em] bg-grass-dim text-grass border border-grass/20 px-1.5 py-0 text-[9.5px]"
               >
                 <ShieldCheck className="w-2.5 h-2.5" strokeWidth={2.5} />
-                Verified
+                {totalVerified} Verified
               </span>
             )}
           </div>
@@ -341,6 +342,15 @@ function PlayerCard({ player }: { player: PlayerSearchResult }) {
               {keyStat}
             </div>
           )}
+          {/* Signal subline: "5 Verified Data Points · Updated 4d ago" */}
+          {totalVerified > 0 && (
+            <div className="mt-1 text-[10.5px] text-ink-3 leading-snug">
+              {totalVerified} Verified Data Point{totalVerified === 1 ? "" : "s"}
+              {player.signal.latestSignalAt && (
+                <> · Updated {humanRecency(player.signal.latestSignalAt)}</>
+              )}
+            </div>
+          )}
         </div>
         <ChevronRight className="w-4 h-4 text-ink-3 shrink-0 mt-0.5" />
       </div>
@@ -348,32 +358,99 @@ function PlayerCard({ player }: { player: PlayerSearchResult }) {
   );
 }
 
+/**
+ * Build a hover tooltip that breaks the verified count down by source.
+ * Helps a scout understand at a glance where the data is coming from.
+ */
+function signalTooltip(p: RankedPlayer): string {
+  const parts: string[] = [];
+  if (p.signal.verifiedHighlightsCount > 0) {
+    parts.push(
+      `${p.signal.verifiedHighlightsCount} verified clip${p.signal.verifiedHighlightsCount === 1 ? "" : "s"}`,
+    );
+  }
+  if (p.signal.verifiedPriorStatsCount > 0) {
+    parts.push(
+      `${p.signal.verifiedPriorStatsCount} verified prior season${p.signal.verifiedPriorStatsCount === 1 ? "" : "s"}`,
+    );
+  }
+  if (p.signal.verifiedMeasurablesCount > 0) {
+    parts.push(
+      `${p.signal.verifiedMeasurablesCount} measurable${p.signal.verifiedMeasurablesCount === 1 ? "" : "s"}`,
+    );
+  }
+  return parts.length > 0 ? parts.join(" · ") : "Coach-vouched data";
+}
+
+/**
+ * Human-readable recency: "today", "4d ago", "3w ago", "2mo ago".
+ * Stays short so the card subline reads clean.
+ */
+function humanRecency(iso: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "recently";
+  const days = Math.floor((Date.now() - t) / (1000 * 60 * 60 * 24));
+  if (days < 1) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days}d ago`;
+  if (days < 30) return `${Math.floor(days / 7)}w ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
+}
+
 function EmptyState({
   hasFilters,
+  verifiedOnly,
   onClear,
 }: {
   hasFilters: boolean;
+  verifiedOnly: boolean;
   onClear: () => void;
 }) {
+  // Three distinct states: no filters at all, filters-but-no-matches,
+  // and verified-only-with-no-matches. Each gets tailored guidance so
+  // the scout knows what to try next instead of staring at "no results".
+  if (!hasFilters) {
+    return (
+      <div className="bg-card border border-dashed border-hair rounded-2xl p-10 text-center">
+        <h3 className="font-display text-[16px] font-semibold tracking-tight">
+          Start searching
+        </h3>
+        <p className="text-[12.5px] text-ink-3 mt-2 max-w-[400px] mx-auto leading-relaxed">
+          Search by name or position, or tap a class-year pill above. Only
+          players who&apos;ve opted into a public profile appear here. Verified
+          data points are coach-vouched.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="bg-card border border-dashed border-hair rounded-2xl p-10 text-center">
       <h3 className="font-display text-[16px] font-semibold tracking-tight">
-        {hasFilters ? "No matches" : "Start searching"}
+        No matches
       </h3>
-      <p className="text-[12.5px] text-ink-3 mt-2 max-w-[360px] mx-auto leading-relaxed">
-        {hasFilters
-          ? "Try fewer filters or a broader search term. Only players with public profiles appear here."
-          : "Type a name above, or tap a filter to narrow down. Only players who've opted into a public profile are visible to scouts."}
+      <p className="text-[12.5px] text-ink-3 mt-2 max-w-[400px] mx-auto leading-relaxed">
+        {verifiedOnly ? (
+          <>
+            No public players match these filters{" "}
+            <span className="font-semibold">with coach-verified data</span>.
+            Try removing the Verified-only toggle, or broaden position / class
+            year.
+          </>
+        ) : (
+          <>
+            Try removing filters or broadening your search term. Only players
+            with public profiles are visible to scouts.
+          </>
+        )}
       </p>
-      {hasFilters && (
-        <button
-          type="button"
-          onClick={onClear}
-          className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-hair bg-paper px-3 py-1.5 text-[12.5px] font-medium text-ink-2 hover:text-ink hover:bg-paper-deep transition-colors"
-        >
-          Clear all filters
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={onClear}
+        className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-hair bg-paper px-3 py-1.5 text-[12.5px] font-medium text-ink-2 hover:text-ink hover:bg-paper-deep transition-colors"
+      >
+        Clear all filters
+      </button>
     </div>
   );
 }
@@ -387,7 +464,7 @@ function EmptyState({
  * Returns a formatted string like "Velo 88 mph", or null when nothing
  * worth surfacing is populated.
  */
-function pickKeyStat(p: PlayerSearchResult): string | null {
+function pickKeyStat(p: RankedPlayer): string | null {
   if (p.bestVelo != null) return `FB Velo ${p.bestVelo} mph`;
   if (p.bestEV != null) return `Exit Velo ${p.bestEV} mph`;
   if (p.best60yd != null) return `60yd ${p.best60yd.toFixed(2)}s`;

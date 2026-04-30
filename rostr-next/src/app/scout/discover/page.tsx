@@ -2,10 +2,9 @@ import { redirect } from "next/navigation";
 import { requireFlag } from "@/lib/feature-flags";
 import {
   getCurrentRecruiter,
-  searchPlayers,
   type SearchFilters,
-  type PlayerSearchResult,
 } from "@/lib/services/recruiter";
+import { searchPlayersForScout } from "@/lib/services/scout-signal";
 import { ScoutDiscoverView } from "./discover-view";
 
 /**
@@ -78,15 +77,18 @@ export default async function ScoutDiscoverPage({
   const verifiedOnly =
     searchParams.verified === "1" || searchParams.verified === "true";
 
-  // 4. Run the search. searchPlayers gates on profile_public=true.
-  const { players: rawPlayers } = await searchPlayers(filters);
-
-  // 5. Apply the verified-data-only filter on the server so the wire
-  //    payload is already pruned. "Has verified data" is currently
-  //    defined as any non-null measurable from the tryout system.
-  const players = verifiedOnly
-    ? rawPlayers.filter(hasAnyVerifiedSignal)
-    : rawPlayers;
+  // 4. Run the ranked search. searchPlayersForScout:
+  //    - reuses searchPlayers (profile_public=true gate)
+  //    - attaches per-player signal counts via player_scout_signal view
+  //    - drops zero-score players when verifiedOnly=true (improved
+  //      from v1's "has any tryout measurable" check — now keys on
+  //      computed signalScore which folds in highlights + prior stats
+  //      + measurables + recency)
+  //    - sorts by signalScore DESC, name ASC for stable secondary order
+  const { players } = await searchPlayersForScout({
+    ...filters,
+    verifiedOnly,
+  });
 
   return (
     <ScoutDiscoverView
@@ -111,26 +113,5 @@ function parseCSV(s: string | undefined): string[] | undefined {
     .map((x) => x.trim())
     .filter(Boolean);
   return arr.length === 0 ? undefined : arr;
-}
-
-/**
- * "Has any verified signal" — for v1, any populated tryout measurable
- * counts. The underlying tryout_scores table is coach-recorded so each
- * row is a verified data point.
- *
- * NOTE: this does NOT yet include verified highlight or verified prior-
- * stat counts (added by migrations 35 + 37). Those exist on per-player
- * fetches but the search view doesn't expose counts. A future iteration
- * can add `has_verified_clip` / `has_verified_prior_stat` to the
- * player_search view; for v1 the measurable signal is sufficient.
- */
-function hasAnyVerifiedSignal(p: PlayerSearchResult): boolean {
-  return Boolean(
-    p.best60yd != null ||
-      p.bestEV != null ||
-      p.bestVelo != null ||
-      p.bestField != null ||
-      p.bestBP != null,
-  );
 }
 
