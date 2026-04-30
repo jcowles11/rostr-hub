@@ -196,6 +196,17 @@ export function HubView({
                 <TodayHeroCard nextGame={nextGame} playerCount={playerCount} />
               </ScrollReveal>
 
+              {/* Mobile-only: AI Coach card lands right here, second
+                  thing in the page after the hero. On desktop the AI
+                  card lives in the sidebar (see SIDE COLUMN below) so
+                  we hide this copy at lg+. The most-used coach
+                  superpower deserves prime real estate on phones. */}
+              <div className="lg:hidden">
+                <ScrollReveal enabled={false}>
+                  <LiveAICoachCard mobileHero />
+                </ScrollReveal>
+              </div>
+
               {/* Stat row — honest counts derived from real program data. */}
               <ScrollReveal delayMs={40}>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
@@ -276,8 +287,13 @@ export function HubView({
 
             {/* SIDE COLUMN */}
             <div className="flex flex-col gap-[18px]">
+              {/* Desktop-only AI coach (mobile shows it inline above
+                  the stat tiles). hidden lg:block prevents two cards
+                  from rendering on phones. */}
               <ScrollReveal delayMs={60}>
-                <LiveAICoachCard />
+                <div className="hidden lg:block">
+                  <LiveAICoachCard />
+                </div>
               </ScrollReveal>
               <ScrollReveal delayMs={100}>
                 <QuickActionsPanel

@@ -108,6 +108,12 @@ const config: Config = {
           from: { transform: "translateY(100%)" },
           to: { transform: "translateY(0)" },
         },
+        sparkle: {
+          // Subtle "AI is alive" pulse — opacity + tiny scale wobble.
+          // Slow enough not to be distracting; fast enough to register.
+          "0%, 100%": { opacity: "1", transform: "scale(1)" },
+          "50%": { opacity: "0.55", transform: "scale(0.85)" },
+        },
         shimmer: {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
@@ -118,6 +124,7 @@ const config: Config = {
         "slide-in-right": "slide-in-right 250ms ease-out",
         "slide-in-left": "slide-in-left 220ms ease-out",
         "slide-up": "slide-up 240ms ease-out",
+        sparkle: "sparkle 2.4s infinite ease-in-out",
         shimmer: "shimmer 1.5s infinite linear",
       },
       maxWidth: {
