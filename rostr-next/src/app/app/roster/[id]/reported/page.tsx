@@ -14,6 +14,7 @@ import {
 } from "@/lib/services/player-profile";
 import { PlayerReportedBadge } from "@/components/atoms/data-source-badge";
 import { VerifyHighlightButton } from "./verify-highlight-button";
+import { VerifyPriorStatButton } from "./verify-prior-stat-button";
 
 /**
  * /app/roster/[id]/reported — coach-side read-only review of every
@@ -218,53 +219,12 @@ export default async function PlayerReportedReviewPage({
             </ReviewCard>
           )}
 
-        {/* Prior seasons */}
+        {/* Prior seasons — sectioned (unverified-first) with verify
+            controls per row. Rows without a stable id (legacy / error
+            paths) are listed without a Verify button so the coach
+            can't accidentally call the action on a missing identity. */}
         {priorRows.length > 0 && (
-          <ReviewCard
-            icon={<ListChecks className="w-4 h-4 text-amber" />}
-            title="Prior seasons"
-          >
-            {priorRows.map((row, i) => {
-              const battingBits: string[] = [];
-              if (row.ba) battingBits.push(`${row.ba} BA`);
-              if (row.ops) battingBits.push(`${row.ops} OPS`);
-              if (row.hr) battingBits.push(`${row.hr} HR`);
-              if (row.rbi) battingBits.push(`${row.rbi} RBI`);
-              return (
-                <div
-                  key={i}
-                  className="px-4 py-3 border-b border-hair-2 last:border-b-0"
-                >
-                  <div className="flex items-baseline justify-between gap-2 flex-wrap">
-                    <div className="font-display text-[13.5px] font-semibold">
-                      {row.season}
-                    </div>
-                    {row.level && (
-                      <span className="text-[11.5px] text-ink-3">{row.level}</span>
-                    )}
-                  </div>
-                  {battingBits.length > 0 && (
-                    <div className="mt-1 text-[12px] text-ink-2 font-mono tabular-nums">
-                      {battingBits.join(" · ")}
-                    </div>
-                  )}
-                  {row.pitching && (
-                    <div className="mt-1 text-[12px] text-ink-2">
-                      <span className="text-ink-3 font-mono text-[10.5px] uppercase tracking-[0.06em] mr-1.5">
-                        Pitching
-                      </span>
-                      {row.pitching}
-                    </div>
-                  )}
-                  {row.context && (
-                    <div className="mt-1 text-[11.5px] text-ink-3 italic">
-                      {row.context}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </ReviewCard>
+          <PriorSeasonsReviewCard playerId={player.id} rows={priorRows} />
         )}
 
         {/* Contact info */}
@@ -475,4 +435,179 @@ type PlayerHighlightForReview = {
   verifiedByCoach: boolean;
   verifiedByName: string | null;
   verifiedAt: string | null;
+};
+
+/**
+ * PriorSeasonsReviewCard — coach-facing list of player-reported prior
+ * seasons. Mirrors HighlightsReviewCard's bucketing pattern: needs-
+ * review section first, verified section below, header chips with
+ * counts.
+ */
+function PriorSeasonsReviewCard({
+  playerId,
+  rows,
+}: {
+  playerId: string;
+  rows: PriorStatForReview[];
+}) {
+  const unverified = rows.filter((r) => !r.verifiedByCoach);
+  const verified = rows.filter((r) => r.verifiedByCoach);
+
+  return (
+    <section className="bg-card border border-hair rounded-2xl mb-4 overflow-hidden">
+      <header className="px-4 py-3 border-b border-hair-2 flex items-center gap-2 flex-wrap">
+        <ListChecks className="w-4 h-4 text-amber" />
+        <h2 className="font-display text-[14px] font-bold tracking-tight">
+          Prior seasons
+        </h2>
+        <span className="ml-auto flex items-center gap-1.5">
+          {unverified.length > 0 && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full font-bold uppercase tracking-[0.06em] bg-amber-soft text-amber border border-amber/25 px-2 py-0.5 text-[10px]"
+              title={`${unverified.length} row${unverified.length === 1 ? "" : "s"} waiting for coach review`}
+            >
+              {unverified.length} to review
+            </span>
+          )}
+          {verified.length > 0 && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full font-bold uppercase tracking-[0.06em] bg-grass-dim text-grass border border-grass/20 px-2 py-0.5 text-[10px]"
+              title={`${verified.length} row${verified.length === 1 ? "" : "s"} verified`}
+            >
+              {verified.length} verified
+            </span>
+          )}
+        </span>
+      </header>
+
+      {unverified.length > 0 && (
+        <>
+          <div className="px-4 py-2 bg-amber-soft/40 border-b border-hair-2 text-[10.5px] font-bold uppercase tracking-[0.06em] text-amber">
+            Needs review · {unverified.length}
+          </div>
+          {unverified.map((row, i) => (
+            <PriorStatRow
+              key={row.id ?? `u-${i}`}
+              playerId={playerId}
+              row={row}
+            />
+          ))}
+        </>
+      )}
+
+      {verified.length > 0 && (
+        <>
+          <div className="px-4 py-2 bg-grass-dim/40 border-b border-hair-2 text-[10.5px] font-bold uppercase tracking-[0.06em] text-grass">
+            Verified · {verified.length}
+          </div>
+          {verified.map((row, i) => (
+            <PriorStatRow
+              key={row.id ?? `v-${i}`}
+              playerId={playerId}
+              row={row}
+            />
+          ))}
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Single prior-season row within the review card. Carries the
+ * verify/unverify pill at the right edge — only when the row has a
+ * stable id (legacy rows without ids show a muted "no id" indicator
+ * so the coach knows why the button is missing).
+ */
+function PriorStatRow({
+  playerId,
+  row,
+}: {
+  playerId: string;
+  row: PriorStatForReview;
+}) {
+  const battingBits: string[] = [];
+  if (row.ba) battingBits.push(`${row.ba} BA`);
+  if (row.ops) battingBits.push(`${row.ops} OPS`);
+  if (row.hr) battingBits.push(`${row.hr} HR`);
+  if (row.rbi) battingBits.push(`${row.rbi} RBI`);
+  const seasonLabel = [row.season, row.level].filter(Boolean).join(" · ");
+  return (
+    <div className="px-4 py-3 border-b border-hair-2 last:border-b-0">
+      <div className="flex items-start justify-between gap-2 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <div className="font-display text-[13.5px] font-semibold">
+              {row.season || "Untitled season"}
+            </div>
+            {row.level && (
+              <span className="text-[11.5px] text-ink-3">{row.level}</span>
+            )}
+            {!row.verifiedByCoach && <PlayerReportedBadge size="sm" />}
+          </div>
+        </div>
+        <span className="shrink-0">
+          {row.id ? (
+            <VerifyPriorStatButton
+              playerId={playerId}
+              priorStatId={row.id}
+              seasonLabel={seasonLabel}
+              alreadyVerified={Boolean(row.verifiedByCoach)}
+              verifiedByName={row.verifiedByName}
+              verifiedAt={row.verifiedAt}
+            />
+          ) : (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-paper-deep border border-hair text-ink-3 px-2 py-0.5 text-[10px] font-mono"
+              title="Row missing stable id — re-save to enable verification"
+            >
+              no id
+            </span>
+          )}
+        </span>
+      </div>
+      {battingBits.length > 0 && (
+        <div className="mt-1 text-[12px] text-ink-2 font-mono tabular-nums">
+          {battingBits.join(" · ")}
+        </div>
+      )}
+      {row.pitching && (
+        <div className="mt-1 text-[12px] text-ink-2">
+          <span className="text-ink-3 font-mono text-[10.5px] uppercase tracking-[0.06em] mr-1.5">
+            Pitching
+          </span>
+          {row.pitching}
+        </div>
+      )}
+      {row.context && (
+        <div className="mt-1 text-[11.5px] text-ink-3 italic">
+          {row.context}
+        </div>
+      )}
+      {row.verifiedByCoach && (row.verifiedByName || row.verifiedAt) && (
+        <div className="mt-1 text-[10.5px] text-grass/90 font-medium">
+          {row.verifiedByName
+            ? `Verified by ${row.verifiedByName}`
+            : "Coach-verified"}
+          {row.verifiedAt &&
+            ` · ${new Date(row.verifiedAt).toLocaleDateString()}`}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type PriorStatForReview = {
+  id?: string;
+  season: string;
+  level: string | null;
+  ba: string | null;
+  ops: string | null;
+  hr: string | null;
+  rbi: string | null;
+  pitching: string | null;
+  context: string | null;
+  verifiedByCoach?: boolean;
+  verifiedByName?: string | null;
+  verifiedAt?: string | null;
 };

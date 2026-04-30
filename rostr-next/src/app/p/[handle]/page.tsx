@@ -2096,6 +2096,14 @@ function RealHighlightsCard({
  * row doesn't waste vertical space on missing values.
  */
 function PriorSeasonsCard({ rows }: { rows: PlayerPriorStat[] }) {
+  // Migration 37 added per-row verification. The card-level header
+  // badge now reflects the WHOLE card's state: if every row is
+  // verified, badge the header Verified; if mixed, show "Mixed";
+  // if all unverified, the original Player Reported. Per-row badges
+  // give the recruiter the unambiguous read.
+  const verifiedCount = rows.filter((r) => r.verifiedByCoach).length;
+  const allVerified = verifiedCount === rows.length && rows.length > 0;
+  const someVerified = verifiedCount > 0 && !allVerified;
   return (
     <div className="bg-card border border-hair rounded-lg overflow-hidden">
       <div className="px-5 py-4 border-b border-hair-2 flex items-center gap-2 flex-wrap">
@@ -2104,7 +2112,18 @@ function PriorSeasonsCard({ rows }: { rows: PlayerPriorStat[] }) {
           Prior seasons
         </h3>
         <span className="ml-auto">
-          <PlayerReportedBadge size="sm" />
+          {allVerified ? (
+            <VerifiedBadge size="sm" source="Coach Verified" />
+          ) : someVerified ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full font-bold uppercase tracking-[0.06em] bg-amber-soft text-amber border border-amber/25 px-2 py-0.5 text-[10.5px]"
+              title={`${verifiedCount} of ${rows.length} rows coach-verified`}
+            >
+              {verifiedCount}/{rows.length} verified
+            </span>
+          ) : (
+            <PlayerReportedBadge size="sm" />
+          )}
         </span>
       </div>
       <div>
@@ -2115,19 +2134,33 @@ function PriorSeasonsCard({ rows }: { rows: PlayerPriorStat[] }) {
           if (row.ops) battingBits.push(`${row.ops} OPS`);
           if (row.hr) battingBits.push(`${row.hr} HR`);
           if (row.rbi) battingBits.push(`${row.rbi} RBI`);
+          const verified = Boolean(row.verifiedByCoach);
           return (
             <div
-              key={i}
-              className="px-5 py-3.5 border-b border-hair-2 last:border-b-0"
+              key={row.id ?? i}
+              className={cn(
+                "px-5 py-3.5 border-b border-hair-2 last:border-b-0",
+                verified && "bg-grass-dim/15",
+              )}
             >
               <div className="flex items-baseline justify-between gap-2 flex-wrap">
-                <div className="font-display text-[14px] font-semibold tracking-tight">
-                  {row.season}
+                <div className="flex items-baseline gap-2 flex-wrap min-w-0">
+                  <div className="font-display text-[14px] font-semibold tracking-tight">
+                    {row.season}
+                  </div>
+                  {row.level && (
+                    <span className="text-[11.5px] text-ink-3 font-medium">
+                      {row.level}
+                    </span>
+                  )}
                 </div>
-                {row.level && (
-                  <span className="text-[11.5px] text-ink-3 font-medium">
-                    {row.level}
-                  </span>
+                {verified ? (
+                  <VerifiedBadge
+                    size="sm"
+                    source={row.verifiedByName ?? "Coach Verified"}
+                  />
+                ) : (
+                  <PlayerReportedBadge size="sm" />
                 )}
               </div>
               {battingBits.length > 0 && (
@@ -2153,7 +2186,11 @@ function PriorSeasonsCard({ rows }: { rows: PlayerPriorStat[] }) {
         })}
       </div>
       <div className="px-5 py-2.5 bg-paper-deep border-t border-hair-2 text-[10.5px] text-ink-3 leading-snug">
-        Reported by the player. Not independently verified.
+        {allVerified
+          ? "Each row reviewed and vouched for by a coach in the program."
+          : someVerified
+            ? "Verified rows reviewed by a coach. Player-reported rows are self-typed."
+            : "Reported by the player. Not independently verified."}
       </div>
     </div>
   );

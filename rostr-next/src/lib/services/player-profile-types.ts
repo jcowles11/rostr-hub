@@ -55,6 +55,15 @@ export interface PlayerPrivacy {
  * column on `players`.
  */
 export interface PlayerPriorStat {
+  /**
+   * Stable per-row id (uuid string). Backfilled by migration 37 on
+   * existing rows; new rows get one server-side via crypto.randomUUID().
+   * Used by verify/unverify actions to identify which row to mutate.
+   * Optional in the type because the editor's blank-row helper builds
+   * rows without an id — the merge in updatePriorStatsAction generates
+   * one before persisting.
+   */
+  id?: string;
   /** Free-form season label, e.g. "2024" or "Sophomore". */
   season: string;
   /** Free-form team / level, e.g. "JV", "Varsity", "Travel". */
@@ -68,6 +77,24 @@ export interface PlayerPriorStat {
   pitching: string | null;
   /** Free-form notes (league rank, awards, etc.). */
   context: string | null;
+  /**
+   * Coach-verified signal (migration 37). Defaults false on every row,
+   * including pre-migration rows missing the field. Once true, the
+   * player editor disables the row and the public profile shows the
+   * Verified atom; the trigger in migration 37 enforces immutability
+   * at the DB layer.
+   */
+  verifiedByCoach?: boolean;
+  /** auth.users.id of the verifying coach. Null when unverified. */
+  verifiedBy?: string | null;
+  /** ISO timestamp of the most recent verification. Null when unverified. */
+  verifiedAt?: string | null;
+  /**
+   * Resolved coach.full_name for display next to the Verified badge.
+   * Resolved at fetch time via the same coaches lookup highlights use.
+   * Null when unverified or when the verifying coach can't be found.
+   */
+  verifiedByName?: string | null;
 }
 
 export interface PlayerHighlight {

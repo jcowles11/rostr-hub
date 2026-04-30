@@ -914,9 +914,87 @@ export function ProfileEditor({
                   No prior seasons yet. Tap below to add one.
                 </li>
               )}
-              {priorStats.map((row, i) => (
+              {priorStats.map((row, i) => {
+                const locked = Boolean(row.verifiedByCoach);
+                if (locked) {
+                  // Verified rows render as a read-only summary card with
+                  // a Verified pill + "Verified by <coach>" hint. The X
+                  // remove button is replaced with a non-interactive Lock
+                  // icon — same pattern as verified highlights.
+                  const battingBits: string[] = [];
+                  if (row.ba) battingBits.push(`${row.ba} BA`);
+                  if (row.ops) battingBits.push(`${row.ops} OPS`);
+                  if (row.hr) battingBits.push(`${row.hr} HR`);
+                  if (row.rbi) battingBits.push(`${row.rbi} RBI`);
+                  return (
+                    <li
+                      key={row.id ?? i}
+                      className="rounded-xl border border-grass/30 bg-grass-dim/30 p-3 sm:p-4 space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-display text-[13.5px] font-semibold tracking-tight">
+                              {row.season || "Untitled season"}
+                            </span>
+                            {row.level && (
+                              <span className="text-[11.5px] text-ink-3">
+                                {row.level}
+                              </span>
+                            )}
+                            <span className="inline-flex items-center gap-0.5 rounded-full font-bold uppercase tracking-[0.06em] bg-grass-dim text-grass border border-grass/20 px-1.5 py-0 text-[9.5px]">
+                              <ShieldCheck
+                                className="w-2.5 h-2.5"
+                                strokeWidth={2.5}
+                              />
+                              Verified
+                            </span>
+                          </div>
+                          {battingBits.length > 0 && (
+                            <div className="mt-1 text-[12px] text-ink-2 font-mono tabular-nums">
+                              {battingBits.join(" · ")}
+                            </div>
+                          )}
+                          {row.pitching && (
+                            <div className="mt-1 text-[12px] text-ink-2">
+                              <span className="text-ink-3 font-mono text-[10px] uppercase tracking-[0.06em] mr-1.5">
+                                Pitching
+                              </span>
+                              {row.pitching}
+                            </div>
+                          )}
+                          {row.context && (
+                            <div className="mt-1 text-[11.5px] text-ink-3 italic">
+                              {row.context}
+                            </div>
+                          )}
+                          <div className="mt-1.5 text-[10.5px] text-grass/90 font-medium">
+                            {row.verifiedByName
+                              ? `Verified by ${row.verifiedByName}`
+                              : "Coach-verified"}
+                            {row.verifiedAt &&
+                              ` · ${new Date(row.verifiedAt).toLocaleDateString()}`}
+                          </div>
+                        </div>
+                        <span
+                          title="Coach-verified — ask your coach to unverify before editing"
+                          aria-label="Verified, locked"
+                          className={cn(
+                            "w-9 h-9 rounded-full flex items-center justify-center text-grass shrink-0",
+                            "bg-grass-dim/60 cursor-not-allowed",
+                          )}
+                        >
+                          <Lock className="w-4 h-4" strokeWidth={2.25} />
+                        </span>
+                      </div>
+                    </li>
+                  );
+                }
+                // Unverified rows: original editable layout. Use stable id
+                // for key when present so React doesn't reorder inputs.
+                return (
                 <li
-                  key={i}
+                  key={row.id ?? i}
                   className="rounded-xl border border-hair bg-paper p-3 sm:p-4 space-y-2"
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -1005,7 +1083,8 @@ export function ProfileEditor({
                     }
                   />
                 </li>
-              ))}
+                );
+              })}
             </ul>
             <button
               type="button"

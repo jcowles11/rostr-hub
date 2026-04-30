@@ -543,6 +543,13 @@ export async function updatePrivacyAction(
 // ── Prior stats (migration 34) ──────────────────────────────────
 
 const priorStatSchema = z.object({
+  /**
+   * Stable id (uuid string). Optional on input — the merge below
+   * generates a new uuid for any incoming row that doesn't have one.
+   * When present, used to match against an existing row so we don't
+   * accidentally clobber its verification fields.
+   */
+  id: z.string().trim().max(64).optional().nullable(),
   season: z.string().trim().min(1, "Season is required").max(40),
   level: z.string().trim().max(40).nullable(),
   ba: z.string().trim().max(20).nullable(),
@@ -558,6 +565,7 @@ const priorStatsArraySchema = z
   .max(10, "Up to 10 prior seasons");
 
 export interface PriorStatInput {
+  id?: string | null;
   season: string;
   level: string | null;
   ba: string | null;
@@ -569,27 +577,62 @@ export interface PriorStatInput {
 }
 
 /**
- * updatePriorStatsAction — replace the entire prior-stats array.
+ * Internal shape of a stored prior-stats entry. Never exposed to
+ * clients — the editor passes PriorStatInput; the merge produces this.
+ */
+type StoredPriorStat = {
+  id: string;
+  season: string;
+  level: string | null;
+  ba: string | null;
+  ops: string | null;
+  hr: string | null;
+  rbi: string | null;
+  pitching: string | null;
+  context: string | null;
+  verified_by_coach: boolean;
+  verified_by: string | null;
+  verified_at: string | null;
+};
+
+/**
+ * updatePriorStatsAction — merge incoming player edits into the
+ * prior-stats JSONB array, preserving every coach-verified entry
+ * verbatim.
  *
- * Player-reported career stats. Always rendered under a "Player
- * Reported" header on the public profile — never mixed with verified
- * game stats. We replace-not-append because the editor is a what-
- * you-see-is-what-you-save list; partial updates would be confusing.
- * The whole list lives in a single JSONB column on `players` (no
- * separate table needed for v1).
+ * Why a merge (not a replace): migration 37 turned each row into a
+ * verifiable unit. Coach can vouch for "2024 Varsity .341/.923/4/27".
+ * If the player resubmits the editor without that row (or with edits),
+ * we MUST preserve the verified copy — otherwise the coach's vouch
+ * gets silently overwritten.
+ *
+ * Algorithm:
+ *   1. Load current prior_stats from DB.
+ *   2. For each input row in order:
+ *      - If id matches an existing verified row → push the existing
+ *        row verbatim, skipping the input. Player edits to verified
+ *        rows are dropped (the editor disables those inputs anyway,
+ *        but we still defend in code).
+ *      - If id matches an existing unverified row → push the input,
+ *        keeping the same id, with verified=false fields.
+ *      - Else (no id, or id doesn't match) → new row, generate uuid.
+ *   3. Append any verified rows the player tried to delete back at
+ *      the end. They are immutable until a coach unverifies them.
+ *
+ * The DB-layer trigger from migration 37 backstops this — a malicious
+ * direct write that bypasses this action will still raise.
  */
 export async function updatePriorStatsAction(
   input: PriorStatInput[],
 ): Promise<{ error: string | null }> {
-  // Flag gate — player-reported stats are gated by both the
-  // advanced-profile flag (parent module) and the self-reported-
-  // stats sub-flag. Both must be on.
   if (
     !isFeatureEnabled("NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES") ||
     !isFeatureEnabled("NEXT_PUBLIC_ENABLE_PLAYER_SELF_REPORTED_STATS")
   ) {
     return {
-      error: featureDisabledMessage("NEXT_PUBLIC_ENABLE_PLAYER_SELF_REPORTED_STATS"),
+      error: featureDisabledMessage(
+        "NEXT_PUBLIC_ENABLE_PLAYER_SELF_REPORTED_STATS",
+      ),
     };
   }
   if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
@@ -604,20 +647,122 @@ export async function updatePriorStatsAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "You must be signed in." };
 
+  // Load player + existing prior_stats so we can merge.
   const { data: player, error: pErr } = await supabase
     .from("players")
-    .select("id")
+    .select("id, prior_stats")
     .eq("claimed_by_user_id", user.id)
     .maybeSingle();
   if (pErr || !player) return { error: "No claimed player profile found." };
 
+  const existingRaw = Array.isArray(player.prior_stats)
+    ? (player.prior_stats as Array<Record<string, unknown>>)
+    : [];
+
+  const existingById = new Map<string, StoredPriorStat>();
+  for (const e of existingRaw) {
+    const id = typeof e["id"] === "string" ? (e["id"] as string) : null;
+    if (!id) continue;
+    existingById.set(id, normalizeStored(e));
+  }
+
+  const seenIds = new Set<string>();
+  const merged: StoredPriorStat[] = [];
+
+  for (const row of parsed.data) {
+    const incomingId = row.id ?? null;
+    const existing = incomingId ? existingById.get(incomingId) : null;
+    if (existing && existing.verified_by_coach) {
+      // Verified row: ignore incoming content, preserve verbatim.
+      merged.push(existing);
+      seenIds.add(existing.id);
+      continue;
+    }
+    if (existing) {
+      // Unverified existing row: accept edits, keep id, ensure
+      // verification fields stay null/false.
+      merged.push({
+        id: existing.id,
+        season: row.season,
+        level: row.level,
+        ba: row.ba,
+        ops: row.ops,
+        hr: row.hr,
+        rbi: row.rbi,
+        pitching: row.pitching,
+        context: row.context,
+        verified_by_coach: false,
+        verified_by: null,
+        verified_at: null,
+      });
+      seenIds.add(existing.id);
+      continue;
+    }
+    // New row: generate id.
+    merged.push({
+      id: crypto.randomUUID(),
+      season: row.season,
+      level: row.level,
+      ba: row.ba,
+      ops: row.ops,
+      hr: row.hr,
+      rbi: row.rbi,
+      pitching: row.pitching,
+      context: row.context,
+      verified_by_coach: false,
+      verified_by: null,
+      verified_at: null,
+    });
+  }
+
+  // Restore any verified rows the player tried to delete. Append at
+  // the end — preserving original position would require more state.
+  // Array.from sidesteps tsconfig's downlevelIteration flag for Map
+  // iterators.
+  for (const existing of Array.from(existingById.values())) {
+    if (existing.verified_by_coach && !seenIds.has(existing.id)) {
+      merged.push(existing);
+    }
+  }
+
   const { error: updErr } = await supabase
     .from("players")
-    .update({ prior_stats: parsed.data })
+    .update({ prior_stats: merged })
     .eq("id", player.id);
 
   if (updErr) return { error: updErr.message };
 
   revalidatePath("/me/profile");
+  // Public profile of this player needs a refresh for any badge changes.
   return { error: null };
+}
+
+/**
+ * Normalize a JSONB row from DB to the internal stored shape. Pre-
+ * migration-37 rows might be missing fields; we default them safely.
+ */
+function normalizeStored(o: Record<string, unknown>): StoredPriorStat {
+  const s = (k: string): string | null => {
+    const v = o[k];
+    if (v == null) return null;
+    const t = String(v).trim();
+    return t === "" ? null : t;
+  };
+  const id = s("id") ?? crypto.randomUUID();
+  return {
+    id,
+    season: s("season") ?? "",
+    level: s("level"),
+    ba: s("ba"),
+    ops: s("ops"),
+    hr: s("hr"),
+    rbi: s("rbi"),
+    pitching: s("pitching"),
+    context: s("context"),
+    verified_by_coach: Boolean(o["verified_by_coach"] ?? o["verifiedByCoach"]),
+    verified_by:
+      (s("verified_by") ?? s("verifiedBy")) ?? null,
+    verified_at:
+      (s("verified_at") ?? s("verifiedAt")) ?? null,
+  };
 }

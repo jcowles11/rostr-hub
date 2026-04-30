@@ -249,6 +249,11 @@ export async function fetchPlayerPrivacy(
 /**
  * Player-reported prior season stats (migration 34, JSONB array).
  * Always returns an array so the caller can map without null-check.
+ *
+ * Migration 37 added per-row verification fields (id, verified_by_coach,
+ * verified_by, verified_at). Reader normalizes them defensively so older
+ * rows without the fields read as unverified, and resolves verifying
+ * coach names via a follow-up coaches lookup (same pattern as highlights).
  */
 export async function fetchPlayerPriorStats(
   playerId: string,
@@ -262,8 +267,10 @@ export async function fetchPlayerPriorStats(
   if (error || !data) return [];
   const raw = data.prior_stats;
   if (!Array.isArray(raw)) return [];
-  // Normalize each row — defensive against historic shapes / typos.
-  return raw.map((r): PlayerPriorStat => {
+
+  // First pass: normalize each row. Pre-migration-37 rows simply have
+  // no verified_* fields; they read as unverified.
+  const rows: PlayerPriorStat[] = raw.map((r): PlayerPriorStat => {
     const o = (r ?? {}) as Record<string, unknown>;
     const s = (k: string): string | null => {
       const v = o[k];
@@ -271,7 +278,19 @@ export async function fetchPlayerPriorStats(
       const t = String(v).trim();
       return t === "" ? null : t;
     };
+    const id = (() => {
+      const v = o["id"];
+      if (v == null) return undefined;
+      const t = String(v).trim();
+      return t === "" ? undefined : t;
+    })();
+    const verifiedBy = s("verified_by") ?? s("verifiedBy");
+    const verifiedAt = s("verified_at") ?? s("verifiedAt");
+    const verifiedByCoach = Boolean(
+      o["verified_by_coach"] ?? o["verifiedByCoach"],
+    );
     return {
+      id,
       season: s("season") ?? "",
       level: s("level"),
       ba: s("ba"),
@@ -280,8 +299,42 @@ export async function fetchPlayerPriorStats(
       rbi: s("rbi"),
       pitching: s("pitching"),
       context: s("context"),
+      verifiedByCoach,
+      verifiedBy,
+      verifiedAt,
+      verifiedByName: null,
     };
   });
+
+  // Second pass: resolve verifying coach names for any verified rows.
+  // Same approach as fetchPlayerHighlights — a single batched lookup,
+  // deduped by user_id.
+  const verifierIds = Array.from(
+    new Set(
+      rows
+        .map((r) => r.verifiedBy)
+        .filter((v): v is string => Boolean(v)),
+    ),
+  );
+  if (verifierIds.length > 0) {
+    const { data: coachRows } = await supabase
+      .from("coaches")
+      .select("user_id, full_name")
+      .in("user_id", verifierIds);
+    const nameByUserId = new Map<string, string>();
+    for (const c of coachRows ?? []) {
+      const uid = c.user_id as string | null;
+      const fn = c.full_name as string | null;
+      if (uid && fn && !nameByUserId.has(uid)) nameByUserId.set(uid, fn);
+    }
+    for (const r of rows) {
+      if (r.verifiedBy) {
+        r.verifiedByName = nameByUserId.get(r.verifiedBy) ?? null;
+      }
+    }
+  }
+
+  return rows;
 }
 
 // resolveVideoEmbed and VideoEmbed are now sourced from
