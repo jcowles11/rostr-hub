@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isDemoRequest, DEMO_GUARD_MESSAGE } from "@/lib/demo-guard";
+import { isFeatureEnabled, featureDisabledMessage } from "@/lib/feature-flags";
 
 /**
  * Server actions for the player-facing profile editor at /me/profile.
@@ -331,6 +332,157 @@ export async function reorderHighlightsAction(
       .eq("id", id)
       .eq("player_id", player.id);
   }
+
+  revalidatePath("/me/profile");
+  return { error: null };
+}
+
+// ── Privacy switches (migration 34) ─────────────────────────────
+
+const privacySchema = z.object({
+  profilePublic: z.boolean(),
+  showAcademics: z.boolean(),
+  showContactInfo: z.boolean(),
+});
+
+export interface UpdatePrivacyInput {
+  profilePublic: boolean;
+  showAcademics: boolean;
+  showContactInfo: boolean;
+}
+
+/**
+ * updatePrivacyAction — flip the three per-profile visibility switches.
+ *
+ * profilePublic:    required for /p/<handle> to render at all
+ * showAcademics:    required for the academics card to render publicly
+ * showContactInfo:  required for phone / email / socials to render
+ *
+ * All default false. The /p/<handle> page reads them server-side and
+ * conditionally renders. Migration 33 also enforces profile_public at
+ * the player_search view level for defense-in-depth.
+ */
+export async function updatePrivacyAction(
+  input: UpdatePrivacyInput,
+): Promise<{ error: string | null }> {
+  // Flag gate — the per-field privacy switches UI is part of the
+  // advanced player profiles module. Defense-in-depth in case a
+  // UI bug exposes this action callsite while the flag is off.
+  if (!isFeatureEnabled("NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES")) {
+    return { error: featureDisabledMessage("NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES") };
+  }
+  if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
+  const parsed = privacySchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const supabase = createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You must be signed in." };
+
+  const { data: player, error: pErr } = await supabase
+    .from("players")
+    .select("id")
+    .eq("claimed_by_user_id", user.id)
+    .maybeSingle();
+  if (pErr || !player) return { error: "No claimed player profile found." };
+
+  const { error: updErr } = await supabase
+    .from("players")
+    .update({
+      profile_public: parsed.data.profilePublic,
+      show_academics: parsed.data.showAcademics,
+      show_contact_info: parsed.data.showContactInfo,
+    })
+    .eq("id", player.id);
+
+  if (updErr) return { error: updErr.message };
+
+  revalidatePath("/me");
+  revalidatePath("/me/profile");
+  return { error: null };
+}
+
+// ── Prior stats (migration 34) ──────────────────────────────────
+
+const priorStatSchema = z.object({
+  season: z.string().trim().min(1, "Season is required").max(40),
+  level: z.string().trim().max(40).nullable(),
+  ba: z.string().trim().max(20).nullable(),
+  ops: z.string().trim().max(20).nullable(),
+  hr: z.string().trim().max(20).nullable(),
+  rbi: z.string().trim().max(20).nullable(),
+  pitching: z.string().trim().max(120).nullable(),
+  context: z.string().trim().max(200).nullable(),
+});
+
+const priorStatsArraySchema = z
+  .array(priorStatSchema)
+  .max(10, "Up to 10 prior seasons");
+
+export interface PriorStatInput {
+  season: string;
+  level: string | null;
+  ba: string | null;
+  ops: string | null;
+  hr: string | null;
+  rbi: string | null;
+  pitching: string | null;
+  context: string | null;
+}
+
+/**
+ * updatePriorStatsAction — replace the entire prior-stats array.
+ *
+ * Player-reported career stats. Always rendered under a "Player
+ * Reported" header on the public profile — never mixed with verified
+ * game stats. We replace-not-append because the editor is a what-
+ * you-see-is-what-you-save list; partial updates would be confusing.
+ * The whole list lives in a single JSONB column on `players` (no
+ * separate table needed for v1).
+ */
+export async function updatePriorStatsAction(
+  input: PriorStatInput[],
+): Promise<{ error: string | null }> {
+  // Flag gate — player-reported stats are gated by both the
+  // advanced-profile flag (parent module) and the self-reported-
+  // stats sub-flag. Both must be on.
+  if (
+    !isFeatureEnabled("NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES") ||
+    !isFeatureEnabled("NEXT_PUBLIC_ENABLE_PLAYER_SELF_REPORTED_STATS")
+  ) {
+    return {
+      error: featureDisabledMessage("NEXT_PUBLIC_ENABLE_PLAYER_SELF_REPORTED_STATS"),
+    };
+  }
+  if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
+  const parsed = priorStatsArraySchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const supabase = createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You must be signed in." };
+
+  const { data: player, error: pErr } = await supabase
+    .from("players")
+    .select("id")
+    .eq("claimed_by_user_id", user.id)
+    .maybeSingle();
+  if (pErr || !player) return { error: "No claimed player profile found." };
+
+  const { error: updErr } = await supabase
+    .from("players")
+    .update({ prior_stats: parsed.data })
+    .eq("id", player.id);
+
+  if (updErr) return { error: updErr.message };
 
   revalidatePath("/me/profile");
   return { error: null };

@@ -16,6 +16,8 @@ export type {
   PlayerAcademics,
   PlayerHighlight,
   PlayerAnnouncement,
+  PlayerPrivacy,
+  PlayerPriorStat,
   IntendedLevel,
   VideoEmbed,
 } from "./player-profile-types";
@@ -27,6 +29,8 @@ import type {
   PlayerProfileMedia,
   IntendedLevel,
   PlayerAnnouncement,
+  PlayerPrivacy,
+  PlayerPriorStat,
 } from "./player-profile-types";
 
 /**
@@ -150,6 +154,69 @@ export async function fetchPlayerAnnouncements(
     pinned: r.pinned,
     createdAt: r.created_at,
   }));
+}
+
+/**
+ * Privacy switches (migration 34). Always returns sensible defaults
+ * (everything OFF) on missing-row / column-not-found so the public
+ * profile defaults to the most private state when data is missing.
+ */
+export async function fetchPlayerPrivacy(
+  playerId: string,
+): Promise<PlayerPrivacy> {
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("players")
+    .select("profile_public, show_academics, show_contact_info")
+    .eq("id", playerId)
+    .maybeSingle();
+  if (error || !data) {
+    // Migration-resilient: missing column → default everything off.
+    return { profilePublic: false, showAcademics: false, showContactInfo: false };
+  }
+  return {
+    profilePublic: Boolean(data.profile_public),
+    showAcademics: Boolean(data.show_academics),
+    showContactInfo: Boolean(data.show_contact_info),
+  };
+}
+
+/**
+ * Player-reported prior season stats (migration 34, JSONB array).
+ * Always returns an array so the caller can map without null-check.
+ */
+export async function fetchPlayerPriorStats(
+  playerId: string,
+): Promise<PlayerPriorStat[]> {
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("players")
+    .select("prior_stats")
+    .eq("id", playerId)
+    .maybeSingle();
+  if (error || !data) return [];
+  const raw = data.prior_stats;
+  if (!Array.isArray(raw)) return [];
+  // Normalize each row — defensive against historic shapes / typos.
+  return raw.map((r): PlayerPriorStat => {
+    const o = (r ?? {}) as Record<string, unknown>;
+    const s = (k: string): string | null => {
+      const v = o[k];
+      if (v == null) return null;
+      const t = String(v).trim();
+      return t === "" ? null : t;
+    };
+    return {
+      season: s("season") ?? "",
+      level: s("level"),
+      ba: s("ba"),
+      ops: s("ops"),
+      hr: s("hr"),
+      rbi: s("rbi"),
+      pitching: s("pitching"),
+      context: s("context"),
+    };
+  });
 }
 
 // resolveVideoEmbed and VideoEmbed are now sourced from

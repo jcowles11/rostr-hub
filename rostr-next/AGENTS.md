@@ -123,6 +123,38 @@ When asked to audit:
 
 ---
 
+## 5b. Feature flags (pilot-safe module isolation)
+
+In-progress modules live behind `NEXT_PUBLIC_ENABLE_*` flags so they
+can be built and reviewed without surfacing on the live pilot site.
+
+| Flag | Gates |
+|---|---|
+| `NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES` | privacy toggles, prior-season stats UI, verified vs. reported badges on /me/profile + /p/[handle] |
+| `NEXT_PUBLIC_ENABLE_PLAYER_SELF_REPORTED_STATS` | sub-flag for the player-typed prior stats; requires advanced-profiles ON too |
+| `NEXT_PUBLIC_ENABLE_TRAINING_PROGRAMS` | individualized training programs feature surface |
+| `NEXT_PUBLIC_ENABLE_AI_PLAYER_ASSISTANT` | athlete-facing AI helper on /me |
+
+**Defaults:** OFF in production (env var omitted entirely). Devs flip
+to `true` in `.env.local` for local iteration.
+
+**Implementation:** `src/lib/feature-flags.ts`.
+- `isFeatureEnabled(flag)` — boolean check, safe on server + client.
+- `requireFlag(flag)` — server-side route guard; calls `notFound()`
+  when the flag is off.
+- `featureDisabledMessage(flag)` — error string for server actions
+  that belong to a gated module.
+
+**Rules for Codex:**
+- Treat every gated module's UI surface (page, nav link, button,
+  modal entry) as suspicious until you've verified the gate.
+- A gated route MUST `notFound()` when the flag is off — not redirect
+  to a stub or render an empty card.
+- Server actions for gated modules must early-return with the disabled
+  message even if the UI gate is bypassed (defense-in-depth).
+- Audit `.env.example` against `FlagName` in `feature-flags.ts` —
+  any drift between the two is a bug.
+
 ## 6. Verification commands
 
 Run from `rostr-next/`:

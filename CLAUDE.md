@@ -161,6 +161,40 @@ Active in `fetchGameDetail`, `fetchRoster`. Lets the app degrade gracefully when
 - **Don't add new dependencies casually.** Especially heavyweight ones (Sentry SDK, Redis client, ORM). The current dep list is intentionally tight.
 - **Migrations are idempotent (`IF NOT EXISTS` patterns) and can be applied programmatically.** `supabase db push --linked` works; the project is already linked.
 
+### Feature flags (pilot-safe module isolation)
+
+In-progress modules live behind `NEXT_PUBLIC_ENABLE_*` env-var flags
+so new code can be built and reviewed without surfacing on the live
+pilot site.
+
+| Flag | What it gates |
+|---|---|
+| `NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES` | per-field privacy toggles, verified vs. reported badges, advanced /me/profile sections |
+| `NEXT_PUBLIC_ENABLE_PLAYER_SELF_REPORTED_STATS` | player-typed prior-season stats (sub-flag — also requires advanced profiles ON) |
+| `NEXT_PUBLIC_ENABLE_TRAINING_PROGRAMS` | individualized training programs |
+| `NEXT_PUBLIC_ENABLE_AI_PLAYER_ASSISTANT` | athlete-facing AI helper on /me |
+
+All default OFF. Production (Vercel) MUST omit the env var entirely
+so it reads as off. Local dev flips to `true` in `.env.local`.
+
+**Source:** `src/lib/feature-flags.ts`
+- `isFeatureEnabled(flag)` — boolean check (safe on server + client)
+- `requireFlag(flag)` — server-side route guard; calls `notFound()` when off
+- `featureDisabledMessage(flag)` — error string for gated server actions
+
+**Rules:**
+- Adding a flag → update `FlagName` in `feature-flags.ts` AND the
+  `.env.example` file. TypeScript catches the FlagName side; the
+  `.env.example` file is enforced by review.
+- Gated route pages MUST `notFound()` when the flag is off — never
+  render a stub or redirect to a placeholder that could leak the
+  route's existence.
+- Gated server actions early-return with `featureDisabledMessage(...)`
+  even when the UI gate would prevent reaching them. Defense-in-depth
+  in case a UI bug exposes the action's callsite.
+- When a flag's module ships to pilot, delete the env-var read AND
+  the gated branches in the same commit. Don't leave dangling checks.
+
 ---
 
 ## 4. Auth + RLS
