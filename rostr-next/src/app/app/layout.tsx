@@ -138,7 +138,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   };
 
   return (
-    <div className="flex lg:grid lg:grid-cols-[240px_1fr] h-screen bg-paper">
+    /* h-[100dvh] respects the mobile browser's dynamic viewport — it
+       shrinks when iOS Safari's URL bar is showing and grows when it
+       hides on scroll. h-screen (100vh) reports the largest possible
+       viewport, which pushes the bottom nav below the visible area
+       until the URL bar collapses. Big mobile-feel bug fix. */
+    <div className="flex lg:grid lg:grid-cols-[240px_1fr] h-[100dvh] bg-paper">
       {/* Global thin progress bar shown on every nav (link click +
           searchParam swap). Sits above all other chrome. */}
       <NavigationProgress />
@@ -151,13 +156,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* Mobile-only top chrome with hamburger drawer. */}
         <MobileAppBar team={team} sections={sections} user={userCtx} />
         {!coach && <SetupBanner />}
-        {children}
+        {/* Children wrapper takes flex-1 so it fills the space between
+            the top chrome and the bottom nav. Pages that contain their
+            own flex-1 / overflow-auto regions still flow naturally
+            inside this wrapper. Without this, pages with non-flex
+            content would collapse and the BottomNav would slip up
+            against them instead of pinning to the viewport bottom. */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">{children}</div>
         {/* Mobile-only bottom tab bar — primary nav for thumb reach.
-            Sits at the end of main's flex column so pages' internal
-            `flex-1 overflow-auto` regions automatically reserve space
-            for it. The "More" drawer surfaces every section that
-            doesn't fit in the 5-tab bar, so coaches still have one-tap
-            access to every workspace. */}
+            Sits at the end of main's flex column so it always lands
+            at the visible viewport bottom. The "More" drawer surfaces
+            every section that doesn't fit in the 5-tab bar. */}
         <BottomNav tabs={APP_BOTTOM_TABS} moreSections={sections} />
       </main>
       {/* Floating Action Button — Twitter / LinkedIn / Apple-Notes

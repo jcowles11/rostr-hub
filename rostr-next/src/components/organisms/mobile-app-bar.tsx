@@ -35,15 +35,23 @@ export function MobileAppBar({
 
   return (
     <>
-      {/* iOS UINavigationBar pattern: translucent ink chrome with
-          backdrop blur. Content scrolls *under* the bar via the blur,
-          which reads as iOS-native instantly. The bar height is 48px
-          (close to native 44pt UINavigationBar). */}
+      {/* iOS UINavigationBar pattern: solid ink chrome with a soft
+          downward shadow that visually separates it from page content
+          AND from the browser's URL bar above. Bumped to h-14 so the
+          burger + avatar buttons read as clear circular controls
+          (matches the iPhone Mail / Apple Music nav bar height). */}
       <header
         className={cn(
-          "lg:hidden h-12 px-3 flex items-center gap-2 shrink-0 sticky top-0 z-topbar",
-          "bg-ink/85 backdrop-blur-xl backdrop-saturate-150 text-white",
-          "border-b border-white/[0.06]",
+          "lg:hidden h-14 px-3 flex items-center gap-2.5 shrink-0 sticky top-0 z-topbar",
+          // More opaque so it doesn't blend with iOS Safari's dark
+          // URL bar above. backdrop-blur still gives the under-glass
+          // feel when content scrolls past.
+          "bg-ink/95 backdrop-blur-xl backdrop-saturate-150 text-white",
+          // Strong shadow + accent border read as a real bar, not
+          // a darker-strip-on-the-page. Critical for browser-on-mobile
+          // where the URL bar above is also dark.
+          "border-b border-white/10",
+          "shadow-[0_4px_16px_-6px_rgba(0,0,0,0.4)]",
         )}
       >
         <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -53,18 +61,22 @@ export function MobileAppBar({
               aria-label="Open menu"
               onPointerDown={() => tapHaptic(6)}
               className={cn(
-                "w-9 h-9 inline-flex items-center justify-center rounded-full",
+                // Visible button background so it pops against the
+                // dark bar — most "I can't tell what's tappable"
+                // complaints on dark chrome trace back to icons that
+                // look like decorations.
+                "w-10 h-10 inline-flex items-center justify-center rounded-full bg-white/10 shrink-0",
                 "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-                "hover:bg-white/10 active:bg-white/15 active:scale-[0.88]",
+                "hover:bg-white/[0.18] active:bg-white/20 active:scale-[0.88]",
               )}
             >
-              <Menu className="w-[18px] h-[18px]" strokeWidth={2.25} />
+              <Menu className="w-5 h-5" strokeWidth={2.5} />
             </button>
           </Dialog.Trigger>
 
-          <div className="flex items-center gap-2 ml-1 flex-1 min-w-0">
+          <div className="flex items-center gap-2 ml-0.5 flex-1 min-w-0">
             <LogoMark size="sm" variant="light" />
-            <div className="min-w-0 truncate font-display text-[14px] font-semibold tracking-tight">
+            <div className="min-w-0 truncate font-display text-[15px] font-bold tracking-tight">
               {team.name}
             </div>
           </div>
@@ -73,9 +85,9 @@ export function MobileAppBar({
             href="/me"
             onPointerDown={() => tapHaptic(6)}
             className={cn(
-              "w-9 h-9 inline-flex items-center justify-center rounded-full",
-              "transition-transform duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-              "hover:bg-white/10 active:scale-[0.88]",
+              "w-10 h-10 inline-flex items-center justify-center rounded-full bg-white/10 shrink-0",
+              "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+              "hover:bg-white/[0.18] active:scale-[0.88]",
             )}
             aria-label="My profile"
           >

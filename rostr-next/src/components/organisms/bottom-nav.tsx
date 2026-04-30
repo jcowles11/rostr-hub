@@ -88,11 +88,14 @@ export function BottomNav({
     <nav
       className={cn(
         "lg:hidden shrink-0 sticky bottom-0 z-topbar",
-        // iOS UITabBar look: very-light translucent backdrop, hairline top.
-        // The blur reads "iOS" instantly — content slides under it
-        // instead of being clipped.
-        "bg-white/80 dark:bg-ink/80 backdrop-blur-xl backdrop-saturate-150",
-        "border-t border-hair/80",
+        // iOS UITabBar look: more opaque than before (was 80%) so the
+        // bar reads as solid chrome on top of content. Backdrop blur
+        // still gives the under-glass effect when content scrolls past.
+        "bg-white/95 backdrop-blur-xl backdrop-saturate-150",
+        // Strong top edge — soft hairline + an upward shadow so the
+        // bar separates from page content even on busy/colorful pages.
+        "border-t border-hair",
+        "shadow-[0_-4px_16px_-6px_rgba(14,17,22,0.18)]",
         // Respect iPhone home-bar inset so taps don't land on the bezel.
         "pb-[env(safe-area-inset-bottom)]",
       )}
