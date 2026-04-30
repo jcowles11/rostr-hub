@@ -83,6 +83,13 @@ export interface GameDetail {
   equipmentNotes: string | null;
   lineupPreview: string | null;
   prepNotes: string | null;
+  /** Migration 31 — when true, the saved batting lineup is shown to
+   *  players on /me. When false, hidden until the coach toggles. */
+  shareLineup: boolean;
+  /** Free-text name of the player/parent designated to score the game. */
+  scorekeeperName: string | null;
+  /** Auth user the scorekeeper-name points to (RLS for scoring uses this). */
+  scorekeeperUserId: string | null;
 }
 
 export interface GameRosterEntry {
@@ -114,7 +121,7 @@ export async function fetchGameDetail(gameId: string): Promise<{
     "id, name, opponent, game_date, game_time, location, home_away, team_level, status, our_score, opponent_score, result, recap_notes, completed_at";
   const FULL_SELECT =
     BASE_SELECT +
-    ", opponent_program_id, live_status, report_time, release_time, uniform, equipment_notes, lineup_preview, prep_notes";
+    ", opponent_program_id, live_status, report_time, release_time, uniform, equipment_notes, lineup_preview, prep_notes, share_lineup, scorekeeper_name, scorekeeper_user_id";
 
   const isMissingColumnError = (msg: string): boolean =>
     /column .* does not exist/i.test(msg) ||
@@ -179,6 +186,9 @@ export async function fetchGameDetail(gameId: string): Promise<{
       equipmentNotes: opt<string>("equipment_notes"),
       lineupPreview: opt<string>("lineup_preview"),
       prepNotes: opt<string>("prep_notes"),
+      shareLineup: Boolean(opt<boolean>("share_lineup")),
+      scorekeeperName: opt<string>("scorekeeper_name"),
+      scorekeeperUserId: opt<string>("scorekeeper_user_id"),
     },
     rosterPlayerIds: (rosterRes.data ?? []).map((r) => r.player_id),
     lineup: (lineupRes.data ?? []).map((l) => ({

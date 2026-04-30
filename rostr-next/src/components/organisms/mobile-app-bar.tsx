@@ -35,23 +35,19 @@ export function MobileAppBar({
 
   return (
     <>
-      {/* iOS UINavigationBar pattern: solid ink chrome with a soft
-          downward shadow that visually separates it from page content
-          AND from the browser's URL bar above. Bumped to h-14 so the
-          burger + avatar buttons read as clear circular controls
-          (matches the iPhone Mail / Apple Music nav bar height). */}
+      {/* iOS UINavigationBar pattern: SOLID ink chrome (was bg-ink/95
+          + backdrop-blur, which read as gray/translucent on the cream
+          paper background — coaches said they couldn't tell where the
+          nav bar ended). Solid black makes it unmissable. h-14 matches
+          iPhone Mail / Apple Music nav-bar height. */}
       <header
         className={cn(
           "lg:hidden h-14 px-3 flex items-center gap-2.5 shrink-0 sticky top-0 z-topbar",
-          // More opaque so it doesn't blend with iOS Safari's dark
-          // URL bar above. backdrop-blur still gives the under-glass
-          // feel when content scrolls past.
-          "bg-ink/95 backdrop-blur-xl backdrop-saturate-150 text-white",
-          // Strong shadow + accent border read as a real bar, not
-          // a darker-strip-on-the-page. Critical for browser-on-mobile
-          // where the URL bar above is also dark.
+          "bg-ink text-white",
+          // Strong shadow + accent border so the bar separates clearly
+          // from page content even when scrolling under it.
           "border-b border-white/10",
-          "shadow-[0_4px_16px_-6px_rgba(0,0,0,0.4)]",
+          "shadow-[0_4px_16px_-6px_rgba(0,0,0,0.45)]",
         )}
       >
         <Dialog.Root open={open} onOpenChange={setOpen}>

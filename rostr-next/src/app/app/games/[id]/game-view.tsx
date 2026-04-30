@@ -15,6 +15,8 @@ import {
   Trophy,
   Pencil,
   Radio,
+  Sparkles,
+  Wand2,
 } from "lucide-react";
 import { RecordResultModal } from "@/components/organisms/record-result-modal";
 import { LinkOpponentModal } from "@/components/organisms/link-opponent-modal";
@@ -31,6 +33,7 @@ import {
   setGameRosterAction,
   setLineupAction,
   updateGamePrepAction,
+  aiFillPrepFromPromptAction,
   type LineupEntry as LineupEntryInput,
 } from "../actions";
 import type { LineupEntryRecord } from "@/lib/services/game";
@@ -68,6 +71,10 @@ export interface GameViewProps {
     equipmentNotes?: string | null;
     lineupPreview?: string | null;
     prepNotes?: string | null;
+    /** Migration 31 — show saved batting lineup to players? */
+    shareLineup?: boolean;
+    /** Free-text scorekeeper designation. */
+    scorekeeperName?: string | null;
   };
   players: MockPlayer[];
   initialRosterIds: string[];
@@ -329,6 +336,8 @@ export function GameView({
                 equipmentNotes: game.equipmentNotes ?? null,
                 lineupPreview: game.lineupPreview ?? null,
                 prepNotes: game.prepNotes ?? null,
+                shareLineup: game.shareLineup ?? false,
+                scorekeeperName: game.scorekeeperName ?? null,
               }}
             />
           )}
@@ -385,6 +394,8 @@ interface PrepState {
   equipmentNotes: string | null;
   lineupPreview: string | null;
   prepNotes: string | null;
+  shareLineup: boolean;
+  scorekeeperName: string | null;
 }
 
 function toTimeInput(t: string | null): string {
@@ -399,11 +410,68 @@ function PrepTab({ gameId, initial }: { gameId: string; initial: PrepState }) {
   const [releaseTime, setReleaseTime] = useState(toTimeInput(initial.releaseTime));
   const [uniform, setUniform] = useState(initial.uniform ?? "");
   const [equipmentNotes, setEquipmentNotes] = useState(initial.equipmentNotes ?? "");
-  const [lineupPreview, setLineupPreview] = useState(initial.lineupPreview ?? "");
   const [prepNotes, setPrepNotes] = useState(initial.prepNotes ?? "");
+  const [shareLineup, setShareLineup] = useState(initial.shareLineup);
+  const [scorekeeperName, setScorekeeperName] = useState(initial.scorekeeperName ?? "");
   const [isPending, startTransition] = useTransition();
   const saving = isPending;
   const [saved, setSaved] = useState(false);
+
+  // AI fill state — coach types one sentence, hits the button, the
+  // server action returns parsed fields, and we drop them into the
+  // existing inputs (only the fields the AI actually extracted).
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiPending, setAiPending] = useState(false);
+
+  const aiFill = async () => {
+    if (!aiPrompt.trim()) {
+      toast.error("Tell the AI Coach what to fill", {
+        description: 'e.g. "Friday 5pm vs Central, home whites, report 4:00, Tyler\'s mom is scoring"',
+      });
+      return;
+    }
+    setAiPending(true);
+    const r = await aiFillPrepFromPromptAction(aiPrompt);
+    setAiPending(false);
+    if (!r.ok) {
+      toast.error(r.error ?? "AI fill failed");
+      return;
+    }
+    if (!r.data) return;
+    let appliedCount = 0;
+    if (r.data.reportTime !== undefined) {
+      setReportTime(r.data.reportTime ?? "");
+      appliedCount++;
+    }
+    if (r.data.releaseTime !== undefined) {
+      setReleaseTime(r.data.releaseTime ?? "");
+      appliedCount++;
+    }
+    if (r.data.uniform !== undefined) {
+      setUniform(r.data.uniform ?? "");
+      appliedCount++;
+    }
+    if (r.data.equipmentNotes !== undefined) {
+      setEquipmentNotes(r.data.equipmentNotes ?? "");
+      appliedCount++;
+    }
+    if (r.data.prepNotes !== undefined) {
+      setPrepNotes(r.data.prepNotes ?? "");
+      appliedCount++;
+    }
+    if (r.data.scorekeeperName !== undefined) {
+      setScorekeeperName(r.data.scorekeeperName ?? "");
+      appliedCount++;
+    }
+    if (appliedCount === 0) {
+      toast.message("AI didn't pick up anything to fill", {
+        description: "Try mentioning specifics like report time or uniform.",
+      });
+    } else {
+      toast.success(`AI filled ${appliedCount} field${appliedCount === 1 ? "" : "s"} — review and save`);
+      setAiPrompt("");
+    }
+  };
 
   const save = () => {
     setSaved(false);
@@ -414,8 +482,13 @@ function PrepTab({ gameId, initial }: { gameId: string; initial: PrepState }) {
         releaseTime: releaseTime || null,
         uniform: uniform || null,
         equipmentNotes: equipmentNotes || null,
-        lineupPreview: lineupPreview || null,
+        // Free-text lineup preview is no longer in the UI; we keep it
+        // null on save so the toggle (`shareLineup`) is the single
+        // source of truth for what players see.
+        lineupPreview: null,
         prepNotes: prepNotes || null,
+        shareLineup,
+        scorekeeperName: scorekeeperName || null,
       });
       if (r.error) {
         toast.error("Couldn't save", { description: r.error });
@@ -429,108 +502,193 @@ function PrepTab({ gameId, initial }: { gameId: string; initial: PrepState }) {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5">
-      <div className="bg-card border border-hair rounded-lg overflow-hidden">
-        <div className="px-[18px] py-3.5 border-b border-hair-2 flex items-center gap-2">
-          <h3 className="font-display text-[15px] font-semibold tracking-tight">
-            Game-day prep
-          </h3>
-          <span className="text-[11.5px] text-ink-3 ml-2">
-            Shared with every player on their /me page + public profile
-          </span>
-          {saved && (
-            <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-grass-dim text-grass text-[10px] font-bold uppercase tracking-[0.04em]">
-              ● Saved
-            </span>
-          )}
+      <div className="flex flex-col gap-4">
+        {/* AI fill bar — type a sentence, AI parses it into fields. */}
+        <div className="bg-ink text-white rounded-lg p-4 sm:p-5 relative overflow-hidden">
+          <div
+            aria-hidden
+            className="absolute -top-10 -right-10 w-40 h-40 rounded-full pointer-events-none"
+            style={{
+              background:
+                "radial-gradient(circle, rgba(200,58,58,.28), transparent 65%)",
+            }}
+          />
+          <div className="relative">
+            <div className="inline-flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-red">
+              <Sparkles className="w-3 h-3 animate-sparkle" />
+              AI Assistant Coach · Game-day prep
+            </div>
+            <h4 className="mt-1 font-display text-[15px] sm:text-[16px] font-semibold tracking-tight leading-snug">
+              Tell me about Friday — I&apos;ll fill out the rest.
+            </h4>
+            <div className="mt-2.5 flex flex-col sm:flex-row gap-2">
+              <input
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder='e.g. "5pm vs Central, home whites, report 4pm, Tyler\u2019s mom is scoring"'
+                disabled={aiPending}
+                className="flex-1 bg-white/10 border border-white/15 rounded-sm px-3 py-2 text-[13px] outline-none focus:border-red placeholder:text-white/45 text-white"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && !aiPending) {
+                    e.preventDefault();
+                    aiFill();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={aiFill}
+                disabled={aiPending || !aiPrompt.trim()}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-red hover:bg-red/90 disabled:bg-red/40 text-white rounded-sm text-[13px] font-bold whitespace-nowrap transition-transform active:scale-[0.96]"
+              >
+                <Wand2 className="w-3.5 h-3.5" strokeWidth={2.5} />
+                {aiPending ? "Filling…" : "Fill"}
+              </button>
+            </div>
+            <div className="mt-2 text-[11px] text-white/55 leading-snug">
+              Mention any of: first pitch time, report / school release time, uniform, equipment reminders, scorekeeper name. AI only fills what you mention.
+            </div>
+          </div>
         </div>
-        <div className="p-5 space-y-4">
-          {/* Timing */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+        <div className="bg-card border border-hair rounded-lg overflow-hidden">
+          <div className="px-[18px] py-3.5 border-b border-hair-2 flex items-center gap-2">
+            <h3 className="font-display text-[15px] font-semibold tracking-tight">
+              Game-day prep
+            </h3>
+            <span className="hidden sm:inline text-[11.5px] text-ink-3 ml-2">
+              Shared with every player on their /me page
+            </span>
+            {saved && (
+              <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-grass-dim text-grass text-[10px] font-bold uppercase tracking-[0.04em]">
+                ● Saved
+              </span>
+            )}
+          </div>
+          <div className="p-4 sm:p-5 space-y-4">
+            {/* Timing */}
+            <div>
+              <div className="type-label mb-2">When players need to be there</div>
+              <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-ink-3 mb-1 block">
+                    Report at the field
+                  </label>
+                  <input
+                    type="time"
+                    value={reportTime}
+                    onChange={(e) => setReportTime(e.target.value)}
+                    className="w-full bg-paper border border-hair rounded-sm px-3 py-2 text-[14px] font-mono outline-none focus:border-red"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-ink-3 mb-1 block">
+                    Out of class
+                  </label>
+                  <input
+                    type="time"
+                    value={releaseTime}
+                    onChange={(e) => setReleaseTime(e.target.value)}
+                    className="w-full bg-paper border border-hair rounded-sm px-3 py-2 text-[14px] font-mono outline-none focus:border-red"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Uniform */}
+            <div>
+              <label className="type-label mb-1.5 block">Uniform</label>
+              <input
+                type="text"
+                value={uniform}
+                onChange={(e) => setUniform(e.target.value)}
+                placeholder="Home whites · gold belts · black cleats"
+                className="w-full bg-paper border border-hair rounded-sm px-3 py-2 text-[13.5px] outline-none focus:border-red"
+              />
+            </div>
+
+            {/* Equipment */}
+            <div>
+              <label className="type-label mb-1.5 block">Equipment reminders</label>
+              <textarea
+                value={equipmentNotes}
+                onChange={(e) => setEquipmentNotes(e.target.value)}
+                rows={2}
+                placeholder="Bring own gloves · long sleeves · extra socks"
+                className="w-full bg-paper border border-hair rounded-sm px-3 py-2 text-[13.5px] outline-none focus:border-red resize-none"
+              />
+            </div>
+
+            {/* Lineup share toggle (replaces the old free-text preview) */}
+            <div className="flex items-start gap-3 p-3 rounded-md border border-hair bg-paper">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={shareLineup}
+                onClick={() => setShareLineup((v) => !v)}
+                className={cn(
+                  "shrink-0 mt-0.5 w-11 h-7 rounded-full transition-colors duration-150 relative",
+                  shareLineup ? "bg-red" : "bg-hair",
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform duration-150 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                    shareLineup ? "translate-x-[18px]" : "translate-x-0.5",
+                  )}
+                />
+              </button>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13.5px] font-semibold tracking-tight">
+                  Share starting lineup with the team
+                </div>
+                <div className="text-[12px] text-ink-3 mt-0.5 leading-snug">
+                  When on, the saved batting order from the <b>Lineup</b> tab
+                  appears on every player&apos;s /me page. When off, only you
+                  can see it.
+                </div>
+              </div>
+            </div>
+
+            {/* Scorekeeper */}
             <div>
               <label className="type-label mb-1.5 block">
-                Report time
+                Scorekeeper
                 <span className="text-ink-4 font-normal normal-case tracking-normal ml-1">
-                  (field / bus pickup)
+                  (player or parent · optional)
                 </span>
               </label>
               <input
-                type="time"
-                value={reportTime}
-                onChange={(e) => setReportTime(e.target.value)}
-                className="w-full bg-paper border border-hair rounded-sm px-3 py-2 text-[13.5px] font-mono outline-none focus:border-red"
+                type="text"
+                value={scorekeeperName}
+                onChange={(e) => setScorekeeperName(e.target.value)}
+                placeholder="e.g. Tyler Smith — #12 · or Mrs. Patel"
+                className="w-full bg-paper border border-hair rounded-sm px-3 py-2 text-[13.5px] outline-none focus:border-red"
               />
+              <p className="text-[11px] text-ink-3 mt-1 leading-snug">
+                Designate someone to run live scoring during the game so you
+                don&apos;t have to. Sharing the actual scorekeeper-only link
+                ships in the next release.
+              </p>
             </div>
+
+            {/* Free-form prep notes */}
             <div>
-              <label className="type-label mb-1.5 block">
-                Released from class
-                <span className="text-ink-4 font-normal normal-case tracking-normal ml-1">
-                  (early release time)
-                </span>
-              </label>
-              <input
-                type="time"
-                value={releaseTime}
-                onChange={(e) => setReleaseTime(e.target.value)}
-                className="w-full bg-paper border border-hair rounded-sm px-3 py-2 text-[13.5px] font-mono outline-none focus:border-red"
+              <label className="type-label mb-1.5 block">Other notes</label>
+              <textarea
+                value={prepNotes}
+                onChange={(e) => setPrepNotes(e.target.value)}
+                rows={3}
+                placeholder="Opponent scouting, travel directions, team dinner, anything else players should know."
+                className="w-full bg-paper border border-hair rounded-sm px-3 py-2 text-[13.5px] outline-none focus:border-red resize-none"
               />
             </div>
-          </div>
 
-          {/* Uniform */}
-          <div>
-            <label className="type-label mb-1.5 block">Uniform</label>
-            <input
-              type="text"
-              value={uniform}
-              onChange={(e) => setUniform(e.target.value)}
-              placeholder="e.g. Home whites · gold belts · black cleats"
-              className="w-full bg-paper border border-hair rounded-sm px-3 py-2 text-[13.5px] outline-none focus:border-red"
-            />
-          </div>
-
-          {/* Equipment */}
-          <div>
-            <label className="type-label mb-1.5 block">Equipment reminders</label>
-            <textarea
-              value={equipmentNotes}
-              onChange={(e) => setEquipmentNotes(e.target.value)}
-              rows={2}
-              placeholder="Bring own gloves · long sleeves · extra socks"
-              className="w-full bg-paper border border-hair rounded-sm px-3 py-2 text-[13.5px] outline-none focus:border-red resize-none"
-            />
-          </div>
-
-          {/* Early lineup preview */}
-          <div>
-            <label className="type-label mb-1.5 block">Starting lineup preview</label>
-            <textarea
-              value={lineupPreview}
-              onChange={(e) => setLineupPreview(e.target.value)}
-              rows={3}
-              placeholder="Free text — e.g. 'Jack starting at CF, Marcus batting cleanup. Pitching: Brennan.' Finalize on the Lineup tab."
-              className="w-full bg-paper border border-hair rounded-sm px-3 py-2 text-[13.5px] outline-none focus:border-red resize-none"
-            />
-            <p className="text-[10.5px] text-ink-3 mt-1">
-              Use the <b>Lineup</b> tab when you&apos;re ready to save the final 9-slot batting order.
-            </p>
-          </div>
-
-          {/* Free-form prep notes */}
-          <div>
-            <label className="type-label mb-1.5 block">Other notes</label>
-            <textarea
-              value={prepNotes}
-              onChange={(e) => setPrepNotes(e.target.value)}
-              rows={3}
-              placeholder="Opponent scouting, travel directions, team dinner, anything else players should know."
-              className="w-full bg-paper border border-hair rounded-sm px-3 py-2 text-[13.5px] outline-none focus:border-red resize-none"
-            />
-          </div>
-
-          <div className="flex items-center justify-end pt-2">
-            <Button variant="red" onClick={save} disabled={saving}>
-              {saving ? "Saving…" : "Save prep"}
-            </Button>
+            <div className="flex items-center justify-end pt-1">
+              <Button variant="red" onClick={save} disabled={saving}>
+                {saving ? "Saving…" : "Save prep"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -567,15 +725,21 @@ function PrepTab({ gameId, initial }: { gameId: string; initial: PrepState }) {
                 <span>{equipmentNotes}</span>
               </div>
             )}
-            {lineupPreview && (
-              <div className="flex flex-col gap-1">
-                <span className="text-white/60">Lineup look</span>
-                <span>{lineupPreview}</span>
+            <div className="flex gap-2">
+              <span className="text-white/60 w-[88px] shrink-0">Lineup</span>
+              <span className={shareLineup ? "text-grass" : "text-white/55"}>
+                {shareLineup ? "Visible" : "Hidden until coach shares"}
+              </span>
+            </div>
+            {scorekeeperName && (
+              <div className="flex gap-2">
+                <span className="text-white/60 w-[88px] shrink-0">Scoring</span>
+                <span>{scorekeeperName}</span>
               </div>
             )}
-            {!reportTime && !releaseTime && !uniform && !equipmentNotes && !lineupPreview && (
-              <div className="text-white/50 text-[12px] italic">
-                Fill anything in on the left and it shows up here.
+            {!reportTime && !releaseTime && !uniform && !equipmentNotes && !scorekeeperName && (
+              <div className="text-white/50 text-[12px] italic mt-1">
+                Use the AI Coach above or fill anything in on the left — it shows up here.
               </div>
             )}
           </div>
@@ -772,6 +936,14 @@ function LineupTab({
               const player = entry ? rosterPlayers.find((p) => p.id === entry.playerId) : null;
               const defaultPos = DEFAULT_POSITIONS[i] ?? "P";
               const position = entry?.position ?? defaultPos;
+              // Positions already taken by OTHER slots, so the position
+              // dropdown can grey them out instead of letting the coach
+              // double-assign (e.g. two SS).
+              const usedPositionsByOtherSlots = new Set(
+                lineup
+                  .filter((e) => e.battingOrder !== slot && e.battingOrder > 0)
+                  .map((e) => e.position),
+              );
               return (
                 <div
                   key={slot}
@@ -780,9 +952,33 @@ function LineupTab({
                   <div className="font-mono text-[18px] font-bold w-8 shrink-0">{slot}</div>
                   <select
                     value={entry?.playerId ?? ""}
-                    onChange={(e) =>
-                      onUpdateSlot(slot, e.target.value || null, position)
-                    }
+                    onChange={(e) => {
+                      const newPlayerId = e.target.value || null;
+                      // BUG FIX: when picking a player for a slot that
+                      // doesn't have a position set yet, default the
+                      // position to the player's primary position
+                      // (their `positions[0]`) instead of the slot-order
+                      // default (which assigned random positions like
+                      // "P" to slot 1 and "C" to slot 2 regardless of
+                      // who you put there). If the player's primary
+                      // position is already taken by another slot, fall
+                      // back to their secondary, then to the slot
+                      // default. Coaches were complaining that the
+                      // lineup kept inserting random positions next to
+                      // the players they picked.
+                      let newPosition = position;
+                      const isNewPlayerPick =
+                        newPlayerId !== null && newPlayerId !== entry?.playerId;
+                      if (isNewPlayerPick) {
+                        const newPlayer = rosterPlayers.find((p) => p.id === newPlayerId);
+                        const candidates = (newPlayer?.positions ?? []).filter(
+                          (p) => p !== "UT" && p !== "OF",
+                        );
+                        const free = candidates.find((p) => !usedPositionsByOtherSlots.has(p));
+                        newPosition = free ?? candidates[0] ?? defaultPos;
+                      }
+                      onUpdateSlot(slot, newPlayerId, newPosition);
+                    }}
                     className="flex-1 bg-paper border border-hair rounded-xs px-2.5 py-1.5 text-[13px] outline-none focus:border-red"
                   >
                     <option value="">— Empty —</option>
