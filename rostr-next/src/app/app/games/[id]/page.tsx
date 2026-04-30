@@ -82,6 +82,14 @@ export default async function GamePage({ params }: { params: { id: string } }) {
         recapNotes: game.recapNotes,
         opponentProgramId: game.opponentProgramId,
         liveStatus: game.liveStatus,
+        reportTime: game.reportTime,
+        releaseTime: game.releaseTime,
+        uniform: game.uniform,
+        equipmentNotes: game.equipmentNotes,
+        lineupPreview: game.lineupPreview,
+        prepNotes: game.prepNotes,
+        shareLineup: game.shareLineup,
+        scorekeeperName: game.scorekeeperName,
       }}
       players={players}
       initialRosterIds={effectiveRosterIds}
