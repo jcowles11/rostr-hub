@@ -14,6 +14,10 @@ import {
   Check,
   ExternalLink,
   Image as ImageIcon,
+  Lock,
+  ListChecks,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { tapHaptic, thumpHaptic, errorHaptic } from "@/lib/haptic";
@@ -22,13 +26,19 @@ import type {
   PlayerAcademics,
   PlayerHighlight,
   PlayerProfileMedia,
+  PlayerPrivacy,
+  PlayerPriorStat,
   IntendedLevel,
 } from "@/lib/services/player-profile-types";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { PlayerReportedBadge } from "@/components/atoms/data-source-badge";
 import {
   updateAcademicsAction,
   updateMediaAction,
   addHighlightAction,
   removeHighlightAction,
+  updatePrivacyAction,
+  updatePriorStatsAction,
 } from "./actions";
 
 /**
@@ -54,6 +64,33 @@ interface ProfileEditorProps {
   academics: PlayerAcademics;
   media: PlayerProfileMedia;
   highlights: PlayerHighlight[];
+  /**
+   * Privacy switches (advanced-profiles flag).
+   * Defaults to all-OFF when flag is off / row is missing.
+   */
+  privacy: PlayerPrivacy;
+  /**
+   * Player-reported prior season stats (advanced + prior-stats sub-flag).
+   * Defaults to [] when flag is off / row is missing.
+   */
+  priorStats: PlayerPriorStat[];
+}
+
+/**
+ * Empty row used when the player adds a new prior-season entry.
+ * Keep field names matching `PlayerPriorStat` so submit can pass through.
+ */
+function blankPriorStat(): PlayerPriorStat {
+  return {
+    season: "",
+    level: null,
+    ba: null,
+    ops: null,
+    hr: null,
+    rbi: null,
+    pitching: null,
+    context: null,
+  };
 }
 
 const INTENDED_LEVELS: { value: IntendedLevel; label: string; description: string }[] = [
@@ -71,7 +108,18 @@ export function ProfileEditor({
   academics: initialAcademics,
   media: initialMedia,
   highlights: initialHighlights,
+  privacy: initialPrivacy,
+  priorStats: initialPriorStats,
 }: ProfileEditorProps) {
+  // ── Feature flags (read once on mount — Next inlines NEXT_PUBLIC_*
+  //    at build time, so these compile to literal booleans). ──────
+  const advancedProfilesOn = isFeatureEnabled(
+    "NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES",
+  );
+  const priorStatsOn =
+    advancedProfilesOn &&
+    isFeatureEnabled("NEXT_PUBLIC_ENABLE_PLAYER_SELF_REPORTED_STATS");
+
   // ── State (one per section so saves are scoped) ──────────────
   const [media, setMedia] = useState({
     avatarUrl: initialMedia.avatarUrl ?? "",
@@ -89,8 +137,70 @@ export function ProfileEditor({
   });
   const [highlights, setHighlights] = useState<PlayerHighlight[]>(initialHighlights);
   const [newHighlight, setNewHighlight] = useState({ url: "", caption: "" });
+  const [privacy, setPrivacy] = useState<PlayerPrivacy>(initialPrivacy);
+  const [priorStats, setPriorStats] =
+    useState<PlayerPriorStat[]>(initialPriorStats);
 
   const [pending, startTransition] = useTransition();
+
+  // ── Privacy save ─────────────────────────────────────────────
+  function savePrivacy(next: PlayerPrivacy) {
+    thumpHaptic();
+    // Optimistic — flip locally, revert on error.
+    const prev = privacy;
+    setPrivacy(next);
+    startTransition(async () => {
+      const res = await updatePrivacyAction(next);
+      if (res.error) {
+        errorHaptic();
+        toast.error(res.error);
+        setPrivacy(prev);
+      } else {
+        toast.success("Privacy updated");
+      }
+    });
+  }
+
+  // ── Prior stats save ─────────────────────────────────────────
+  function savePriorStats(next: PlayerPriorStat[]) {
+    thumpHaptic();
+    // Strip empty-season rows before submit — they fail Zod (`min(1)`)
+    // and are noise in the saved array anyway.
+    const cleaned = next.filter((r) => r.season.trim().length > 0);
+    startTransition(async () => {
+      const res = await updatePriorStatsAction(cleaned);
+      if (res.error) {
+        errorHaptic();
+        toast.error(res.error);
+      } else {
+        toast.success("Prior seasons saved");
+      }
+    });
+  }
+
+  function updatePriorStat(
+    index: number,
+    patch: Partial<PlayerPriorStat>,
+  ) {
+    setPriorStats((cur) =>
+      cur.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    );
+  }
+
+  function addPriorStat() {
+    if (priorStats.length >= 10) {
+      errorHaptic();
+      toast.error("Up to 10 prior seasons");
+      return;
+    }
+    tapHaptic(6);
+    setPriorStats((cur) => [...cur, blankPriorStat()]);
+  }
+
+  function removePriorStat(index: number) {
+    tapHaptic(8);
+    setPriorStats((cur) => cur.filter((_, i) => i !== index));
+  }
 
   // ── Initials for the avatar fallback ─────────────────────────
   const initials = `${player.firstName[0] ?? "?"}${player.lastName[0] ?? "?"}`.toUpperCase();
@@ -550,6 +660,188 @@ export function ProfileEditor({
             </button>
           </div>
         </SectionCard>
+
+        {/* ── Privacy switches (advanced flag) ─────────────────────
+            Rendered ONLY when NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES
+            is on. Live pilot keeps the existing behavior (single
+            profile_public toggle elsewhere) intact. */}
+        {advancedProfilesOn && (
+          <SectionCard
+            icon={<Lock className="w-4 h-4" />}
+            tone="bg-ink/5 text-ink"
+            title="Profile visibility"
+            description="You decide what's public. Default is everything off — flip a switch to make a section visible on your /p/ profile."
+          >
+            <div className="space-y-2">
+              <PrivacySwitch
+                label="Public profile"
+                hint="Required for /p/ to render at all. When off, your profile returns 404 to anyone but you."
+                icon={privacy.profilePublic ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                checked={privacy.profilePublic}
+                disabled={pending}
+                onChange={(v) =>
+                  savePrivacy({ ...privacy, profilePublic: v })
+                }
+              />
+              <PrivacySwitch
+                label="Show academics"
+                hint="Allow GPA, SAT, ACT, class rank, and intended college level on your public profile."
+                icon={<GraduationCap className="w-4 h-4" />}
+                checked={privacy.showAcademics}
+                disabled={pending || !privacy.profilePublic}
+                onChange={(v) =>
+                  savePrivacy({ ...privacy, showAcademics: v })
+                }
+              />
+              <PrivacySwitch
+                label="Show contact info"
+                hint="Allow recruiters to see contact channels (email, social handles). Off by default."
+                icon={<ExternalLink className="w-4 h-4" />}
+                checked={privacy.showContactInfo}
+                disabled={pending || !privacy.profilePublic}
+                onChange={(v) =>
+                  savePrivacy({ ...privacy, showContactInfo: v })
+                }
+              />
+            </div>
+            {!privacy.profilePublic && (
+              <p className="mt-3 text-[11px] text-ink-3 leading-snug bg-paper-deep border border-hair rounded-lg px-3 py-2">
+                Profile is private. Sub-toggles re-enable when public is on.
+              </p>
+            )}
+          </SectionCard>
+        )}
+
+        {/* ── Prior seasons (advanced + sub-flag) ──────────────────
+            Player-typed history. Always rendered with a "Player
+            reported" badge so recruiters can't confuse it with
+            verified Rostr stats. */}
+        {priorStatsOn && (
+          <SectionCard
+            icon={<ListChecks className="w-4 h-4" />}
+            tone="bg-amber-soft text-amber"
+            title="Prior seasons"
+            description="Stats from before Rostr — your travel team, freshman year, summer ball. Always shown with a 'Player reported' label, never mixed with verified game stats."
+            badge={<PlayerReportedBadge size="sm" />}
+          >
+            <ul className="space-y-3">
+              {priorStats.length === 0 && (
+                <li className="text-[12.5px] text-ink-3 italic px-1">
+                  No prior seasons yet. Tap below to add one.
+                </li>
+              )}
+              {priorStats.map((row, i) => (
+                <li
+                  key={i}
+                  className="rounded-xl border border-hair bg-paper p-3 sm:p-4 space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                      <Field
+                        label="Season"
+                        placeholder="2024 / Sophomore"
+                        value={row.season}
+                        onChange={(v) => updatePriorStat(i, { season: v })}
+                      />
+                      <Field
+                        label="Level"
+                        placeholder="Varsity / Travel"
+                        value={row.level ?? ""}
+                        onChange={(v) =>
+                          updatePriorStat(i, { level: v.trim() || null })
+                        }
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removePriorStat(i)}
+                      aria-label="Remove prior season"
+                      disabled={pending}
+                      className={cn(
+                        "w-9 h-9 rounded-full flex items-center justify-center text-ink-3 shrink-0 self-end mb-1",
+                        "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                        "hover:bg-red-soft hover:text-red active:scale-[0.88]",
+                      )}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    <Field
+                      label="BA"
+                      placeholder=".380"
+                      value={row.ba ?? ""}
+                      onChange={(v) =>
+                        updatePriorStat(i, { ba: v.trim() || null })
+                      }
+                      inputMode="decimal"
+                    />
+                    <Field
+                      label="OPS"
+                      placeholder=".950"
+                      value={row.ops ?? ""}
+                      onChange={(v) =>
+                        updatePriorStat(i, { ops: v.trim() || null })
+                      }
+                      inputMode="decimal"
+                    />
+                    <Field
+                      label="HR"
+                      placeholder="6"
+                      value={row.hr ?? ""}
+                      onChange={(v) =>
+                        updatePriorStat(i, { hr: v.trim() || null })
+                      }
+                      inputMode="numeric"
+                    />
+                    <Field
+                      label="RBI"
+                      placeholder="32"
+                      value={row.rbi ?? ""}
+                      onChange={(v) =>
+                        updatePriorStat(i, { rbi: v.trim() || null })
+                      }
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <Field
+                    label="Pitching (optional)"
+                    placeholder="3-1, 2.10 ERA, 38 K in 27 IP"
+                    value={row.pitching ?? ""}
+                    onChange={(v) =>
+                      updatePriorStat(i, { pitching: v.trim() || null })
+                    }
+                  />
+                  <Field
+                    label="Notes (optional)"
+                    placeholder="Conference all-star, league rank, awards…"
+                    value={row.context ?? ""}
+                    onChange={(v) =>
+                      updatePriorStat(i, { context: v.trim() || null })
+                    }
+                  />
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={addPriorStat}
+              disabled={pending || priorStats.length >= 10}
+              className={cn(
+                "mt-3 w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-hair bg-paper text-ink font-bold text-[13.5px] h-11",
+                "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                "hover:border-ink-3 active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100",
+              )}
+            >
+              <Plus className="w-4 h-4" strokeWidth={2.5} /> Add prior season
+            </button>
+            <SaveButton
+              onClick={() => savePriorStats(priorStats)}
+              pending={pending}
+              label="Save prior seasons"
+            />
+          </SectionCard>
+        )}
       </div>
     </div>
   );
@@ -562,12 +854,15 @@ function SectionCard({
   tone,
   title,
   description,
+  badge,
   children,
 }: {
   icon: React.ReactNode;
   tone: string;
   title: string;
   description?: string;
+  /** Optional inline badge — currently used for "Player reported" on prior stats. */
+  badge?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -581,8 +876,11 @@ function SectionCard({
         >
           {icon}
         </span>
-        <div>
-          <h2 className="font-display text-[16px] font-bold tracking-tight">{title}</h2>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="font-display text-[16px] font-bold tracking-tight">{title}</h2>
+            {badge}
+          </div>
           {description && (
             <p className="text-[11.5px] text-ink-3 mt-0.5 leading-snug">{description}</p>
           )}
@@ -590,6 +888,77 @@ function SectionCard({
       </div>
       {children}
     </section>
+  );
+}
+
+/**
+ * iOS-style toggle switch row. Tapping the whole row flips the switch
+ * (bigger touch target than the pill alone). Disabled state fades but
+ * still tooltips the reason via the parent's hint.
+ */
+function PrivacySwitch({
+  label,
+  hint,
+  icon,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  icon: React.ReactNode;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => {
+        tapHaptic(8);
+        onChange(!checked);
+      }}
+      className={cn(
+        "w-full flex items-start gap-3 p-3 rounded-xl border bg-paper text-left",
+        "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+        "active:scale-[0.99] disabled:opacity-50 disabled:active:scale-100",
+        checked ? "border-grass/40 bg-grass-dim/40" : "border-hair",
+      )}
+    >
+      <span
+        className={cn(
+          "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+          checked ? "bg-grass text-white" : "bg-hair-2 text-ink-3",
+        )}
+      >
+        {icon}
+      </span>
+      <div className="flex-1 min-w-0">
+        <div className="font-display text-[13.5px] font-bold tracking-tight">
+          {label}
+        </div>
+        {hint && (
+          <p className="text-[11px] text-ink-3 mt-0.5 leading-snug">{hint}</p>
+        )}
+      </div>
+      <span
+        aria-hidden
+        className={cn(
+          "relative w-10 h-6 rounded-full shrink-0 mt-1 transition-colors duration-[140ms]",
+          checked ? "bg-grass" : "bg-hair-2",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+            checked ? "left-[18px]" : "left-0.5",
+          )}
+        />
+      </span>
+    </button>
   );
 }
 

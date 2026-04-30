@@ -45,12 +45,18 @@ import {
   fetchPlayerAnnouncements,
   fetchPlayerAcademics,
   fetchPlayerHighlights,
+  fetchPlayerPrivacy,
+  fetchPlayerPriorStats,
   resolveVideoEmbed,
   type PlayerProfileMedia,
   type PlayerAnnouncement,
   type PlayerAcademics,
   type PlayerHighlight,
+  type PlayerPrivacy,
+  type PlayerPriorStat,
 } from "@/lib/services/player-profile";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { PlayerReportedBadge } from "@/components/atoms/data-source-badge";
 import {
   getCurrentRecruiter,
   fetchLists,
@@ -115,6 +121,8 @@ export default async function PlayerProfilePage({
     announcements,
     realAcademics,
     realHighlights,
+    realPrivacy,
+    realPriorStats,
   ] = real
     ? await Promise.all([
         fetchPlayerSeasonBatting(real.id),
@@ -125,6 +133,12 @@ export default async function PlayerProfilePage({
         fetchPlayerAnnouncements(real.id, 10),
         fetchPlayerAcademics(real.id),
         fetchPlayerHighlights(real.id),
+        // Privacy + prior stats: migration 34. When the advanced-profiles
+        // flag is OFF, these are fetched but ignored downstream so the
+        // public profile keeps its current behavior. Defense-in-depth at
+        // the render call site, not the fetch.
+        fetchPlayerPrivacy(real.id),
+        fetchPlayerPriorStats(real.id),
       ])
     : [
         mockBatting as unknown as SeasonBattingLine | null,
@@ -135,6 +149,10 @@ export default async function PlayerProfilePage({
         [],
         null as PlayerAcademics | null,
         [] as PlayerHighlight[],
+        // Default privacy: all-off so demo profiles never accidentally
+        // expose academics/contact under the new gates.
+        { profilePublic: false, showAcademics: false, showContactInfo: false } as PlayerPrivacy,
+        [] as PlayerPriorStat[],
       ];
 
   // Recruiter overlay context — if the viewer is a recruiter, show
@@ -227,6 +245,8 @@ export default async function PlayerProfilePage({
           mockAcademic={mockAcademic}
           realAcademics={realAcademics}
           realHighlights={realHighlights}
+          realPrivacy={realPrivacy}
+          realPriorStats={realPriorStats}
         />
         {recruiter && similarPlayers.length > 0 && (
           <SimilarPlayersSection
@@ -466,6 +486,8 @@ function Layout({
   mockAcademic,
   realAcademics,
   realHighlights,
+  realPrivacy,
+  realPriorStats,
 }: {
   player: (typeof MOCK_PLAYERS)[number];
   measurables: PlayerMeasurable[];
@@ -481,6 +503,8 @@ function Layout({
   mockAcademic: MockAcademic | null;
   realAcademics: PlayerAcademics | null;
   realHighlights: PlayerHighlight[];
+  realPrivacy: PlayerPrivacy;
+  realPriorStats: PlayerPriorStat[];
 }) {
   const hasBatting = Boolean(seasonLine && seasonLine.games > 0);
   const hasPitching = Boolean(pitchingSeason && pitchingSeason.games > 0);
@@ -492,6 +516,36 @@ function Layout({
   // fake highlights / fake college offers / fake academics on a real
   // player's profile — that was demo eye-candy for the marketing page.
   const showMockSections = !isRealProfile;
+
+  // ── Feature flag gates (advanced player profiles) ──────────────
+  // When the advanced-profiles flag is OFF, behave EXACTLY as before:
+  //   - academics card renders if any value present
+  //   - no prior-stats card
+  //   - no privacy gating
+  // When ON, respect player's privacy switches and surface the new
+  // prior-seasons card under a Player-reported badge.
+  const advancedProfilesOn = isFeatureEnabled(
+    "NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES",
+  );
+  const priorStatsFlagOn =
+    advancedProfilesOn &&
+    isFeatureEnabled("NEXT_PUBLIC_ENABLE_PLAYER_SELF_REPORTED_STATS");
+
+  // Decide if the academics block can render. Off-flag = current
+  // behavior (always render when there's data). On-flag = respect
+  // showAcademics — default false means hidden until the player opts in.
+  const academicsAllowed = advancedProfilesOn
+    ? isRealProfile
+      ? realPrivacy.showAcademics
+      : true // demo profiles ignore the gate
+    : true;
+
+  // Prior stats render: both flags ON, real profile, has rows.
+  const priorStatsToShow = (realPriorStats ?? []).filter(
+    (r) => r.season && r.season.trim().length > 0,
+  );
+  const showPriorStats =
+    priorStatsFlagOn && isRealProfile && priorStatsToShow.length > 0;
   return (
     /* Tighter mobile spacing all around: gap-4 (was 5), my-5 (was 7),
        and pb-28 to clear the bottom nav (~56px + safe-area-inset). */
@@ -581,15 +635,31 @@ function Layout({
         {/* Academics: real values for claimed profiles, mock for demo.
             Render even if values are sparse — recruiters value any
             data point ("GPA 3.85, intended D2") more than they value
-            a hidden card. We omit empty rows inside the card itself. */}
-        {isRealProfile && realAcademics && hasAnyRealAcademics(realAcademics) && (
-          <section id="academic" className="scroll-mt-28">
-            <RealAcademicsCard academics={realAcademics} />
-          </section>
-        )}
+            a hidden card. We omit empty rows inside the card itself.
+            Advanced-profiles flag ON additionally requires the player's
+            showAcademics switch (default false), so private-by-default. */}
+        {isRealProfile &&
+          realAcademics &&
+          academicsAllowed &&
+          hasAnyRealAcademics(realAcademics) && (
+            <section id="academic" className="scroll-mt-28">
+              <RealAcademicsCard
+                academics={realAcademics}
+                showVerifiedBadge={advancedProfilesOn}
+              />
+            </section>
+          )}
         {showMockSections && (
           <section id="academic" className="scroll-mt-28">
             <AcademicsCard academic={mockAcademic} />
+          </section>
+        )}
+        {/* Prior seasons (player-reported, flag-gated) — sub-flag of
+            advanced profiles. Always rendered with a Player-reported
+            badge so recruiters never confuse it with verified stats. */}
+        {showPriorStats && (
+          <section id="prior-seasons" className="scroll-mt-28">
+            <PriorSeasonsCard rows={priorStatsToShow} />
           </section>
         )}
         {hasMeasurables && (
@@ -1776,8 +1846,21 @@ function hasAnyRealAcademics(a: PlayerAcademics): boolean {
  * Real academics card — renders only the fields the player chose to
  * share. Mirrors the visual rhythm of the mock AcademicsCard so the
  * profile feels consistent regardless of demo vs. real.
+ *
+ * `showVerifiedBadge` is set by the advanced-profiles flag. When ON,
+ * we badge this card as "Player reported" — academics live in the
+ * player-typed bucket (GPA / SAT / ACT are inputs, not verified by
+ * Rostr's scoring engine). The label is critical: a recruiter looking
+ * at a player profile must see at a glance which fields are claimed
+ * vs. measured.
  */
-function RealAcademicsCard({ academics }: { academics: PlayerAcademics }) {
+function RealAcademicsCard({
+  academics,
+  showVerifiedBadge,
+}: {
+  academics: PlayerAcademics;
+  showVerifiedBadge?: boolean;
+}) {
   const rows: Array<[string, string]> = [];
   if (academics.gpa) rows.push(["GPA", academics.gpa]);
   if (academics.satScore != null) rows.push(["SAT", String(academics.satScore)]);
@@ -1792,11 +1875,16 @@ function RealAcademicsCard({ academics }: { academics: PlayerAcademics }) {
 
   return (
     <div className="bg-card border border-hair rounded-lg">
-      <div className="px-5 py-4 border-b border-hair-2 flex items-center gap-2">
+      <div className="px-5 py-4 border-b border-hair-2 flex items-center gap-2 flex-wrap">
         <GraduationCap className="w-4 h-4 text-ink-3" />
         <h3 className="font-display text-[15px] font-semibold tracking-tight">
           Academic
         </h3>
+        {showVerifiedBadge && (
+          <span className="ml-auto">
+            <PlayerReportedBadge size="sm" />
+          </span>
+        )}
       </div>
       {academics.bio && (
         <div className="px-5 py-3.5 border-b border-hair-2 text-[13px] leading-relaxed text-ink-2">
@@ -1908,3 +1996,106 @@ function RealHighlightsCard({ highlights }: { highlights: PlayerHighlight[] }) {
     </div>
   );
 }
+
+/**
+ * Prior seasons card — player-typed history from before Rostr or
+ * outside-of-program play (travel, summer ball, etc.). Always rendered
+ * with a Player-reported badge so a recruiter can never confuse this
+ * with verified Rostr-tracked stats.
+ *
+ * Flag-gated by NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES +
+ * NEXT_PUBLIC_ENABLE_PLAYER_SELF_REPORTED_STATS at the call site.
+ *
+ * Layout: stack of season rows, each one collapsible-feel (compact
+ * mobile, expanded desktop). Optional fields hide when empty so the
+ * row doesn't waste vertical space on missing values.
+ */
+function PriorSeasonsCard({ rows }: { rows: PlayerPriorStat[] }) {
+  return (
+    <div className="bg-card border border-hair rounded-lg overflow-hidden">
+      <div className="px-5 py-4 border-b border-hair-2 flex items-center gap-2 flex-wrap">
+        <ListChecksIcon />
+        <h3 className="font-display text-[15px] font-semibold tracking-tight">
+          Prior seasons
+        </h3>
+        <span className="ml-auto">
+          <PlayerReportedBadge size="sm" />
+        </span>
+      </div>
+      <div>
+        {rows.map((row, i) => {
+          // Build the inline stat-line text from any populated batting fields.
+          const battingBits: string[] = [];
+          if (row.ba) battingBits.push(`${row.ba} BA`);
+          if (row.ops) battingBits.push(`${row.ops} OPS`);
+          if (row.hr) battingBits.push(`${row.hr} HR`);
+          if (row.rbi) battingBits.push(`${row.rbi} RBI`);
+          return (
+            <div
+              key={i}
+              className="px-5 py-3.5 border-b border-hair-2 last:border-b-0"
+            >
+              <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                <div className="font-display text-[14px] font-semibold tracking-tight">
+                  {row.season}
+                </div>
+                {row.level && (
+                  <span className="text-[11.5px] text-ink-3 font-medium">
+                    {row.level}
+                  </span>
+                )}
+              </div>
+              {battingBits.length > 0 && (
+                <div className="mt-1 text-[12.5px] text-ink-2 font-mono tabular-nums">
+                  {battingBits.join(" · ")}
+                </div>
+              )}
+              {row.pitching && (
+                <div className="mt-1 text-[12.5px] text-ink-2">
+                  <span className="text-ink-3 font-mono text-[10.5px] uppercase tracking-[0.06em] mr-1.5">
+                    Pitching
+                  </span>
+                  {row.pitching}
+                </div>
+              )}
+              {row.context && (
+                <div className="mt-1 text-[11.5px] text-ink-3 leading-snug italic">
+                  {row.context}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="px-5 py-2.5 bg-paper-deep border-t border-hair-2 text-[10.5px] text-ink-3 leading-snug">
+        Reported by the player. Not independently verified.
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Inline list-checks icon. Avoids importing another lucide icon at
+ * the top of the file just for one card header.
+ */
+function ListChecksIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-4 h-4 text-amber"
+      aria-hidden
+    >
+      <path d="m3 17 2 2 4-4" />
+      <path d="m3 7 2 2 4-4" />
+      <path d="M13 6h8" />
+      <path d="M13 12h8" />
+      <path d="M13 18h8" />
+    </svg>
+  );
+}
+

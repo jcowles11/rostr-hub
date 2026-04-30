@@ -4,6 +4,8 @@ import {
   fetchPlayerAcademics,
   fetchPlayerHighlights,
   fetchPlayerProfileMedia,
+  fetchPlayerPrivacy,
+  fetchPlayerPriorStats,
 } from "@/lib/services/player-profile";
 import { ProfileEditor } from "./profile-editor";
 
@@ -49,10 +51,14 @@ export default async function ProfileEditorPage() {
     redirect("/me");
   }
 
-  const [academics, highlights, media] = await Promise.all([
+  const [academics, highlights, media, privacy, priorStats] = await Promise.all([
     fetchPlayerAcademics(player.id),
     fetchPlayerHighlights(player.id),
     fetchPlayerProfileMedia(player.id),
+    // Privacy + prior stats default to safe values (all-off / empty array)
+    // when migration 34 columns are missing — fetcher handles the gap.
+    fetchPlayerPrivacy(player.id),
+    fetchPlayerPriorStats(player.id),
   ]);
 
   return (
@@ -90,6 +96,8 @@ export default async function ProfileEditorPage() {
         }
       }
       highlights={highlights}
+      privacy={privacy}
+      priorStats={priorStats}
     />
   );
 }
