@@ -53,6 +53,14 @@
     /* iOS Safari address bar can shrink/grow as the user scrolls;
        100dvh respects the dynamic viewport so layouts don't jump. */
     min-height: 100dvh;
+    /* Defensive page-level horizontal-scroll guard. If any descendant
+       overflows its container (rogue padding, oversized image, etc.),
+       the body itself never scrolls sideways. `overflow-x: clip` is
+       the modern equivalent of `hidden` that doesn't break sticky
+       positioning. Falls back to `hidden` on older browsers. */
+    overflow-x: hidden;
+    overflow-x: clip;
+    max-width: 100vw;
   }
 
   /* Smooth iOS-style scroll momentum on every scroll container.
