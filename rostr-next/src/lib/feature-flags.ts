@@ -59,7 +59,8 @@ export type FlagName =
   | "NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES"
   | "NEXT_PUBLIC_ENABLE_PLAYER_SELF_REPORTED_STATS"
   | "NEXT_PUBLIC_ENABLE_TRAINING_PROGRAMS"
-  | "NEXT_PUBLIC_ENABLE_AI_PLAYER_ASSISTANT";
+  | "NEXT_PUBLIC_ENABLE_AI_PLAYER_ASSISTANT"
+  | "NEXT_PUBLIC_ENABLE_SCOUT_MODE";
 
 /**
  * Human-readable description per flag — used by the dev tooling page
@@ -74,6 +75,8 @@ export const FLAG_DESCRIPTIONS: Record<FlagName, string> = {
     "Individualized training programs (workouts, weekly plans, athlete check-ins). Gates the entire feature surface; default OFF until v2.",
   NEXT_PUBLIC_ENABLE_AI_PLAYER_ASSISTANT:
     "Athlete-facing AI assistant on /me. Distinct from the coach AI Assistant Coach (which ships unflagged); this is the player-side counterpart and is OFF until we have privacy review.",
+  NEXT_PUBLIC_ENABLE_SCOUT_MODE:
+    "Simplified scout discovery experience at /scout/discover. Read-only search + filters + player cards leveraging the verified-vs-reported signals from the advanced player profiles module. Distinct from the existing recruiter system at /scout/* (which stays live unflagged).",
 };
 
 /**
@@ -105,6 +108,8 @@ function readFlag(flag: FlagName): string | undefined {
       return process.env.NEXT_PUBLIC_ENABLE_TRAINING_PROGRAMS;
     case "NEXT_PUBLIC_ENABLE_AI_PLAYER_ASSISTANT":
       return process.env.NEXT_PUBLIC_ENABLE_AI_PLAYER_ASSISTANT;
+    case "NEXT_PUBLIC_ENABLE_SCOUT_MODE":
+      return process.env.NEXT_PUBLIC_ENABLE_SCOUT_MODE;
   }
 }
 
