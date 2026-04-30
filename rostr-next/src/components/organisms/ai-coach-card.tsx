@@ -303,20 +303,48 @@ export function AICoachCard({
           </div>
         )}
 
-        {/* Error */}
+        {/* Error — PHASE 6: friendly fallback that doesn't dead-end
+            the coach. Always offers a "Try again" path back to the
+            idle state so a transient AI hiccup doesn't strand them. */}
         {error && !response && (
-          <div className="mt-3 flex items-start gap-2 p-2.5 rounded-sm bg-red/30 text-white text-[11.5px]">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            <span>{error}</span>
+          <div className="mt-3 p-3 rounded-md bg-red/30 text-white text-[12px] leading-snug">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setLastPrompt(null);
+              }}
+              className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-full text-[11.5px] font-bold active:scale-[0.96] transition-transform"
+            >
+              Try again
+            </button>
           </div>
         )}
 
         {/* Idle: presets + input */}
         {!response && !error && !lineup && (
           <>
+            {/* PHASE 6 — clearer "what does this do" copy. Was just
+                "What would you like to tackle first?" which assumed the
+                coach already knew the AI was an assistant. New copy
+                names the use cases up-front so the AI feels optional
+                and useful, not magical or required. */}
             <h4 className={titleClass}>
-              What would you like to tackle first?
+              Optional helper for plans, lineups, and notes
             </h4>
+            <p
+              className={cn(
+                "text-white/70 leading-snug",
+                mobileHero ? "text-[12.5px] mt-1" : "text-[11px] mt-0.5",
+              )}
+            >
+              Tap a preset or ask anything. Suggestions only — nothing
+              gets saved until you confirm.
+            </p>
             <div className={cn("flex flex-col gap-1.5", mobileHero ? "mt-3" : "mt-2.5")}>
               {PRESETS.map((p) => (
                 <button

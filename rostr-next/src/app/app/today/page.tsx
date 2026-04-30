@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { TopBar } from "@/components/organisms/top-bar";
 import { AvailabilityList } from "@/components/organisms/availability-list";
+import { FirstRunChecklist } from "@/components/organisms/first-run-checklist";
 import { getCurrentCoach } from "@/lib/services/coach";
 import { fetchRoster } from "@/lib/services/players";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -86,6 +87,29 @@ export default async function TodayPage() {
     (g) => !g.report_time && !g.uniform && !g.lineup_preview,
   );
 
+  // PHASE 1 — first-run checklist signals. Cheap counts only;
+  // the checklist component renders nothing once all three are true.
+  const [futureGamesRes, futureRes, plansWithBlocksRes] = await Promise.all([
+    supabase
+      .from("games")
+      .select("id", { count: "exact", head: true })
+      .eq("program_id", coach.program_id)
+      .gte("game_date", today),
+    supabase
+      .from("practice_plans")
+      .select("id", { count: "exact", head: true })
+      .eq("program_id", coach.program_id)
+      .gte("practice_date", today),
+    supabase
+      .from("practice_blocks")
+      .select("id", { count: "exact", head: true })
+      .limit(1),
+  ]);
+  const hasPlayers = roster.length > 0;
+  const hasUpcomingEvents =
+    (futureGamesRes.count ?? 0) > 0 || (futureRes.count ?? 0) > 0;
+  const hasAnyPractice = (plansWithBlocksRes.count ?? 0) > 0;
+
   const date = new Date();
   const dateLine = date.toLocaleDateString("en-US", {
     weekday: "long",
@@ -115,6 +139,15 @@ export default async function TodayPage() {
               </p>
             </div>
           </div>
+
+          {/* PHASE 1 — first-run checklist. Renders only when at least
+              one of (players, schedule, practice) is missing; hides
+              itself once a coach has a fully set-up program. */}
+          <FirstRunChecklist
+            hasPlayers={hasPlayers}
+            hasUpcomingEvents={hasUpcomingEvents}
+            hasAnyPractice={hasAnyPractice}
+          />
 
           {/* AI summary callout */}
           <DailyBrief

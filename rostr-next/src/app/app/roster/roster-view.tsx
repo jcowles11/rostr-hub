@@ -277,51 +277,57 @@ export function RosterView({
             )}
 
             {players.length === 0 && (
-              <div className="p-10 text-center">
+              // PHASE 1 — clearer primary action. The simplest first
+              // step for a non-technical coach is "Add your first
+              // player" by hand (no CSV needed). Bulk-import paths are
+              // demoted to secondary. The "try with sample players"
+              // option stays available as a tertiary explore-first
+              // affordance.
+              <div className="p-8 sm:p-10 text-center">
                 <div className="inline-flex w-14 h-14 rounded-full bg-red-soft text-red items-center justify-center mb-3">
-                  <Upload className="w-7 h-7" />
+                  <Plus className="w-7 h-7" strokeWidth={2.25} />
                 </div>
                 <h2 className="font-display text-[20px] font-semibold tracking-tight">
-                  Your roster is empty
+                  Build your roster
                 </h2>
                 <p className="text-[13px] text-ink-3 mt-2 max-w-[420px] mx-auto leading-relaxed">
-                  Import your team from GameChanger in seconds — or add players
-                  one at a time. Both paths are in the top-right.
+                  Add 5–10 players to get started. You can always
+                  import the rest later.
                 </p>
-                <div className="mt-5 flex justify-center gap-2 flex-wrap">
+                <div className="mt-5 flex flex-col sm:flex-row justify-center gap-2 max-w-[420px] mx-auto">
                   <button
-                    onClick={() => setImportStatsOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-red hover:bg-red/90 text-white rounded-sm text-[13px] font-semibold"
+                    onClick={() => setAddOpen(true)}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 h-11 bg-red text-white rounded-full text-[13.5px] font-bold shadow-[0_4px_14px_-4px_rgba(200,58,58,0.55)] active:scale-[0.96] transition-transform"
                   >
-                    <Upload className="w-4 h-4" /> Import stats from GameChanger
+                    <Plus className="w-4 h-4" strokeWidth={2.5} /> Add your first player
                   </button>
                   <button
                     onClick={() => setImportOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-paper hover:bg-paper-deep border border-hair text-ink rounded-sm text-[13px] font-semibold"
+                    className="inline-flex items-center justify-center gap-1.5 px-4 h-11 bg-paper hover:bg-paper-deep border border-hair text-ink rounded-full text-[13px] font-semibold active:scale-[0.97] transition-transform"
                   >
-                    <Upload className="w-4 h-4" /> Import roster CSV
-                  </button>
-                  <button
-                    onClick={() => setAddOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-paper hover:bg-paper-deep border border-hair text-ink rounded-sm text-[13px] font-semibold"
-                  >
-                    <Plus className="w-4 h-4" /> Add player manually
+                    <Upload className="w-4 h-4" /> Import CSV
                   </button>
                 </div>
-                <div className="mt-5 pt-5 border-t border-hair-2 max-w-[420px] mx-auto">
-                  <p className="text-[12.5px] text-ink-3 mb-2">
-                    Just want to look around first?
+                <button
+                  onClick={() => setImportStatsOpen(true)}
+                  className="mt-3 text-[12px] text-ink-3 hover:text-ink underline"
+                >
+                  Or import directly from GameChanger →
+                </button>
+                <div className="mt-6 pt-5 border-t border-hair-2 max-w-[420px] mx-auto">
+                  <p className="text-[12px] text-ink-3 mb-2">
+                    Just want to look around?
                   </p>
                   <button
                     onClick={seedSample}
                     disabled={sampling}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-paper-deep hover:bg-paper border border-dashed border-hair text-ink-2 hover:text-ink rounded-sm text-[12.5px] font-semibold disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-paper-deep hover:bg-paper border border-dashed border-hair text-ink-2 hover:text-ink rounded-full text-[12.5px] font-semibold disabled:opacity-50"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     {sampling ? "Seeding…" : "Try with 15 sample players"}
                   </button>
                   <p className="text-[10.5px] text-ink-3 mt-2 leading-relaxed">
-                    Adds &quot;Sample Adams&quot; through &quot;Sample Olson&quot; so you can play with the practice planner, lineup builder, and stats pages. Wipe + reimport your real roster from Settings → Data when you&apos;re ready.
+                    Wipe + reimport your real roster from Settings → Data when you&apos;re ready.
                   </p>
                 </div>
               </div>

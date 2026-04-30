@@ -1015,14 +1015,34 @@ export function LiveScoringView({
         </button>
       </div>
 
-      {/* Score + inning banner */}
+      {/* Score + inning banner — PHASE 4 — improved at-a-glance state.
+          The team that's batting now gets a red label + a tiny "AT
+          BAT" pill so the scorer never has to think about which side
+          to log on. The outs row is now three dots (filled / empty)
+          instead of the "1 OUT" text — reads in one glance from a
+          dugout's-eye view. */}
       <div className="bg-card border-b border-hair px-4 py-4">
-        <div className="grid grid-cols-[1fr_80px_1fr] items-center gap-3">
+        <div className="grid grid-cols-[1fr_88px_1fr] items-center gap-3">
           <div className="text-center">
-            <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-3">
+            <div
+              className={cn(
+                "text-[10px] font-bold uppercase tracking-[0.1em]",
+                weAreBatting ? "text-red" : "text-ink-3",
+              )}
+            >
               {game.home ? "Us" : "Away"}
+              {weAreBatting && (
+                <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full bg-red text-white text-[9px] tracking-[0.06em]">
+                  AT BAT
+                </span>
+              )}
             </div>
-            <div className="font-mono text-[48px] font-bold leading-none tracking-[-0.03em] mt-1">
+            <div
+              className={cn(
+                "font-mono text-[48px] font-bold leading-none tracking-[-0.03em] mt-1",
+                weAreBatting ? "text-ink" : "text-ink-3",
+              )}
+            >
               {ourDisplayScore}
             </div>
           </div>
@@ -1030,18 +1050,48 @@ export function LiveScoringView({
             <div className="font-mono text-[11px] text-ink-3 font-bold">
               {currentHalf === "top" ? "TOP" : "BOT"}
             </div>
-            <div className="font-mono text-[24px] font-bold leading-none mt-1">
+            <div className="font-mono text-[26px] font-bold leading-none mt-1">
               {currentInning}
             </div>
-            <div className="font-mono text-[10px] text-ink-3 mt-1">
-              {currentOuts} OUT
+            {/* Three-dot outs indicator. Filled circles = outs
+                recorded, hollow rings = outs remaining. Reads as "1
+                out" / "2 out" / "3 out" without parsing text. */}
+            <div className="mt-2 flex items-center justify-center gap-1">
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  aria-hidden
+                  className={cn(
+                    "w-2 h-2 rounded-full",
+                    i < currentOuts
+                      ? "bg-ink"
+                      : "bg-transparent border border-ink-4",
+                  )}
+                />
+              ))}
             </div>
+            <div className="sr-only">{currentOuts} out</div>
           </div>
           <div className="text-center">
-            <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-3">
+            <div
+              className={cn(
+                "text-[10px] font-bold uppercase tracking-[0.1em]",
+                !weAreBatting ? "text-red" : "text-ink-3",
+              )}
+            >
               {game.opponent.slice(0, 12)}
+              {!weAreBatting && (
+                <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full bg-red text-white text-[9px] tracking-[0.06em]">
+                  AT BAT
+                </span>
+              )}
             </div>
-            <div className="font-mono text-[48px] font-bold leading-none tracking-[-0.03em] mt-1 text-ink-3">
+            <div
+              className={cn(
+                "font-mono text-[48px] font-bold leading-none tracking-[-0.03em] mt-1",
+                !weAreBatting ? "text-ink" : "text-ink-3",
+              )}
+            >
               {theirDisplayScore}
             </div>
           </div>
@@ -1466,12 +1516,11 @@ export function LiveScoringView({
                   toast.error("Nothing to undo yet");
                   return;
                 }
-                if (
-                  !window.confirm(
-                    `Undo last at-bat${lastAtBat.playerName ? ` (${lastAtBat.playerName})` : ""}? This deletes the play and rolls back the score.`,
-                  )
-                )
-                  return;
+                // PHASE 5 — removed the window.confirm. Undo is a
+                // single-tap-reversible action; the toast that fires
+                // on success ("Undone — Marcus Johnson · 1B") gives
+                // the coach a clear way back if they hit it by
+                // accident. Confirming a fast undo is friction.
                 startTransition(async () => {
                   const r = await undoLastAtBatAction(gameId);
                   if (r.error) {
