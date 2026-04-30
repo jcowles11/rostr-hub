@@ -159,7 +159,10 @@ export default async function PlayerProfilePage({
       {recruiter && real && <RecruiterViewTracker playerId={real.id} />}
       <PublicNav />
       {isMockFallback && <MockProfileBanner />}
-      <div className="max-w-layout-marketing mx-auto px-4 sm:px-6 lg:px-7">
+      {/* px-3 on smallest phones (was px-4) — buys 8px back per row,
+          which on a 360px iPhone SE is 2.2% more horizontal real estate
+          for content. */}
+      <div className="max-w-layout-marketing mx-auto px-3 sm:px-6 lg:px-7">
         <Hero player={player} headerUrl={profileMedia?.headerUrl ?? null} />
         <Identity
           player={player}
@@ -226,15 +229,17 @@ function Hero({
   player: (typeof MOCK_PLAYERS)[number];
   headerUrl: string | null;
 }) {
+  // Removed aspectRatio — on mobile a 3.6:1 ratio plus min-h-[260px]
+  // was producing a 260px-tall hero that ate half the visible viewport.
+  // Use min-height per breakpoint instead so the hero scales with the
+  // device: shorter on phones, the original height on tablets+.
   const bgStyle: React.CSSProperties = headerUrl
     ? {
-        aspectRatio: "3.6 / 1",
         backgroundImage: `linear-gradient(180deg, rgba(10,13,18,.3), rgba(10,13,18,.7)), url("${headerUrl}")`,
         backgroundSize: "cover",
         backgroundPosition: "center",
       }
     : {
-        aspectRatio: "3.6 / 1",
         backgroundImage: [
           "radial-gradient(circle at 70% 30%, rgba(200,58,58,.4), transparent 55%)",
           "radial-gradient(circle at 20% 80%, rgba(58,110,168,.25), transparent 60%)",
@@ -243,7 +248,7 @@ function Hero({
       };
   return (
     <div
-      className="relative mt-6 rounded-xl overflow-hidden bg-ink text-white min-h-[260px]"
+      className="relative mt-4 sm:mt-6 rounded-xl overflow-hidden bg-ink text-white min-h-[160px] sm:min-h-[260px]"
       style={bgStyle}
     >
       {/* grid overlay — only on the gradient hero, not a photo hero */}
@@ -273,13 +278,13 @@ function Hero({
         <rect x="26" y="56" width="8" height="8" fill="rgba(255,255,255,.4)" transform="rotate(45 30 60)" />
       </svg>
       )}
-      <div className="absolute top-5 left-5 flex gap-2">
-        <span className="px-2.5 py-1 bg-white/10 text-white rounded-xs text-[10.5px] font-bold uppercase tracking-[0.08em] backdrop-blur">
+      <div className="absolute top-3 left-3 sm:top-5 sm:left-5 flex gap-1.5 sm:gap-2 flex-wrap max-w-[calc(100%-1.5rem)]">
+        <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-white/10 text-white rounded-xs text-[10px] sm:text-[10.5px] font-bold uppercase tracking-[0.08em] backdrop-blur">
           ⚾ Baseball
         </span>
         {player.hot && (
-          <span className="px-2.5 py-1 bg-red text-white rounded-xs text-[10.5px] font-bold uppercase tracking-[0.08em]">
-            🔥 On a 7-game hit streak
+          <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-red text-white rounded-xs text-[10px] sm:text-[10.5px] font-bold uppercase tracking-[0.08em]">
+            🔥 7-game hit streak
           </span>
         )}
       </div>
@@ -308,10 +313,17 @@ function Identity({
 }) {
   const levelLabel = player.levelName ?? (player.level === "V" ? "Varsity" : player.level === "JV" ? "JV" : "Freshman");
   return (
-    <div className="flex gap-6 items-start -mt-14 relative z-[2] px-2">
+    /* Mobile (default): single-column. Avatar overlaps the bottom of
+       the hero, name + meta + actions stack below. LinkedIn iOS pattern.
+       sm+ goes back to the full-width row used by desktop. */
+    <div className="relative z-[2] -mt-10 sm:-mt-14 px-1 sm:px-2 flex flex-col sm:flex-row sm:items-start sm:gap-6">
       <div className="shrink-0">
         <div
-          className="w-32 h-32 rounded-xl border-[5px] border-card flex items-center justify-center font-display text-[44px] font-semibold text-white shadow-elev overflow-hidden bg-ink"
+          className={cn(
+            "rounded-xl border-[5px] border-card flex items-center justify-center font-display font-semibold text-white shadow-elev overflow-hidden bg-ink",
+            // Smaller on mobile so it doesn't dominate the column.
+            "w-20 h-20 text-[28px] sm:w-32 sm:h-32 sm:text-[44px]",
+          )}
           style={
             avatarUrl
               ? {
@@ -327,42 +339,42 @@ function Identity({
           {!avatarUrl && player.initials}
         </div>
       </div>
-      <div className="flex-1 pt-16 min-w-0">
+      <div className="flex-1 pt-3 sm:pt-16 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           {player.gradYear ? (
-            <div className="text-[11px] font-bold text-red tracking-[0.12em] uppercase">
+            <div className="text-[10.5px] sm:text-[11px] font-bold text-red tracking-[0.12em] uppercase">
               Class of {player.gradYear}
             </div>
           ) : null}
           {commitmentStatus === "committed" && commitmentSchool && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-grass-dim text-grass text-[10.5px] font-bold uppercase tracking-[0.06em]">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-grass-dim text-grass text-[10px] sm:text-[10.5px] font-bold uppercase tracking-[0.06em]">
               ✓ Committed · {commitmentSchool}
               {commitmentYear ? ` '${String(commitmentYear).slice(-2)}` : ""}
             </span>
           )}
           {commitmentStatus === "decided" && commitmentSchool && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-sky-soft text-sky text-[10.5px] font-bold uppercase tracking-[0.06em]">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-sky-soft text-sky text-[10px] sm:text-[10.5px] font-bold uppercase tracking-[0.06em]">
               Next stop · {commitmentSchool}
             </span>
           )}
           {commitmentStatus === "decommitted" && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-amber-soft text-amber text-[10.5px] font-bold uppercase tracking-[0.06em]">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-amber-soft text-amber text-[10px] sm:text-[10.5px] font-bold uppercase tracking-[0.06em]">
               Decommitted · open to offers
             </span>
           )}
         </div>
-        <h1 className="font-display text-[40px] font-semibold tracking-[-0.03em] leading-[1.05] mt-1">
+        <h1 className="font-display text-[26px] sm:text-[40px] font-semibold tracking-[-0.03em] leading-[1.05] mt-1">
           {player.firstName} {player.lastName}
           {player.jerseyNumber ? (
             <>
               {" "}
-              <span className="font-mono text-ink-3 text-[24px] align-middle">
+              <span className="font-mono text-ink-3 text-[18px] sm:text-[24px] align-middle">
                 #{player.jerseyNumber}
               </span>
             </>
           ) : null}
         </h1>
-        <div className="flex flex-wrap gap-3.5 mt-2 text-[14px] text-ink-2">
+        <div className="flex flex-wrap gap-x-2 gap-y-1 sm:gap-x-3.5 sm:gap-y-1.5 mt-1.5 sm:mt-2 text-[12.5px] sm:text-[14px] text-ink-2">
           {player.positions.length > 0 && (
             <span>
               <b className="font-semibold text-ink">{player.positions.join("/")}</b>
@@ -387,10 +399,11 @@ function Identity({
             <>
               <span>·</span>
               <span>
-                <b className="font-semibold text-ink">Lincoln HS</b> · Varsity
+                <b className="font-semibold text-ink">Lincoln HS</b>
+                <span className="hidden sm:inline"> · Varsity</span>
               </span>
-              <span>·</span>
-              <span>Austin, TX</span>
+              <span className="hidden sm:inline">·</span>
+              <span className="hidden sm:inline">Austin, TX</span>
               <span>·</span>
               <span>
                 <b className="font-semibold text-ink">{mockBio?.height ?? "6'0\""}</b>{" "}
@@ -402,8 +415,17 @@ function Identity({
             </>
           )}
         </div>
+        {/* Actions: full-width row below identity on mobile, original
+            inline button group on sm+. Wrapping the existing component
+            in a sm:hidden / hidden sm:block pair keeps the desktop
+            behavior identical while giving phones a proper button row. */}
+        <div className="sm:hidden mt-3">
+          <PlayerProfileActions handle={player.handle} name={`${player.firstName} ${player.lastName}`} />
+        </div>
       </div>
-      <PlayerProfileActions handle={player.handle} name={`${player.firstName} ${player.lastName}`} />
+      <div className="hidden sm:block">
+        <PlayerProfileActions handle={player.handle} name={`${player.firstName} ${player.lastName}`} />
+      </div>
     </div>
   );
 }
@@ -448,7 +470,9 @@ function Layout({
   // player's profile — that was demo eye-candy for the marketing page.
   const showMockSections = !isRealProfile;
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5 lg:gap-7 my-7 mb-20">
+    /* Tighter mobile spacing all around: gap-4 (was 5), my-5 (was 7),
+       and pb-28 to clear the bottom nav (~56px + safe-area-inset). */
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4 lg:gap-7 my-5 lg:my-7 pb-28 lg:pb-20">
       <div className="flex flex-col gap-5 min-w-0">
         <section id="overview" className="scroll-mt-28">
           <StatHero

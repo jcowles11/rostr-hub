@@ -151,6 +151,18 @@
     transform: scale(0.985);
   }
 
+  /* Hide scrollbar thumb on horizontally-scrolling rows (tab strips,
+     chip rows, story rows) — keeps the scroll behavior, drops the
+     visible scrollbar. iOS Safari already hides it by default; this
+     handles Android Chrome / desktop browsers. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   /* iOS-style "frosted glass" — UINavigationBar / UITabBar / sheet
      handle. Use on sticky headers + floating chrome to read native. */
   .ios-glass {

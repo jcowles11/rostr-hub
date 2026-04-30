@@ -123,40 +123,42 @@ export function InstallPrompt() {
         // Sit above the bottom nav (which is z-topbar=5) and the FAB
         // (z-10). Banner z is between safe-area chrome and overlays.
         "bottom-[calc(80px+env(safe-area-inset-bottom))]",
-        // iOS UIAlert / sheet feel.
-        "rounded-2xl bg-white/92 backdrop-blur-xl backdrop-saturate-150",
-        "border border-hair shadow-[0_20px_50px_-10px_rgba(0,0,0,0.35),0_4px_12px_-4px_rgba(0,0,0,0.15)]",
-        "p-3.5 flex items-start gap-3",
+        // SOLID white card. The previous translucent backdrop was
+        // bleeding the page content through (especially the dark
+        // hero card behind it) and made the body text unreadable.
+        // iOS UIAlert is in fact a solid surface with a layered
+        // shadow, not glass — match that.
+        "rounded-2xl bg-card border border-hair",
+        "shadow-[0_20px_50px_-10px_rgba(0,0,0,0.4),0_6px_16px_-4px_rgba(0,0,0,0.2)]",
+        "p-4 flex items-start gap-3",
         // Slide-up entrance.
         "animate-slide-up",
       )}
       role="dialog"
       aria-label="Install Rostr"
     >
-      <span className="w-10 h-10 rounded-xl bg-red-soft text-red flex items-center justify-center shrink-0 font-display font-black text-[16px]">
+      <span className="w-11 h-11 rounded-xl bg-red text-white flex items-center justify-center shrink-0 font-display font-black text-[18px] shadow-[0_4px_12px_-3px_rgba(200,58,58,0.55)]">
         R
       </span>
       <div className="flex-1 min-w-0">
-        <div className="font-display text-[14px] font-bold tracking-tight text-ink">
+        <div className="font-display text-[15px] font-bold tracking-tight text-ink leading-tight">
           Install Rostr
         </div>
         {platform === "ios" ? (
-          <div className="text-[11.5px] text-ink-2 leading-snug mt-0.5">
+          <div className="text-[12.5px] text-ink-2 leading-snug mt-1">
             Tap{" "}
-            <span className="inline-flex items-center justify-center w-4 h-4 rounded-[3px] bg-paper-deep align-text-bottom">
-              <Share className="w-2.5 h-2.5" strokeWidth={2.25} />
+            <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-[4px] bg-paper-deep align-text-bottom">
+              <Share className="w-3 h-3 text-ink-2" strokeWidth={2.25} />
             </span>{" "}
             then{" "}
-            <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-[3px] bg-paper-deep text-[10px] font-semibold align-text-bottom">
-              <Plus className="w-2.5 h-2.5" strokeWidth={2.5} />
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[4px] bg-paper-deep text-[11px] font-semibold text-ink align-text-bottom whitespace-nowrap">
+              <Plus className="w-3 h-3" strokeWidth={2.5} />
               Add to Home Screen
-            </span>{" "}
-            for the full app feel.
+            </span>
           </div>
         ) : (
-          <div className="text-[11.5px] text-ink-2 leading-snug mt-0.5">
-            Get the full-screen app — no browser bars, app icon on your
-            home screen, faster launch.
+          <div className="text-[12.5px] text-ink-2 leading-snug mt-1">
+            Full-screen app, your home-screen icon, no browser bars.
           </div>
         )}
       </div>
@@ -166,9 +168,9 @@ export function InstallPrompt() {
             type="button"
             onClick={installAndroid}
             className={cn(
-              "h-8 px-3 rounded-full bg-red text-white text-[12px] font-bold",
+              "h-9 px-3.5 rounded-full bg-red text-white text-[12.5px] font-bold",
               "transition-transform duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-              "active:scale-[0.94]",
+              "active:scale-[0.94] shadow-[0_4px_12px_-4px_rgba(200,58,58,0.55)]",
             )}
           >
             Install
