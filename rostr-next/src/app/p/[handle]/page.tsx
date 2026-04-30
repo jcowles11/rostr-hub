@@ -47,16 +47,22 @@ import {
   fetchPlayerHighlights,
   fetchPlayerPrivacy,
   fetchPlayerPriorStats,
+  fetchPlayerContactInfo,
   resolveVideoEmbed,
+  emptyContactInfo,
   type PlayerProfileMedia,
   type PlayerAnnouncement,
   type PlayerAcademics,
   type PlayerHighlight,
   type PlayerPrivacy,
   type PlayerPriorStat,
+  type PlayerContactInfo,
 } from "@/lib/services/player-profile";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { PlayerReportedBadge } from "@/components/atoms/data-source-badge";
+import {
+  VerifiedBadge,
+  PlayerReportedBadge,
+} from "@/components/atoms/data-source-badge";
 import {
   getCurrentRecruiter,
   fetchLists,
@@ -123,6 +129,7 @@ export default async function PlayerProfilePage({
     realHighlights,
     realPrivacy,
     realPriorStats,
+    realContactInfo,
   ] = real
     ? await Promise.all([
         fetchPlayerSeasonBatting(real.id),
@@ -139,6 +146,10 @@ export default async function PlayerProfilePage({
         // the render call site, not the fetch.
         fetchPlayerPrivacy(real.id),
         fetchPlayerPriorStats(real.id),
+        // Contact info (migration 35) — gated by show_contact_info AND
+        // the advanced flag at render time. Fetcher returns empty
+        // object when migration 35 isn't applied.
+        fetchPlayerContactInfo(real.id),
       ])
     : [
         mockBatting as unknown as SeasonBattingLine | null,
@@ -153,6 +164,7 @@ export default async function PlayerProfilePage({
         // expose academics/contact under the new gates.
         { profilePublic: false, showAcademics: false, showContactInfo: false } as PlayerPrivacy,
         [] as PlayerPriorStat[],
+        emptyContactInfo(),
       ];
 
   // Recruiter overlay context — if the viewer is a recruiter, show
@@ -247,6 +259,7 @@ export default async function PlayerProfilePage({
           realHighlights={realHighlights}
           realPrivacy={realPrivacy}
           realPriorStats={realPriorStats}
+          realContactInfo={realContactInfo}
         />
         {recruiter && similarPlayers.length > 0 && (
           <SimilarPlayersSection
@@ -488,6 +501,7 @@ function Layout({
   realHighlights,
   realPrivacy,
   realPriorStats,
+  realContactInfo,
 }: {
   player: (typeof MOCK_PLAYERS)[number];
   measurables: PlayerMeasurable[];
@@ -505,6 +519,7 @@ function Layout({
   realHighlights: PlayerHighlight[];
   realPrivacy: PlayerPrivacy;
   realPriorStats: PlayerPriorStat[];
+  realContactInfo: PlayerContactInfo;
 }) {
   const hasBatting = Boolean(seasonLine && seasonLine.games > 0);
   const hasPitching = Boolean(pitchingSeason && pitchingSeason.games > 0);
@@ -546,6 +561,30 @@ function Layout({
   );
   const showPriorStats =
     priorStatsFlagOn && isRealProfile && priorStatsToShow.length > 0;
+
+  // Contact-info card: only on real profiles, only when ALL of:
+  //   1. advanced-profiles flag ON
+  //   2. profile_public = true (existing gate from /p/[handle] lookup)
+  //   3. show_contact_info = true (player explicit opt-in)
+  //   4. at least one contact field is populated
+  const contactFields: Array<[string, string | null]> = advancedProfilesOn
+    ? (
+        [
+          ["Email", realContactInfo.email],
+          ["Phone", realContactInfo.phone],
+          ["Instagram", realContactInfo.instagram],
+          ["TikTok", realContactInfo.tiktok],
+          ["X / Twitter", realContactInfo.x ?? realContactInfo.twitter],
+          ["YouTube", realContactInfo.youtube],
+          ["Website", realContactInfo.website],
+        ] as Array<[string, string | null]>
+      ).filter(([, v]) => Boolean(v))
+    : [];
+  const showContactCard =
+    advancedProfilesOn &&
+    isRealProfile &&
+    realPrivacy.showContactInfo &&
+    contactFields.length > 0;
   return (
     /* Tighter mobile spacing all around: gap-4 (was 5), my-5 (was 7),
        and pb-28 to clear the bottom nav (~56px + safe-area-inset). */
@@ -608,10 +647,15 @@ function Layout({
           </div>
         )}
         {/* Real highlights for claimed profiles — multiple ordered clips
-            from /me/profile editor. Falls back to the mock card on demo. */}
+            from /me/profile editor. Falls back to the mock card on demo.
+            When the advanced flag is ON each clip is badged Verified
+            (coach reviewed) or Player reported (default). */}
         {isRealProfile && realHighlights.length > 0 && (
           <section id="highlights" className="scroll-mt-28">
-            <RealHighlightsCard highlights={realHighlights} />
+            <RealHighlightsCard
+              highlights={realHighlights}
+              showSourceBadges={advancedProfilesOn}
+            />
           </section>
         )}
         {showMockSections && (
@@ -660,6 +704,15 @@ function Layout({
         {showPriorStats && (
           <section id="prior-seasons" className="scroll-mt-28">
             <PriorSeasonsCard rows={priorStatsToShow} />
+          </section>
+        )}
+        {/* Contact + socials (advanced flag, migration 35).
+            Defense-in-depth: profile_public was already enforced upstream
+            by fetchPlayerBySlug; show_contact_info gates whether the
+            card renders even on a public profile. */}
+        {showContactCard && (
+          <section id="contact" className="scroll-mt-28">
+            <ContactInfoCard fields={contactFields} />
           </section>
         )}
         {hasMeasurables && (
@@ -1918,7 +1971,18 @@ function RealAcademicsCard({
  * has uploaded (up to 6 max from the editor). Each tile auto-plays the
  * preview thumbnail and clicks through to the full provider page.
  */
-function RealHighlightsCard({ highlights }: { highlights: PlayerHighlight[] }) {
+function RealHighlightsCard({
+  highlights,
+  showSourceBadges,
+}: {
+  highlights: PlayerHighlight[];
+  /**
+   * When ON (advanced-profiles flag), each clip card shows either
+   * VerifiedBadge or PlayerReportedBadge. OFF preserves the existing
+   * unbadged layout.
+   */
+  showSourceBadges?: boolean;
+}) {
   // First clip gets the full-width "hero" treatment with embed; subsequent
   // clips render as smaller cards. iOS Photos / LinkedIn pattern.
   const [hero, ...rest] = highlights;
@@ -1926,11 +1990,17 @@ function RealHighlightsCard({ highlights }: { highlights: PlayerHighlight[] }) {
   const heroEmbed = resolveVideoEmbed(hero.url);
   return (
     <div className="bg-card border border-hair rounded-lg overflow-hidden">
-      <div className="px-5 py-4 border-b border-hair-2 flex items-center gap-2">
+      <div className="px-5 py-4 border-b border-hair-2 flex items-center gap-2 flex-wrap">
         <Trophy className="w-4 h-4 text-red" />
         <h3 className="font-display text-[15px] font-semibold tracking-tight">
           Highlights
         </h3>
+        {showSourceBadges &&
+          (hero.verifiedByCoach ? (
+            <VerifiedBadge size="sm" source="Coach" />
+          ) : (
+            <PlayerReportedBadge size="sm" />
+          ))}
         <span className="ml-auto font-mono text-[10.5px] text-ink-3 font-semibold">
           {highlights.length}
         </span>
@@ -1948,13 +2018,16 @@ function RealHighlightsCard({ highlights }: { highlights: PlayerHighlight[] }) {
             />
           </div>
         ) : (
+          // Providers we can't iframe (TikTok / Instagram / X / unknown).
+          // Render a labelled "Open on <provider>" tile rather than a
+          // broken embed.
           <a
             href={hero.url}
             target="_blank"
             rel="noopener noreferrer"
             className="block px-5 py-8 text-center text-white/85 underline text-[13px]"
           >
-            Open highlight →
+            Open on {providerLabel(heroEmbed?.provider)} →
           </a>
         )}
       </div>
@@ -1983,6 +2056,15 @@ function RealHighlightsCard({ highlights }: { highlights: PlayerHighlight[] }) {
                       : "linear-gradient(135deg, #14181f, #0a0d12)",
                   }}
                 />
+                {showSourceBadges && (
+                  <div className="absolute top-1.5 left-1.5">
+                    {h.verifiedByCoach ? (
+                      <VerifiedBadge size="sm" />
+                    ) : (
+                      <PlayerReportedBadge size="sm" />
+                    )}
+                  </div>
+                )}
                 {h.caption && (
                   <div className="absolute bottom-0 left-0 right-0 px-2 py-1 text-[10.5px] text-white bg-black/60 truncate">
                     {h.caption}
@@ -2099,3 +2181,72 @@ function ListChecksIcon() {
   );
 }
 
+/**
+ * Map a `VideoEmbed["provider"]` to a human label for the "Open on …"
+ * fallback link. We center on the provider name so the player + viewer
+ * both know exactly where the click lands.
+ */
+function providerLabel(provider: string | undefined): string {
+  switch (provider) {
+    case "youtube":
+      return "YouTube";
+    case "hudl":
+      return "Hudl";
+    case "vimeo":
+      return "Vimeo";
+    case "tiktok":
+      return "TikTok";
+    case "instagram":
+      return "Instagram";
+    case "x":
+      return "X";
+    default:
+      return "site";
+  }
+}
+
+/**
+ * Public contact + socials card. Always rendered with the
+ * PlayerReportedBadge atom — these handles are typed by the player and
+ * never independently verified.
+ *
+ * Inputs are flexible: a row can be "@handle" or a full URL or a phone
+ * number. We render the value as plain text (no auto-linking yet) so a
+ * malformed URL doesn't break the card. Future iteration can normalize
+ * to clickable links once the data shape stabilizes.
+ */
+function ContactInfoCard({
+  fields,
+}: {
+  fields: Array<[string, string | null]>;
+}) {
+  return (
+    <div className="bg-card border border-hair rounded-lg">
+      <div className="px-5 py-4 border-b border-hair-2 flex items-center gap-2 flex-wrap">
+        <Link2 className="w-4 h-4 text-ink-3" />
+        <h3 className="font-display text-[15px] font-semibold tracking-tight">
+          Contact
+        </h3>
+        <span className="ml-auto">
+          <PlayerReportedBadge size="sm" />
+        </span>
+      </div>
+      <div>
+        {fields.map(([label, value]) => (
+          <div
+            key={label}
+            className="flex justify-between items-center px-4 py-2.5 border-b border-hair-2 last:border-b-0 text-[13px] gap-3"
+          >
+            <span className="text-ink-3 font-medium shrink-0">{label}</span>
+            <span className="font-mono text-[12.5px] truncate text-right">
+              {value}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="px-5 py-2.5 bg-paper-deep border-t border-hair-2 text-[10.5px] text-ink-3 leading-snug">
+        Player-supplied. Verify before reaching out.
+      </div>
+    </div>
+  );
+}

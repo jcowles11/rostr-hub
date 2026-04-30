@@ -18,10 +18,11 @@ export type {
   PlayerAnnouncement,
   PlayerPrivacy,
   PlayerPriorStat,
+  PlayerContactInfo,
   IntendedLevel,
   VideoEmbed,
 } from "./player-profile-types";
-export { resolveVideoEmbed } from "./player-profile-types";
+export { resolveVideoEmbed, emptyContactInfo } from "./player-profile-types";
 
 import type {
   PlayerAcademics,
@@ -31,7 +32,9 @@ import type {
   PlayerAnnouncement,
   PlayerPrivacy,
   PlayerPriorStat,
+  PlayerContactInfo,
 } from "./player-profile-types";
+import { emptyContactInfo } from "./player-profile-types";
 
 /**
  * Reads the academic / recruiting block. Used by both the player's
@@ -81,18 +84,45 @@ export async function fetchPlayerAcademics(
 /**
  * Reads all highlight rows for a player, ordered by sort_order asc.
  * Empty array on error — callers handle the empty-state UI.
+ *
+ * Migration-resilient: tries the full SELECT including verified_*
+ * columns (migration 35) first; falls back to the base SELECT when
+ * those columns don't exist. Lets the app degrade gracefully.
  */
 export async function fetchPlayerHighlights(
   playerId: string,
 ): Promise<PlayerHighlight[]> {
   const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase
+  const tryFull = await supabase
     .from("player_highlights")
-    .select("id, player_id, url, caption, thumbnail_url, sort_order, created_at")
+    .select(
+      "id, player_id, url, caption, thumbnail_url, sort_order, created_at, verified_by_coach, verified_by, verified_at",
+    )
     .eq("player_id", playerId)
     .order("sort_order", { ascending: true });
-  if (error || !data) return [];
-  return data.map((r) => ({
+  if (tryFull.error && /column .* does not exist/i.test(tryFull.error.message)) {
+    // Pre-migration-35 fallback. Returns rows with verified=* defaulted off.
+    const fallback = await supabase
+      .from("player_highlights")
+      .select("id, player_id, url, caption, thumbnail_url, sort_order, created_at")
+      .eq("player_id", playerId)
+      .order("sort_order", { ascending: true });
+    if (fallback.error || !fallback.data) return [];
+    return fallback.data.map((r) => ({
+      id: r.id,
+      playerId: r.player_id,
+      url: r.url,
+      caption: r.caption,
+      thumbnailUrl: r.thumbnail_url,
+      sortOrder: r.sort_order,
+      createdAt: r.created_at,
+      verifiedByCoach: false,
+      verifiedBy: null,
+      verifiedAt: null,
+    }));
+  }
+  if (tryFull.error || !tryFull.data) return [];
+  return tryFull.data.map((r) => ({
     id: r.id,
     playerId: r.player_id,
     url: r.url,
@@ -100,6 +130,9 @@ export async function fetchPlayerHighlights(
     thumbnailUrl: r.thumbnail_url,
     sortOrder: r.sort_order,
     createdAt: r.created_at,
+    verifiedByCoach: Boolean(r.verified_by_coach),
+    verifiedBy: r.verified_by ?? null,
+    verifiedAt: r.verified_at ?? null,
   }));
 }
 
@@ -221,3 +254,44 @@ export async function fetchPlayerPriorStats(
 
 // resolveVideoEmbed and VideoEmbed are now sourced from
 // ./player-profile-types so client components can use them too.
+
+/**
+ * Player contact info (migration 35, JSONB on `players`). All fields
+ * default to null; the column itself defaults to '{}'. Migration-
+ * resilient — returns an empty contact-info object when the column is
+ * missing so older environments still render the page without crashing.
+ */
+export async function fetchPlayerContactInfo(
+  playerId: string,
+): Promise<PlayerContactInfo> {
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("players")
+    .select("contact_info")
+    .eq("id", playerId)
+    .maybeSingle();
+  if (error || !data) {
+    if (error && /column .* does not exist/i.test(error.message)) {
+      return emptyContactInfo();
+    }
+    return emptyContactInfo();
+  }
+  const raw = (data.contact_info ?? {}) as Record<string, unknown>;
+  // Defensive: normalize each field — trim, empty-string → null.
+  const s = (k: string): string | null => {
+    const v = raw[k];
+    if (v == null) return null;
+    const t = String(v).trim();
+    return t === "" ? null : t;
+  };
+  return {
+    email: s("email"),
+    phone: s("phone"),
+    twitter: s("twitter"),
+    instagram: s("instagram"),
+    tiktok: s("tiktok"),
+    youtube: s("youtube"),
+    x: s("x"),
+    website: s("website"),
+  };
+}

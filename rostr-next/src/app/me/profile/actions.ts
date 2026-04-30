@@ -337,6 +337,106 @@ export async function reorderHighlightsAction(
   return { error: null };
 }
 
+// ── Contact info (migration 35) ─────────────────────────────────
+
+/**
+ * Lenient validators. We keep them soft because:
+ *   - email: kids use weird "main" addresses; trim + length cap only.
+ *   - phone: free-form, length cap.
+ *   - social handles: accept "@handle", "handle", or full URL — render
+ *     layer normalizes to a clickable link.
+ *
+ * Defense-in-depth: input shape is fixed (8 known fields) so no
+ * arbitrary keys land in the JSONB column. RLS limits writes to the
+ * player's own row.
+ */
+const contactInfoSchema = z.object({
+  email: z.string().trim().max(120).nullable(),
+  phone: z.string().trim().max(40).nullable(),
+  twitter: z.string().trim().max(60).nullable(),
+  instagram: z.string().trim().max(60).nullable(),
+  tiktok: z.string().trim().max(60).nullable(),
+  youtube: z.string().trim().max(200).nullable(),
+  x: z.string().trim().max(60).nullable(),
+  website: z.string().trim().max(200).nullable(),
+});
+
+export interface UpdateContactInfoInput {
+  email: string | null;
+  phone: string | null;
+  twitter: string | null;
+  instagram: string | null;
+  tiktok: string | null;
+  youtube: string | null;
+  x: string | null;
+  website: string | null;
+}
+
+/**
+ * updateContactInfoAction — update the player's public contact + social
+ * handles.
+ *
+ * Flag-gated: requires NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES.
+ * Visibility of saved data is ALSO gated by show_contact_info on the
+ * public profile (migration 30) — so saving here doesn't expose anything
+ * by itself. Two switches must align.
+ */
+export async function updateContactInfoAction(
+  input: UpdateContactInfoInput,
+): Promise<{ error: string | null }> {
+  if (!isFeatureEnabled("NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES")) {
+    return {
+      error: featureDisabledMessage(
+        "NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES",
+      ),
+    };
+  }
+  if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
+
+  const parsed = contactInfoSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  // Empty string → null for clean JSONB storage.
+  const blanks = (v: string | null) =>
+    v == null || v.trim() === "" ? null : v.trim();
+  const cleaned: Record<string, string | null> = {
+    email: blanks(parsed.data.email),
+    phone: blanks(parsed.data.phone),
+    twitter: blanks(parsed.data.twitter),
+    instagram: blanks(parsed.data.instagram),
+    tiktok: blanks(parsed.data.tiktok),
+    youtube: blanks(parsed.data.youtube),
+    x: blanks(parsed.data.x),
+    website: blanks(parsed.data.website),
+  };
+
+  const supabase = createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You must be signed in." };
+
+  const { data: player, error: pErr } = await supabase
+    .from("players")
+    .select("id")
+    .eq("claimed_by_user_id", user.id)
+    .maybeSingle();
+  if (pErr || !player) return { error: "No claimed player profile found." };
+
+  const { error: updErr } = await supabase
+    .from("players")
+    .update({ contact_info: cleaned })
+    .eq("id", player.id);
+
+  if (updErr) return { error: updErr.message };
+
+  revalidatePath("/me");
+  revalidatePath("/me/profile");
+  return { error: null };
+}
+
 // ── Privacy switches (migration 34) ─────────────────────────────
 
 const privacySchema = z.object({

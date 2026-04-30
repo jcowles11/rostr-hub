@@ -18,6 +18,10 @@ import {
   ListChecks,
   Eye,
   EyeOff,
+  AtSign,
+  Mail,
+  Phone,
+  Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { tapHaptic, thumpHaptic, errorHaptic } from "@/lib/haptic";
@@ -28,6 +32,7 @@ import type {
   PlayerProfileMedia,
   PlayerPrivacy,
   PlayerPriorStat,
+  PlayerContactInfo,
   IntendedLevel,
 } from "@/lib/services/player-profile-types";
 import { isFeatureEnabled } from "@/lib/feature-flags";
@@ -39,6 +44,7 @@ import {
   removeHighlightAction,
   updatePrivacyAction,
   updatePriorStatsAction,
+  updateContactInfoAction,
 } from "./actions";
 
 /**
@@ -74,6 +80,12 @@ interface ProfileEditorProps {
    * Defaults to [] when flag is off / row is missing.
    */
   priorStats: PlayerPriorStat[];
+  /**
+   * Player-typed contact + social handles (advanced flag, migration 35).
+   * All fields default null. Visibility on /p/<handle> requires
+   * profile_public AND show_contact_info to BOTH be on.
+   */
+  contactInfo: PlayerContactInfo;
 }
 
 /**
@@ -110,6 +122,7 @@ export function ProfileEditor({
   highlights: initialHighlights,
   privacy: initialPrivacy,
   priorStats: initialPriorStats,
+  contactInfo: initialContactInfo,
 }: ProfileEditorProps) {
   // ── Feature flags (read once on mount — Next inlines NEXT_PUBLIC_*
   //    at build time, so these compile to literal booleans). ──────
@@ -140,8 +153,24 @@ export function ProfileEditor({
   const [privacy, setPrivacy] = useState<PlayerPrivacy>(initialPrivacy);
   const [priorStats, setPriorStats] =
     useState<PlayerPriorStat[]>(initialPriorStats);
+  const [contactInfo, setContactInfo] =
+    useState<PlayerContactInfo>(initialContactInfo);
 
   const [pending, startTransition] = useTransition();
+
+  // ── Contact info save ───────────────────────────────────────
+  function saveContactInfo() {
+    thumpHaptic();
+    startTransition(async () => {
+      const res = await updateContactInfoAction(contactInfo);
+      if (res.error) {
+        errorHaptic();
+        toast.error(res.error);
+      } else {
+        toast.success("Contact info updated");
+      }
+    });
+  }
 
   // ── Privacy save ─────────────────────────────────────────────
   function savePrivacy(next: PlayerPrivacy) {
@@ -283,7 +312,8 @@ export function ProfileEditor({
         return;
       }
       // Optimistic add — page revalidate happens server-side, but the
-      // user gets immediate visual feedback.
+      // user gets immediate visual feedback. New clips default to
+      // unverified (coach hasn't reviewed yet).
       setHighlights((cur) => [
         ...cur,
         {
@@ -294,6 +324,9 @@ export function ProfileEditor({
           thumbnailUrl: null,
           sortOrder: cur.length,
           createdAt: new Date().toISOString(),
+          verifiedByCoach: false,
+          verifiedBy: null,
+          verifiedAt: null,
         },
       ]);
       setNewHighlight({ url: "", caption: "" });
@@ -574,7 +607,7 @@ export function ProfileEditor({
           icon={<Video className="w-4 h-4" />}
           tone="bg-paper-deep text-ink"
           title="Highlight videos"
-          description="YouTube, Hudl, or Vimeo links. Up to 6 clips render embedded on your public profile."
+          description="YouTube, Hudl, Vimeo, TikTok, Instagram, or X links. Up to 6 clips render on your public profile. Coach-verified clips get a Verified badge; everything else is shown as Player reported."
         >
           {/* List of current highlights */}
           <ul className="space-y-2 mb-4">
@@ -634,10 +667,10 @@ export function ProfileEditor({
           <div className="space-y-2">
             <Field
               label="Video URL"
-              placeholder="https://youtu.be/..."
+              placeholder="https://youtu.be/... or tiktok.com/@... or instagram.com/reel/..."
               value={newHighlight.url}
               onChange={(v) => setNewHighlight((s) => ({ ...s, url: v }))}
-              hint="Paste a YouTube, Hudl, or Vimeo link."
+              hint="YouTube, Hudl, Vimeo, TikTok, Instagram, or X. Anything else opens as a link."
             />
             <Field
               label="Caption (optional)"
@@ -707,6 +740,108 @@ export function ProfileEditor({
             {!privacy.profilePublic && (
               <p className="mt-3 text-[11px] text-ink-3 leading-snug bg-paper-deep border border-hair rounded-lg px-3 py-2">
                 Profile is private. Sub-toggles re-enable when public is on.
+              </p>
+            )}
+          </SectionCard>
+        )}
+
+        {/* ── Contact + socials (advanced flag, migration 35) ──────
+            Visibility on the public profile is gated by profile_public
+            AND show_contact_info from the privacy card above. So saving
+            here is safe-by-default — nothing leaks until the player
+            also flips the contact-info switch. */}
+        {advancedProfilesOn && (
+          <SectionCard
+            icon={<AtSign className="w-4 h-4" />}
+            tone="bg-sky-soft text-sky"
+            title="Contact + socials"
+            description="Optional. Recruiters use these to reach out. Hidden from your public profile until you turn on 'Show contact info' above."
+            badge={<PlayerReportedBadge size="sm" />}
+          >
+            <div className="space-y-3">
+              <Field
+                label="Email"
+                placeholder="you@example.com"
+                value={contactInfo.email ?? ""}
+                onChange={(v) =>
+                  setContactInfo((s) => ({ ...s, email: v.trim() || null }))
+                }
+                inputMode="text"
+                hint="Best email for recruiters."
+                icon={<Mail className="w-3.5 h-3.5" />}
+              />
+              <Field
+                label="Phone (optional)"
+                placeholder="555-555-0100"
+                value={contactInfo.phone ?? ""}
+                onChange={(v) =>
+                  setContactInfo((s) => ({ ...s, phone: v.trim() || null }))
+                }
+                hint="Free-form. Add a parent number if you'd rather."
+                icon={<Phone className="w-3.5 h-3.5" />}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Field
+                  label="Instagram"
+                  placeholder="@handle"
+                  value={contactInfo.instagram ?? ""}
+                  onChange={(v) =>
+                    setContactInfo((s) => ({
+                      ...s,
+                      instagram: v.trim() || null,
+                    }))
+                  }
+                />
+                <Field
+                  label="TikTok"
+                  placeholder="@handle"
+                  value={contactInfo.tiktok ?? ""}
+                  onChange={(v) =>
+                    setContactInfo((s) => ({ ...s, tiktok: v.trim() || null }))
+                  }
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Field
+                  label="X / Twitter"
+                  placeholder="@handle"
+                  value={contactInfo.x ?? ""}
+                  onChange={(v) =>
+                    setContactInfo((s) => ({ ...s, x: v.trim() || null }))
+                  }
+                />
+                <Field
+                  label="YouTube"
+                  placeholder="@channel or URL"
+                  value={contactInfo.youtube ?? ""}
+                  onChange={(v) =>
+                    setContactInfo((s) => ({
+                      ...s,
+                      youtube: v.trim() || null,
+                    }))
+                  }
+                  inputMode="url"
+                />
+              </div>
+              <Field
+                label="Personal site (optional)"
+                placeholder="https://your-recruiting-site.com"
+                value={contactInfo.website ?? ""}
+                onChange={(v) =>
+                  setContactInfo((s) => ({ ...s, website: v.trim() || null }))
+                }
+                inputMode="url"
+                icon={<Globe className="w-3.5 h-3.5" />}
+              />
+            </div>
+            <SaveButton
+              onClick={saveContactInfo}
+              pending={pending}
+              label="Save contact info"
+            />
+            {!privacy.showContactInfo && (
+              <p className="mt-3 text-[11px] text-ink-3 leading-snug bg-paper-deep border border-hair rounded-lg px-3 py-2">
+                Saved, but hidden — flip <span className="font-semibold">Show contact info</span> on the visibility card above to publish.
               </p>
             )}
           </SectionCard>
@@ -969,6 +1104,7 @@ function Field({
   onChange,
   placeholder,
   inputMode,
+  icon,
 }: {
   label: string;
   hint?: string;
@@ -976,10 +1112,16 @@ function Field({
   onChange: (v: string) => void;
   placeholder?: string;
   inputMode?: "text" | "decimal" | "numeric" | "url";
+  /**
+   * Optional small icon shown inside the label row. Used by the
+   * Contact + socials section to mark email / phone / website fields.
+   */
+  icon?: React.ReactNode;
 }) {
   return (
     <div>
-      <label className="block text-[11px] font-bold uppercase tracking-[0.06em] text-ink-3 mb-1.5">
+      <label className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-ink-3 mb-1.5">
+        {icon && <span className="text-ink-3">{icon}</span>}
         {label}
       </label>
       <input

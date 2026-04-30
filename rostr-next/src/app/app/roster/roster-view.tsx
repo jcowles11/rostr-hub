@@ -13,7 +13,9 @@ import {
   Pencil,
   Trash2,
   Sparkles,
+  FileText,
 } from "lucide-react";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { toast } from "sonner";
 import { TopBar } from "@/components/organisms/top-bar";
 import { Avatar } from "@/components/atoms/avatar";
@@ -469,6 +471,25 @@ export function RosterView({
                                 icon: <ExternalLink className="w-3.5 h-3.5" />,
                                 onSelect: () => window.open(`/p/${p.handle}`, "_blank"),
                               },
+                              // Player-reported review — flag-gated. Filtered
+                              // out of the menu when the advanced flag is OFF
+                              // so the row action is invisible on the live
+                              // pilot. Coach-side read-only surface for
+                              // verifying what the player typed for themselves.
+                              ...(isFeatureEnabled(
+                                "NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES",
+                              )
+                                ? [
+                                    {
+                                      label: "Player-reported data",
+                                      icon: <FileText className="w-3.5 h-3.5" />,
+                                      onSelect: () =>
+                                        router.push(
+                                          `/app/roster/${p.id}/reported`,
+                                        ),
+                                    },
+                                  ]
+                                : []),
                               {
                                 label: "Delete player",
                                 icon: <Trash2 className="w-3.5 h-3.5" />,

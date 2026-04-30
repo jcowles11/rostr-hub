@@ -78,6 +78,57 @@ export interface PlayerHighlight {
   thumbnailUrl: string | null;
   sortOrder: number;
   createdAt: string;
+  /**
+   * Coach-verified signal (migration 35). When true, a coach in the
+   * player's program reviewed and vouched for this clip — the public
+   * profile shows the VerifiedBadge atom; otherwise PlayerReportedBadge.
+   * Defaults false. The verification UI is not shipped in this build —
+   * column is read-only on the coach review surface.
+   */
+  verifiedByCoach: boolean;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
+}
+
+/**
+ * Player-typed public contact + social handles (migration 35).
+ *
+ * All fields optional, all stored as plain strings (free-form so a
+ * player can paste "@handle" or a full URL — render layer normalizes
+ * to a clickable link). Visibility is gated on the public profile by
+ * BOTH `profile_public` AND `show_contact_info` — defaults all-OFF.
+ *
+ * Card is always rendered with the PlayerReportedBadge atom — never
+ * verified.
+ */
+export interface PlayerContactInfo {
+  email: string | null;
+  phone: string | null;
+  twitter: string | null;
+  instagram: string | null;
+  tiktok: string | null;
+  youtube: string | null;
+  /** Reserved for X (formerly Twitter) when the user wants to disambiguate. */
+  x: string | null;
+  website: string | null;
+}
+
+/**
+ * Empty contact-info object — safe default for fetchers when the
+ * column is missing or all-null. Centralized so the editor + public
+ * render don't drift.
+ */
+export function emptyContactInfo(): PlayerContactInfo {
+  return {
+    email: null,
+    phone: null,
+    twitter: null,
+    instagram: null,
+    tiktok: null,
+    youtube: null,
+    x: null,
+    website: null,
+  };
 }
 
 export interface PlayerAnnouncement {
@@ -100,7 +151,20 @@ export interface PlayerAnnouncement {
 }
 
 export interface VideoEmbed {
-  provider: "youtube" | "hudl" | "vimeo" | "unknown";
+  provider:
+    | "youtube"
+    | "hudl"
+    | "vimeo"
+    | "tiktok"
+    | "instagram"
+    | "x"
+    | "unknown";
+  /**
+   * Embed URL for an iframe. Some providers (TikTok / Instagram / X)
+   * don't expose a clean iframe embed without their script SDKs, so we
+   * leave embedUrl null and the public render falls back to a thumb +
+   * "Open" link. Better than embedding a broken iframe.
+   */
   embedUrl: string | null;
   thumbnailUrl: string | null;
 }
@@ -153,6 +217,29 @@ export function resolveVideoEmbed(url: string | null): VideoEmbed | null {
         embedUrl: `https://player.vimeo.com/video/${id}`,
         thumbnailUrl: null,
       };
+    }
+
+    // TikTok — https://www.tiktok.com/@user/video/1234... — embed
+    // requires their JS SDK which we don't load. Recognize the provider
+    // so we can badge + link, and render a placeholder thumbnail.
+    if (host === "tiktok.com" || host.endsWith(".tiktok.com")) {
+      return { provider: "tiktok", embedUrl: null, thumbnailUrl: null };
+    }
+
+    // Instagram — Reels / posts. Same story as TikTok: embed requires
+    // their SDK. Link out instead of breaking iframe.
+    if (host === "instagram.com" || host.endsWith(".instagram.com")) {
+      return { provider: "instagram", embedUrl: null, thumbnailUrl: null };
+    }
+
+    // X (formerly Twitter). Recognize x.com + twitter.com.
+    if (
+      host === "x.com" ||
+      host.endsWith(".x.com") ||
+      host === "twitter.com" ||
+      host.endsWith(".twitter.com")
+    ) {
+      return { provider: "x", embedUrl: null, thumbnailUrl: null };
     }
 
     return { provider: "unknown", embedUrl: null, thumbnailUrl: null };
