@@ -1,13 +1,18 @@
 import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check, Sparkles, Zap, Users, Trophy } from "lucide-react";
 import { PublicNav } from "@/components/organisms/public-nav";
 import { LogoMark } from "@/components/atoms/logo";
 import { cn } from "@/lib/utils";
+import { MobileStickyCTA } from "./_marketing/mobile-sticky-cta";
 
 /**
  * / — Marketing landing page.
- * Draws from handoff/designs/01_Landing.html.
- * Spec: handoff/SCREENS.md §1.
+ *
+ * Mobile-first revamp: every section uses responsive padding + scales
+ * its typography for the device. The Hero now shows a real phone-frame
+ * mockup of the demo Hub on mobile (so visitors see the product
+ * immediately, not just text). A sticky bottom CTA hovers on the
+ * mobile viewport so "Try free" is one tap from anywhere on the page.
  */
 export default function LandingPage() {
   return (
@@ -23,6 +28,8 @@ export default function LandingPage() {
       <Pricing />
       <FinalCTA />
       <Footer />
+      {/* Sticky mobile-only CTA. Stays out of the way on desktop. */}
+      <MobileStickyCTA />
     </div>
   );
 }
@@ -31,51 +38,65 @@ export default function LandingPage() {
 
 function Hero() {
   return (
-    <section className="py-14 md:py-18 relative overflow-hidden">
-      <div className="max-w-[1240px] mx-auto px-8">
-        <div className="grid md:grid-cols-2 gap-14 items-center">
-          <div>
-            <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-red flex items-center gap-2 mb-[18px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-red" />
+    <section className="pt-6 pb-10 md:pt-14 md:pb-18 relative overflow-hidden">
+      {/* Subtle radial accent on the mobile hero so the page doesn't
+          start as a flat cream slab — color cue toward "premium app"
+          instead of "static webpage." */}
+      <div
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-[420px] md:hidden pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(ellipse at 80% 0%, rgba(200,58,58,0.10), transparent 55%), radial-gradient(ellipse at 0% 30%, rgba(58,110,168,0.08), transparent 60%)",
+        }}
+      />
+      <div className="relative max-w-[1240px] mx-auto px-4 sm:px-6 md:px-8">
+        <div className="grid md:grid-cols-2 gap-10 lg:gap-14 items-center">
+          <div className="text-center md:text-left">
+            <div className="text-[10.5px] sm:text-[11px] font-bold tracking-[0.12em] uppercase text-red inline-flex items-center gap-2 mb-4 md:mb-[18px]">
+              <span className="w-1.5 h-1.5 rounded-full bg-red animate-sparkle" />
               Built by a coach, for coaches
             </div>
-            <h1 className="font-display font-semibold leading-[0.98] tracking-[-0.04em] text-[52px] md:text-[68px] mb-6">
+            <h1 className="font-display font-semibold leading-[0.98] tracking-[-0.04em] text-[40px] sm:text-[52px] md:text-[68px] mb-4 md:mb-6">
               Stop running your team from a{" "}
               <span className="relative inline-block">
                 spreadsheet.
-                <span className="absolute left-0 right-0 -bottom-0.5 h-3 bg-red/20 -z-10 rounded" />
+                <span className="absolute left-0 right-0 -bottom-0.5 h-2.5 sm:h-3 bg-red/20 -z-10 rounded" />
               </span>
             </h1>
-            <p className="text-[19px] leading-relaxed text-ink-2 mb-7 max-w-[540px]">
+            <p className="text-[15px] sm:text-[17px] md:text-[19px] leading-relaxed text-ink-2 mb-5 md:mb-7 max-w-[540px] mx-auto md:mx-0">
               One app for the full lifecycle of your season — and beyond.
-              Roster, practice plans, lineups, tryout scoring, parent comms,
-              and a profile every player keeps for life. Built for the field,
-              not the desk.
+              Roster, practice plans, lineups, tryouts, parent comms,
+              and a profile every player keeps for life.
             </p>
-            <div className="flex gap-3 items-center mb-5 flex-wrap">
+            <div className="flex gap-2.5 sm:gap-3 items-center mb-4 md:mb-5 flex-wrap justify-center md:justify-start">
               <Link
                 href="/signup"
-                className="inline-flex items-center gap-2 px-[22px] py-3.5 bg-red hover:bg-red/90 text-white rounded-sm text-[15px] font-semibold transition-colors"
+                className={cn(
+                  "inline-flex items-center gap-2 px-5 sm:px-[22px] h-12 sm:h-auto sm:py-3.5",
+                  "bg-red hover:bg-red/90 text-white rounded-full sm:rounded-sm text-[14.5px] sm:text-[15px] font-bold sm:font-semibold",
+                  "shadow-[0_8px_22px_-6px_rgba(200,58,58,0.55)] sm:shadow-none",
+                  "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.96]",
+                )}
               >
-                Try it free <ArrowRight className="w-4 h-4" />
+                Try it free <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
               </Link>
-              {/* Now points to the static product tour (/demo) instead
-                  of /app, which would just bounce to /login. The tour
-                  uses fictional Lincoln HS data and is clearly labeled
-                  so a prospect can scroll through the product before
-                  committing to signup. */}
               <Link
                 href="/demo"
-                className="inline-flex items-center gap-2 px-[22px] py-3.5 bg-card border border-hair hover:border-ink text-ink rounded-sm text-[15px] font-semibold transition-colors"
+                className={cn(
+                  "inline-flex items-center gap-2 px-5 sm:px-[22px] h-12 sm:h-auto sm:py-3.5",
+                  "bg-card border border-hair hover:border-ink text-ink rounded-full sm:rounded-sm text-[14.5px] sm:text-[15px] font-semibold",
+                  "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.96]",
+                )}
               >
                 See the product tour
               </Link>
             </div>
-            <div className="flex gap-5 text-[12.5px] text-ink-3 flex-wrap">
+            <div className="flex gap-3 sm:gap-5 text-[11.5px] sm:text-[12.5px] text-ink-3 flex-wrap justify-center md:justify-start">
               <div>
                 <b className="text-ink font-bold font-mono">Any team, any level</b>
               </div>
-              <div>
+              <div className="hidden sm:block">
                 <b className="text-ink font-bold font-mono">Every player</b> gets a profile
               </div>
               <div>
@@ -83,10 +104,182 @@ function Hero() {
               </div>
             </div>
           </div>
-          <HeroShot />
+          {/* Visual proof: phone mockup of the actual product, visible
+              on every device. Mobile sees the phone frame; desktop
+              sees the laptop + phone combo via HeroShot below it. */}
+          <div className="mt-6 md:mt-0">
+            <PhoneOnlyHeroShot />
+            <div className="hidden md:block">
+              <HeroShot />
+            </div>
+          </div>
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * PhoneOnlyHeroShot — mobile-only phone frame mockup of the demo Hub.
+ *
+ * Visitors on a phone need to see the product immediately, not a
+ * desktop laptop frame they can't relate to. This renders a centered
+ * iPhone-style frame at md:hidden so it owns the mobile hero, then
+ * disappears at md+ where the full HeroShot (laptop + phone combo)
+ * takes over.
+ */
+function PhoneOnlyHeroShot() {
+  return (
+    <div className="md:hidden flex justify-center">
+      <div
+        className="w-[230px] bg-ink rounded-[34px] p-1.5 border border-white/5 relative"
+        style={{
+          boxShadow:
+            "0 40px 80px -20px rgba(14,17,22,0.45), 0 0 0 1px rgba(0,0,0,0.4)",
+        }}
+      >
+        <div className="bg-paper rounded-[28px] overflow-hidden relative aspect-[9/19.5]">
+          {/* Notch */}
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-[80px] h-[20px] bg-ink rounded-full z-10" />
+          {/* Status bar */}
+          <div className="px-4 pt-2 pb-1 flex items-center justify-between text-[9px] font-bold text-ink z-20 relative">
+            <span>9:41</span>
+            <span className="font-mono">●●●</span>
+          </div>
+          {/* Top app bar — matches the real /demo mobile chrome */}
+          <div className="bg-ink text-white px-3 py-2.5 mt-2 flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center">
+              <span className="w-3 h-[2px] bg-white block" />
+            </span>
+            <span className="w-4 h-4 rounded-sm bg-red flex items-center justify-center text-[7px] font-bold">
+              R
+            </span>
+            <span className="font-display text-[10.5px] font-bold tracking-tight">
+              Lincoln HS
+            </span>
+            <span className="ml-auto w-6 h-6 rounded-full bg-dirt flex items-center justify-center text-[8px] font-bold">
+              JC
+            </span>
+          </div>
+          <div className="px-3 py-3 space-y-2.5">
+            {/* Greeting + record */}
+            <div>
+              <div className="text-[8.5px] font-bold uppercase tracking-[0.08em] text-red">
+                Tuesday · Apr 21
+              </div>
+              <div className="font-display text-[15px] font-semibold tracking-tight leading-tight mt-0.5">
+                Morning, Coach.
+              </div>
+              <div className="text-[8.5px] text-ink-3 mt-0.5">
+                Friday · vs Central · Senior Night
+              </div>
+            </div>
+            {/* Hero card — next game */}
+            <div className="rounded-lg bg-[linear-gradient(135deg,#0e1116,#191d24)] text-white p-2.5 relative overflow-hidden">
+              <div
+                aria-hidden
+                className="absolute -top-4 -right-4 w-20 h-20 rounded-full"
+                style={{
+                  background:
+                    "radial-gradient(circle, rgba(200,58,58,.4), transparent 65%)",
+                }}
+              />
+              <div className="relative">
+                <div className="text-[7px] font-bold uppercase tracking-[0.1em] text-white/55">
+                  Next game
+                </div>
+                <div className="font-display text-[14px] font-semibold tracking-tight leading-tight mt-0.5">
+                  vs Central Hawks
+                </div>
+                <div className="font-mono text-[8.5px] text-white/75 mt-1">
+                  Fri · 5:00 PM · Home
+                </div>
+              </div>
+            </div>
+            {/* AI Coach card — pulse to draw the eye */}
+            <div className="rounded-lg bg-[linear-gradient(135deg,#0e1116,#191d24)] text-white p-2.5">
+              <div className="inline-flex items-center gap-1 text-[7.5px] font-bold uppercase tracking-[0.1em] text-red">
+                <span className="w-1 h-1 rounded-full bg-red animate-sparkle" />
+                AI Assistant Coach
+              </div>
+              <div className="font-display text-[11px] font-semibold tracking-tight leading-snug mt-1">
+                Build Friday lineup vs lefties
+              </div>
+              <div className="grid gap-1 mt-2">
+                <div className="bg-white/10 rounded-sm px-2 py-1 text-[8.5px]">
+                  Plan tonight&apos;s practice
+                </div>
+                <div className="bg-white/10 rounded-sm px-2 py-1 text-[8.5px]">
+                  Draft a parent email
+                </div>
+              </div>
+            </div>
+            {/* Stat tiles */}
+            <div className="grid grid-cols-3 gap-1">
+              <div className="bg-card border border-hair rounded-sm p-1.5">
+                <div className="font-mono text-[14px] font-bold text-ink leading-none">
+                  8-3
+                </div>
+                <div className="text-[7px] font-bold text-ink-3 uppercase tracking-[0.05em] mt-0.5">
+                  Record
+                </div>
+              </div>
+              <div className="bg-card border border-hair rounded-sm p-1.5">
+                <div className="font-mono text-[14px] font-bold text-ink leading-none">
+                  22
+                </div>
+                <div className="text-[7px] font-bold text-ink-3 uppercase tracking-[0.05em] mt-0.5">
+                  Avail
+                </div>
+              </div>
+              <div className="bg-card border border-hair rounded-sm p-1.5">
+                <div className="font-mono text-[14px] font-bold text-red leading-none">
+                  1
+                </div>
+                <div className="text-[7px] font-bold text-ink-3 uppercase tracking-[0.05em] mt-0.5">
+                  Out
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* Bottom tab bar */}
+          <div className="absolute bottom-0 left-0 right-0 bg-card border-t border-hair px-2 py-1.5 flex items-stretch">
+            {[
+              { label: "Hub", active: true },
+              { label: "Roster" },
+              { label: "Sched" },
+              { label: "Score" },
+              { label: "More" },
+            ].map((t) => (
+              <div
+                key={t.label}
+                className="flex-1 flex flex-col items-center gap-0.5 relative"
+              >
+                {t.active && (
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 h-[2px] w-3 rounded-full bg-red" />
+                )}
+                <span
+                  className={cn(
+                    "w-2.5 h-2.5 rounded-sm",
+                    t.active ? "bg-red" : "bg-ink-4",
+                  )}
+                />
+                <span
+                  className={cn(
+                    "text-[7px] font-semibold leading-none",
+                    t.active ? "text-red font-bold" : "text-ink-3",
+                  )}
+                >
+                  {t.label}
+                </span>
+              </div>
+            ))}
+          </div>
+          {/* Home indicator */}
+          <div className="absolute bottom-[2px] left-1/2 -translate-x-1/2 w-[60px] h-0.5 bg-ink/30 rounded-full" />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -406,16 +599,34 @@ function FocusRow({
 // ── Proof strip ───────────────────────────────────────────────
 
 function ProofStrip() {
+  const proofs = [
+    "60+ player rosters",
+    "4 teams per program",
+    "60-game seasons",
+    "Tryout weeks",
+    "College recruiting",
+  ];
   return (
     <div className="border-y border-hair bg-card">
-      <div className="max-w-[1240px] mx-auto px-8 py-5 flex items-center gap-8 flex-wrap">
-        <div className="type-label">Built for the way real programs actually run</div>
-        <div className="flex gap-7 text-[13px] text-ink-2 font-medium flex-wrap">
-          <span>60+ player rosters</span>
-          <span>4 teams per program</span>
-          <span>60-game seasons</span>
-          <span>Tryout weeks</span>
-          <span>College recruiting</span>
+      <div className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-8 py-3.5 sm:py-5">
+        <div className="md:flex md:items-center md:gap-8">
+          <div className="type-label !text-[10px] mb-2 md:mb-0 shrink-0">
+            Built for the way real programs run
+          </div>
+          {/* Mobile: horizontal scroll-snap row of pill tags. Desktop:
+              flex-wrap inline list. The scrolling row reads like Apple
+              Music's category strips and gives the marketing page a
+              hit of motion the moment a finger touches it. */}
+          <div className="flex gap-2 md:gap-7 text-[12.5px] md:text-[13px] text-ink-2 font-medium overflow-x-auto md:overflow-visible md:flex-wrap -mx-4 px-4 md:mx-0 md:px-0 no-scrollbar">
+            {proofs.map((p) => (
+              <span
+                key={p}
+                className="px-3 py-1 md:p-0 rounded-full bg-paper md:bg-transparent border border-hair md:border-0 whitespace-nowrap shrink-0"
+              >
+                {p}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -425,23 +636,50 @@ function ProofStrip() {
 // ── Problem ───────────────────────────────────────────────────
 
 function Problem() {
+  // Visual list of the actual tools coaches stitch together today.
+  // Reads as a "before" snapshot — the pain we replace.
+  const stitched = [
+    { app: "Excel", purpose: "Tryout sheets" },
+    { app: "Word", purpose: "Practice plans" },
+    { app: "Paper", purpose: "Lineups" },
+    { app: "Notes", purpose: "Depth chart" },
+    { app: "GroupMe", purpose: "Parent comms" },
+    { app: "GameChanger", purpose: "Stats" },
+  ];
   return (
-    <section className="py-20">
-      <div className="max-w-[1240px] mx-auto px-8 max-w-[780px]">
-        <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-red mb-3">
+    <section className="py-12 md:py-20">
+      <div className="max-w-[780px] mx-auto px-4 sm:px-6 md:px-8">
+        <div className="text-[10.5px] sm:text-[11px] font-bold tracking-[0.12em] uppercase text-red mb-3">
           The problem
         </div>
-        <h2 className="font-display font-semibold text-[40px] md:text-[52px] leading-[1.05] tracking-[-0.03em] mb-5">
-          Coaches run programs on
-          <br />
-          Sheets, Word docs, and group texts.
+        <h2 className="font-display font-semibold text-[28px] sm:text-[40px] md:text-[52px] leading-[1.05] tracking-[-0.03em] mb-4 md:mb-5">
+          Your roster lives in 6 places.
+          <br className="hidden sm:block" />
+          <span className="sm:hidden"> </span>
+          None of them talk to each other.
         </h2>
-        <p className="text-[17px] leading-relaxed text-ink-2">
+        <p className="text-[14.5px] sm:text-[17px] leading-relaxed text-ink-2 mb-6 md:mb-8">
           A HS baseball coach manages 60+ kids across 4 teams. Tryouts
-          in Excel. Practice plans in Word. Lineups on paper. Depth chart in a notes app.
-          Parent updates by group text. No connection between any of it — and no record
-          of a kid&apos;s development when they graduate.
+          in Excel. Practice plans in Word. Lineups on paper. Depth chart in a
+          notes app. Parent updates by group text. No connection between any of
+          it — and no record of a kid&apos;s development when they graduate.
         </p>
+        {/* "Before" stitched-tools grid — visual cue for the chaos */}
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
+          {stitched.map((s) => (
+            <div
+              key={s.app}
+              className="bg-card border border-hair rounded-md p-2 sm:p-3 text-center"
+            >
+              <div className="font-display font-bold text-[12px] sm:text-[13px] text-ink truncate">
+                {s.app}
+              </div>
+              <div className="text-[9.5px] sm:text-[10.5px] text-ink-3 mt-0.5 leading-tight">
+                {s.purpose}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -452,6 +690,8 @@ function Problem() {
 function Tour() {
   const features = [
     {
+      icon: <Sparkles className="w-5 h-5" strokeWidth={2.25} />,
+      tone: "bg-red-soft text-red",
       label: "Command center",
       title: "Your program, one glance",
       copy:
@@ -463,10 +703,12 @@ function Tour() {
       ],
     },
     {
+      icon: <Users className="w-5 h-5" strokeWidth={2.25} />,
+      tone: "bg-sky-soft text-sky",
       label: "Roster + recruiting",
       title: "Every player gets a profile",
       copy:
-        "You enter a player once. The career that follows — every metric, every season, every verified stat — is theirs. And it's discoverable by college coaches the moment they want it to be.",
+        "Enter a player once. The career that follows — every metric, every season, every verified stat — is theirs. Discoverable by college coaches the moment they want it to be.",
       bullet: [
         "Verified-by-coach measurables (your name on the stat)",
         "Shareable public profile at rostr.app/<handle>",
@@ -474,10 +716,12 @@ function Tour() {
       ],
     },
     {
+      icon: <Zap className="w-5 h-5" strokeWidth={2.25} />,
+      tone: "bg-amber-soft text-amber",
       label: "Practice planner",
-      title: "Practice plans made in seconds",
+      title: "Practice plans in seconds",
       copy:
-        "Tell the AI Assistant Coach your field constraint and tonight's focus, and it drafts a plan tailored to your roster + recent games. Tap drills from your library, drag-and-drop time blocks, run it from your phone at the field.",
+        "Tell the AI Assistant Coach tonight's focus and your field constraint. It drafts a plan tailored to your roster + recent games. Tap drills, drag time blocks, run it from your phone at the field.",
       bullet: [
         "AI Assistant Coach drafts a plan in one tap",
         "Drill library + weekly templates + per-day adjustments",
@@ -485,10 +729,12 @@ function Tour() {
       ],
     },
     {
+      icon: <Trophy className="w-5 h-5" strokeWidth={2.25} />,
+      tone: "bg-grass-dim text-grass",
       label: "Tryouts",
-      title: "Finalize your roster in a way nobody can dispute",
+      title: "A roster nobody can dispute",
       copy:
-        "Station-based scoring on phones. Live rankings on your laptop at the field. Auto-suggested verdicts tied to a real cutoff — with a clear paper trail for every one.",
+        "Station-based scoring on phones. Live rankings on your laptop. Auto-suggested verdicts tied to a real cutoff — with a clear paper trail for every one.",
       bullet: [
         "Station coaches score on phones, you watch the leaderboard",
         "Composite scoring you control, not hidden",
@@ -497,23 +743,42 @@ function Tour() {
     },
   ];
   return (
-    <section id="tour" className="py-20 bg-card border-y border-hair scroll-mt-16">
-      <div className="max-w-[1240px] mx-auto px-8">
-        <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-red mb-3">
+    <section id="tour" className="py-12 md:py-20 bg-card border-y border-hair scroll-mt-16">
+      <div className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-8">
+        <div className="text-[10.5px] sm:text-[11px] font-bold tracking-[0.12em] uppercase text-red mb-3">
           Product tour
         </div>
-        <h2 className="font-display font-semibold text-[36px] md:text-[44px] leading-[1.08] tracking-[-0.03em] mb-14 max-w-[720px]">
+        <h2 className="font-display font-semibold text-[28px] sm:text-[36px] md:text-[44px] leading-[1.08] tracking-[-0.03em] mb-8 sm:mb-12 md:mb-14 max-w-[720px]">
           Four surfaces. One program.
         </h2>
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid md:grid-cols-2 gap-3 sm:gap-5 md:gap-8">
           {features.map((f) => (
-            <div key={f.title} className="p-7 border border-hair rounded-lg bg-paper">
-              <div className="type-label !text-red">{f.label}</div>
-              <h3 className="font-display text-[22px] font-semibold tracking-tight mt-2 mb-3 leading-snug">
-                {f.title}
-              </h3>
-              <p className="text-[14px] text-ink-2 mb-4 leading-relaxed">{f.copy}</p>
-              <ul className="space-y-1.5 text-[13px] text-ink-2">
+            <div
+              key={f.title}
+              className="p-4 sm:p-5 md:p-7 border border-hair rounded-2xl md:rounded-lg bg-paper"
+            >
+              <div className="flex items-start gap-3 mb-3">
+                <span
+                  className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+                    f.tone,
+                  )}
+                >
+                  {f.icon}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="type-label !text-red !text-[10px] sm:!text-[11px]">
+                    {f.label}
+                  </div>
+                  <h3 className="font-display text-[17px] sm:text-[20px] md:text-[22px] font-semibold tracking-tight mt-0.5 leading-snug">
+                    {f.title}
+                  </h3>
+                </div>
+              </div>
+              <p className="text-[13px] sm:text-[14px] text-ink-2 mb-3 sm:mb-4 leading-relaxed">
+                {f.copy}
+              </p>
+              <ul className="space-y-1.5 text-[12.5px] sm:text-[13px] text-ink-2">
                 {f.bullet.map((b) => (
                   <li key={b} className="flex gap-2 items-start">
                     <Check className="w-3.5 h-3.5 text-grass shrink-0 mt-1" />
@@ -562,26 +827,31 @@ function Audiences() {
     },
   ];
   return (
-    <section id="audiences" className="py-20 scroll-mt-16">
-      <div className="max-w-[1240px] mx-auto px-8">
-        <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-red mb-3">
+    <section id="audiences" className="py-12 md:py-20 scroll-mt-16">
+      <div className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-8">
+        <div className="text-[10.5px] sm:text-[11px] font-bold tracking-[0.12em] uppercase text-red mb-3">
           Who it&apos;s for
         </div>
-        <h2 className="font-display font-semibold text-[36px] md:text-[44px] leading-[1.08] tracking-[-0.03em] mb-3 max-w-[760px]">
+        <h2 className="font-display font-semibold text-[28px] sm:text-[36px] md:text-[44px] leading-[1.08] tracking-[-0.03em] mb-3 max-w-[760px]">
           Built for every coach who runs a team.
         </h2>
-        <p className="text-[16px] text-ink-2 max-w-[680px] mb-14 leading-relaxed">
+        <p className="text-[14px] sm:text-[16px] text-ink-2 max-w-[680px] mb-8 sm:mb-12 md:mb-14 leading-relaxed">
           Youth and travel ball. Middle school and high school. Club, summer ball,
           and elite programs. If you have a roster and a schedule, this works for you.
         </p>
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
           {audiences.map((a) => (
-            <div key={a.label} className="p-7 bg-card border border-hair rounded-lg">
-              <div className="type-label !text-red">{a.label}</div>
-              <h3 className="font-display text-[20px] font-semibold tracking-tight mt-2 mb-3.5 leading-snug">
+            <div
+              key={a.label}
+              className="p-4 sm:p-5 md:p-7 bg-card border border-hair rounded-2xl md:rounded-lg"
+            >
+              <div className="type-label !text-red !text-[10px] sm:!text-[11px]">
+                {a.label}
+              </div>
+              <h3 className="font-display text-[17px] sm:text-[19px] md:text-[20px] font-semibold tracking-tight mt-1 mb-3 leading-snug">
                 {a.title}
               </h3>
-              <ul className="space-y-1.5 text-[13px] text-ink-2">
+              <ul className="space-y-1.5 text-[12.5px] sm:text-[13px] text-ink-2">
                 {a.bullets.map((b) => (
                   <li key={b} className="flex gap-2 items-start">
                     <Check className="w-3.5 h-3.5 text-grass shrink-0 mt-1" />
@@ -601,37 +871,38 @@ function Audiences() {
 
 function Flywheel() {
   return (
-    <section id="flywheel" className="py-20 bg-card border-y border-hair scroll-mt-16">
-      <div className="max-w-[1240px] mx-auto px-8 grid md:grid-cols-[1fr_auto] gap-12 items-center">
+    <section id="flywheel" className="py-12 md:py-20 bg-card border-y border-hair scroll-mt-16">
+      <div className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-8 grid md:grid-cols-[1fr_auto] gap-8 lg:gap-12 items-center">
         <div className="max-w-[620px]">
-          <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-red mb-3">
+          <div className="text-[10.5px] sm:text-[11px] font-bold tracking-[0.12em] uppercase text-red mb-3">
             Why it compounds
           </div>
-          <h2 className="font-display font-semibold text-[36px] md:text-[44px] leading-[1.08] tracking-[-0.03em] mb-5">
+          <h2 className="font-display font-semibold text-[28px] sm:text-[36px] md:text-[44px] leading-[1.08] tracking-[-0.03em] mb-4 md:mb-5">
             The coach saves hours.
             <br />
             The player gets found.
             <br />
-            The data builds a moat.
+            The career outlives the season.
           </h2>
-          <p className="text-[16px] text-ink-2 leading-relaxed mb-6">
-            Every practice, every game, every tryout builds a real record of a high
-            school athlete&apos;s career. That record is the athlete&apos;s forever.
-            It&apos;s also what makes Rostr the only place college coaches can source
-            HS-level talent at scale.
+          <p className="text-[14.5px] sm:text-[16px] text-ink-2 leading-relaxed mb-5 md:mb-6">
+            Every practice, every game, every tryout builds a real record of a
+            high school athlete&apos;s career. That record is the athlete&apos;s
+            forever — long after the team moves on, the season ends, the coach
+            retires. It&apos;s also what makes Rostr the only place college
+            coaches can source HS talent at scale.
           </p>
           <Link
             href="#pricing"
-            className="inline-flex items-center gap-2 text-[15px] font-semibold text-red hover:underline"
+            className="inline-flex items-center gap-2 text-[14.5px] sm:text-[15px] font-semibold text-red hover:underline active:scale-[0.97] transition-transform"
           >
             See plans <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
-        <div className="bg-paper border border-hair rounded-lg p-7 max-w-sm space-y-3">
+        <div className="bg-paper border border-hair rounded-2xl md:rounded-lg p-4 sm:p-5 md:p-7 max-w-sm space-y-3">
           <FlywheelStep n={1} label="Coach runs the program in Rostr" meta="Tryouts · roster · practice · games" />
           <FlywheelStep n={2} label="Player accumulates verified career data" meta="Four years of metrics · highlights" />
           <FlywheelStep n={3} label="Profile becomes scoutable" meta="Public at rostr.app/<handle>" />
-          <FlywheelStep n={4} label="Recruiters subscribe for access" meta="Rostr becomes the source" active />
+          <FlywheelStep n={4} label="Recruiters discover the talent" meta="Rostr becomes the source" active />
         </div>
       </div>
     </section>
@@ -671,31 +942,32 @@ function FlywheelStep({
 
 function AI() {
   return (
-    <section className="py-20">
-      <div className="max-w-[1240px] mx-auto px-8">
-        <div className="bg-ink text-white rounded-xl p-12 md:p-16 relative overflow-hidden">
+    <section className="py-12 md:py-20">
+      <div className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-8">
+        <div className="bg-ink text-white rounded-2xl md:rounded-xl p-6 sm:p-10 md:p-12 lg:p-16 relative overflow-hidden">
           <div
             aria-hidden
-            className="absolute -top-24 -right-24 w-[420px] h-[420px] rounded-full"
+            className="absolute -top-24 -right-24 w-[300px] sm:w-[420px] h-[300px] sm:h-[420px] rounded-full"
             style={{
               background:
                 "radial-gradient(circle, rgba(200,58,58,.3), transparent 65%)",
             }}
           />
           <div className="relative max-w-[680px]">
-            <div className="inline-flex items-center gap-1.5 text-[10px] text-red font-bold uppercase tracking-[0.14em]">
-              <span className="w-1.5 h-1.5 rounded-full bg-red" />
+            <div className="inline-flex items-center gap-1.5 text-[10px] sm:text-[10px] text-red font-bold uppercase tracking-[0.14em]">
+              <span className="w-1.5 h-1.5 rounded-full bg-red animate-sparkle" />
               AI Assistant Coach
             </div>
-            <h2 className="font-display font-semibold text-[40px] md:text-[52px] leading-[1.05] tracking-[-0.03em] mt-3 mb-5">
+            <h2 className="font-display font-semibold text-[28px] sm:text-[40px] md:text-[52px] leading-[1.05] tracking-[-0.03em] mt-2 sm:mt-3 mb-3 sm:mb-5">
               Your assistant coach that never sleeps.
             </h2>
-            <p className="text-[17px] text-white/70 leading-relaxed mb-7">
-              Ask for a practice plan for tonight&apos;s focus. Pull a Friday lineup
-              against the opponent&apos;s left-handers. Draft a mid-season parent email.
-              All grounded in your real program data — not a generic chatbot.
+            <p className="text-[14.5px] sm:text-[17px] text-white/70 leading-relaxed mb-5 sm:mb-7">
+              Ask for a practice plan for tonight&apos;s focus. Pull a Friday
+              lineup against the opponent&apos;s lefties. Draft a mid-season
+              parent email. All grounded in your real program data — not a
+              generic chatbot.
             </p>
-            <div className="grid md:grid-cols-2 gap-2.5">
+            <div className="grid sm:grid-cols-2 gap-2 sm:gap-2.5">
               {[
                 "Build Friday lineup · vs Central",
                 "Practice plan · bullpen day",
@@ -705,10 +977,16 @@ function AI() {
                 <Link
                   key={p}
                   href="/signup"
-                  className="flex items-center justify-between px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-sm text-left text-[13.5px] transition-colors"
+                  className={cn(
+                    "flex items-center justify-between gap-2 px-3.5 sm:px-4 py-3",
+                    "bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl sm:rounded-sm text-left text-[12.5px] sm:text-[13.5px]",
+                    "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.97] active:bg-white/15",
+                  )}
                 >
                   <span>{p}</span>
-                  <span className="text-red text-[11px] font-semibold font-mono">2 min</span>
+                  <span className="text-red text-[10.5px] sm:text-[11px] font-semibold font-mono shrink-0">
+                    2 min
+                  </span>
                 </Link>
               ))}
             </div>
@@ -777,46 +1055,48 @@ function Pricing() {
     },
   ];
   return (
-    <section id="pricing" className="py-20 bg-card border-y border-hair">
-      <div className="max-w-[1240px] mx-auto px-8">
-        <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-red mb-3">
+    <section id="pricing" className="py-12 md:py-20 bg-card border-y border-hair">
+      <div className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-8">
+        <div className="text-[10.5px] sm:text-[11px] font-bold tracking-[0.12em] uppercase text-red mb-3">
           Plans
         </div>
-        <h2 className="font-display font-semibold text-[36px] md:text-[44px] leading-[1.08] tracking-[-0.03em] mb-3 max-w-[680px]">
+        <h2 className="font-display font-semibold text-[28px] sm:text-[36px] md:text-[44px] leading-[1.08] tracking-[-0.03em] mb-3 max-w-[680px]">
           Free for athletes.
           <br />
           One conversation for everyone else.
         </h2>
-        <p className="text-[16px] text-ink-2 mb-14 max-w-[620px]">
-          Athletes never pay. Coaches and recruiters: drop us a line and we'll
-          set you up — pricing depends on team size and what you need.
+        <p className="text-[14px] sm:text-[16px] text-ink-2 mb-8 sm:mb-12 md:mb-14 max-w-[620px]">
+          Athletes never pay. Coaches and recruiters: drop us a line and
+          we&apos;ll set you up — pricing depends on team size and what you need.
         </p>
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
           {tiers.map((t) => (
             <div
               key={t.name}
               className={cn(
-                "p-7 rounded-lg flex flex-col",
+                "p-5 sm:p-6 md:p-7 rounded-2xl md:rounded-lg flex flex-col",
                 t.emphasis
                   ? "bg-ink text-white border border-ink shadow-elev"
                   : "bg-paper border border-hair",
               )}
             >
-              <div className="type-label !text-red">{t.name}</div>
+              <div className="type-label !text-red !text-[10px] sm:!text-[11px]">
+                {t.name}
+              </div>
               {/* Tagline replaces the dollar block — keeps the visual
                   weight of a "price line" without quoting numbers. */}
-              <div className="font-display text-[28px] font-semibold tracking-[-0.02em] leading-tight mt-2.5">
+              <div className="font-display text-[24px] sm:text-[28px] font-semibold tracking-[-0.02em] leading-tight mt-2 sm:mt-2.5">
                 {t.tagline}
               </div>
               <p
                 className={cn(
-                  "mt-3 text-[13.5px] leading-relaxed",
+                  "mt-2 sm:mt-3 text-[13px] sm:text-[13.5px] leading-relaxed",
                   t.emphasis ? "text-white/75" : "text-ink-2",
                 )}
               >
                 {t.description}
               </p>
-              <ul className="mt-5 space-y-2 text-[13px] flex-1">
+              <ul className="mt-4 sm:mt-5 space-y-1.5 sm:space-y-2 text-[12.5px] sm:text-[13px] flex-1">
                 {t.bullet.map((b) => (
                   <li key={b} className="flex gap-2 items-start">
                     <Check
@@ -835,9 +1115,10 @@ function Pricing() {
                 <Link
                   href={t.ctaHref}
                   className={cn(
-                    "mt-7 w-full inline-flex items-center justify-center rounded-sm h-[42px] text-[13.5px] font-semibold",
+                    "mt-5 sm:mt-7 w-full inline-flex items-center justify-center rounded-full sm:rounded-sm h-12 sm:h-[42px] text-[13.5px] font-bold sm:font-semibold",
+                    "transition-transform duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.97]",
                     t.emphasis
-                      ? "bg-red text-white hover:bg-red/90"
+                      ? "bg-red text-white hover:bg-red/90 shadow-[0_6px_18px_-4px_rgba(200,58,58,0.55)]"
                       : "bg-ink text-white hover:bg-red",
                   )}
                 >
@@ -847,9 +1128,10 @@ function Pricing() {
                 <a
                   href={t.ctaHref}
                   className={cn(
-                    "mt-7 w-full inline-flex items-center justify-center rounded-sm h-[42px] text-[13.5px] font-semibold",
+                    "mt-5 sm:mt-7 w-full inline-flex items-center justify-center rounded-full sm:rounded-sm h-12 sm:h-[42px] text-[13.5px] font-bold sm:font-semibold",
+                    "transition-transform duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.97]",
                     t.emphasis
-                      ? "bg-red text-white hover:bg-red/90"
+                      ? "bg-red text-white hover:bg-red/90 shadow-[0_6px_18px_-4px_rgba(200,58,58,0.55)]"
                       : "bg-ink text-white hover:bg-red",
                   )}
                 >
@@ -868,37 +1150,54 @@ function Pricing() {
 
 function FinalCTA() {
   return (
-    <section id="cta" className="py-24">
-      <div className="max-w-[980px] mx-auto px-8 text-center">
-        <h2 className="font-display font-semibold text-[44px] md:text-[60px] leading-[1.02] tracking-[-0.04em] mb-5">
+    <section id="cta" className="py-14 md:py-24">
+      <div className="max-w-[980px] mx-auto px-4 sm:px-6 md:px-8 text-center">
+        <h2 className="font-display font-semibold text-[34px] sm:text-[44px] md:text-[60px] leading-[1.02] tracking-[-0.04em] mb-3 sm:mb-5">
           Run your team.
           <br />
           Build the career.
         </h2>
-        <p className="text-[17px] text-ink-2 max-w-[600px] mx-auto mb-8 leading-relaxed">
-          Coaches: get in touch and we'll set you up. Players: claim your
+        <p className="text-[15px] sm:text-[17px] text-ink-2 max-w-[600px] mx-auto mb-6 md:mb-8 leading-relaxed">
+          Coaches: get in touch and we&apos;ll set you up. Players: claim your
           profile in 30 seconds — free, forever.
         </p>
-        <div className="flex gap-3 justify-center flex-wrap">
+        <div className="flex gap-2 sm:gap-3 justify-center flex-wrap">
           <Link
             href="/signup"
-            className="inline-flex items-center gap-2 px-[22px] py-3.5 bg-red hover:bg-red/90 text-white rounded-sm text-[15px] font-semibold transition-colors"
+            className={cn(
+              "inline-flex items-center gap-2 px-5 sm:px-[22px] h-12 sm:h-auto sm:py-3.5",
+              "bg-red hover:bg-red/90 text-white rounded-full sm:rounded-sm text-[14.5px] sm:text-[15px] font-bold sm:font-semibold",
+              "shadow-[0_8px_22px_-6px_rgba(200,58,58,0.55)] sm:shadow-none",
+              "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.96]",
+            )}
           >
-            Try it free <ArrowRight className="w-4 h-4" />
+            Try it free <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
           </Link>
           <Link
             href="/demo"
-            className="inline-flex items-center gap-2 px-[22px] py-3.5 bg-card border border-hair hover:border-ink text-ink rounded-sm text-[15px] font-semibold transition-colors"
+            className={cn(
+              "inline-flex items-center gap-2 px-5 sm:px-[22px] h-12 sm:h-auto sm:py-3.5",
+              "bg-card border border-hair hover:border-ink text-ink rounded-full sm:rounded-sm text-[14.5px] sm:text-[15px] font-semibold",
+              "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.96]",
+            )}
           >
             See the product tour
           </Link>
           <a
             href="mailto:hello@rostr.app?subject=Rostr%20-%20coach%20account%20inquiry"
-            className="inline-flex items-center gap-2 px-[22px] py-3.5 text-ink-3 hover:text-ink rounded-sm text-[15px] font-semibold transition-colors"
+            className="hidden sm:inline-flex items-center gap-2 px-[22px] py-3.5 text-ink-3 hover:text-ink rounded-sm text-[15px] font-semibold transition-colors"
           >
             Talk to sales
           </a>
         </div>
+        {/* Mobile-only "talk to sales" surface — separate from primary
+            buttons so the two-CTA hierarchy stays clean on small screens. */}
+        <a
+          href="mailto:hello@rostr.app?subject=Rostr%20-%20coach%20account%20inquiry"
+          className="sm:hidden mt-3 inline-block text-[13px] font-semibold text-ink-3 hover:text-ink underline"
+        >
+          Talk to sales
+        </a>
       </div>
     </section>
   );
@@ -908,15 +1207,17 @@ function FinalCTA() {
 
 function Footer() {
   return (
-    <footer className="bg-ink text-white pt-12 pb-8">
-      <div className="max-w-[1240px] mx-auto px-8">
-        <div className="grid md:grid-cols-4 gap-10">
-          <div>
-            <Link href="/" className="flex items-center gap-2.5 font-display text-[18px] font-bold">
+    /* Bottom padding bumped (pb-24) on mobile so the sticky CTA bar
+       doesn't overlap the last row of footer links. */
+    <footer className="bg-ink text-white pt-10 md:pt-12 pb-24 lg:pb-8">
+      <div className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-10">
+          <div className="col-span-2 md:col-span-1">
+            <Link href="/" className="flex items-center gap-2.5 font-display text-[17px] sm:text-[18px] font-bold">
               <LogoMark size="sm" variant="light" />
               rostr
             </Link>
-            <p className="mt-4 text-[12.5px] text-white/55 max-w-[240px] leading-relaxed">
+            <p className="mt-3 sm:mt-4 text-[12px] sm:text-[12.5px] text-white/55 max-w-[280px] leading-relaxed">
               The operating system for coaches. Built for any team — youth,
               travel, school, or club.
             </p>
@@ -947,7 +1248,7 @@ function Footer() {
               <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-white/50">
                 {col.heading}
               </div>
-              <ul className="mt-4 space-y-2 text-[13px] text-white/75">
+              <ul className="mt-3 sm:mt-4 space-y-1.5 sm:space-y-2 text-[12.5px] sm:text-[13px] text-white/75">
                 {col.links.map((l) => (
                   <li key={l.label}>
                     <Link href={l.href} className="hover:text-white">
@@ -959,7 +1260,7 @@ function Footer() {
             </div>
           ))}
         </div>
-        <div className="mt-14 pt-7 border-t border-white/10 flex items-center justify-between text-[11.5px] text-white/50 flex-wrap gap-4">
+        <div className="mt-10 sm:mt-14 pt-5 sm:pt-7 border-t border-white/10 flex items-center justify-between text-[11px] sm:text-[11.5px] text-white/50 flex-wrap gap-3 sm:gap-4">
           <div>© {new Date().getFullYear()} Rostr Labs. Built by a coach.</div>
           <div className="font-mono">v0.1 · pilot</div>
         </div>
