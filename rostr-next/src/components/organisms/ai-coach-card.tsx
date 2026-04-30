@@ -331,10 +331,10 @@ export function AICoachCard({
             {/* PHASE 6 — clearer "what does this do" copy. Was just
                 "What would you like to tackle first?" which assumed the
                 coach already knew the AI was an assistant. New copy
-                names the use cases up-front so the AI feels optional
-                and useful, not magical or required. */}
+                names the use cases up-front so the AI feels useful
+                without being magical or pushy. */}
             <h4 className={titleClass}>
-              Optional helper for plans, lineups, and notes
+              Your helper for plans, lineups, and notes
             </h4>
             <p
               className={cn(
