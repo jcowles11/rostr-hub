@@ -30,6 +30,7 @@ import {
   undoLastAtBatAction,
   recordRunnerPickoffAction,
   recordMidGameEventAction,
+  recordInningChangeAction,
   overrideBasesAction,
   substituteAction,
   markEventErrorAction,
@@ -138,11 +139,32 @@ export function LiveScoringView({
   const weAreBatting =
     (game.home && currentHalf === "bottom") || (!game.home && currentHalf === "top");
 
-  // Which batting order slot is up for us — track locally since we
-  // don't store batting_position on events in v1.
-  const [ourBattingIndex, setOurBattingIndex] = useState(0);
-  // For opposing batters when we're in the field.
-  const [theirBattingIndex, setTheirBattingIndex] = useState(0);
+  // PHASE 2 FIX — derive batter index from the event log instead of
+  // local useState, so a refresh in the middle of an inning resumes
+  // the correct batter. We bat in either the top half (if we're away)
+  // or the bottom half (if we're home); count true plate-appearance
+  // events (excluding pickoff / mid-game / substitution sub-events
+  // that ride on the at_bat row) on our side, modulo the lineup length.
+  //
+  // Their batting index uses the opposing side count by symmetry.
+  const ourBattingHalf: "top" | "bottom" = game.home ? "bottom" : "top";
+  const theirBattingHalf: "top" | "bottom" = game.home ? "top" : "bottom";
+  const isPlateAppearance = (e: GameEvent): boolean => {
+    if (e.eventType !== "at_bat") return false;
+    const p = e.payload as
+      | { pickoff?: boolean; midGame?: boolean; substitution?: boolean }
+      | null;
+    if (!p) return true;
+    return !p.pickoff && !p.midGame && !p.substitution;
+  };
+  const ourBattingIndex =
+    events.filter((e) => isPlateAppearance(e) && e.topBottom === ourBattingHalf).length %
+    (ourLineup.length || 1);
+  const theirBattingIndex =
+    opposingRoster.length > 0
+      ? events.filter((e) => isPlateAppearance(e) && e.topBottom === theirBattingHalf).length %
+        opposingRoster.length
+      : 0;
 
   const currentBatter = weAreBatting
     ? ourLineup[ourBattingIndex % (ourLineup.length || 1)] ?? null
@@ -553,12 +575,9 @@ export function LiveScoringView({
         toast.error("Couldn't log", { description: r.error });
         return;
       }
-      // Advance batter locally (optimistic)
-      if (weAreBatting) {
-        setOurBattingIndex((i) => i + 1);
-      } else {
-        setTheirBattingIndex((i) => i + 1);
-      }
+      // Batter index is now derived from the event log (Phase 2),
+      // so it auto-advances when the new at_bat event lands via
+      // realtime. No local setState needed.
       // Clear pitch state for the just-resolved at-bat. Hydration on
       // the NEW batter happens via the batter-change effect.
       dispatchPitch({ kind: "reset" });
@@ -582,9 +601,35 @@ export function LiveScoringView({
         toast.warning("Pitches not saved", { description: r.pitchPersistError });
       }
 
-      // Suppress unused var warning
-      void nextHalf;
-      void nextInning;
+      // PHASE 1 FIX — persist the inning/half advancement when the AB
+      // produced the 3rd out. Without this event, lastEvent stays
+      // pinned to the current half and the next at-bat would log into
+      // the wrong half (runs to wrong team). Best-effort: warn but
+      // don't roll back the at-bat if the inning_change insert fails.
+      const halfChanged =
+        nextOuts === 0 &&
+        outsThisPlay > 0 &&
+        (nextHalf !== currentHalf || nextInning !== currentInning);
+      if (halfChanged) {
+        const ic = await recordInningChangeAction({
+          gameId,
+          newInning: nextInning,
+          newHalf: nextHalf,
+          homeScore,
+          awayScore,
+        });
+        if (ic.error) {
+          toast.warning("Half didn't advance", { description: ic.error });
+        } else {
+          toast.message(
+            `End of ${currentHalf === "top" ? "top" : "bottom"} ${currentInning}`,
+            {
+              description: `${nextHalf === "top" ? "Top" : "Bot"} ${nextInning} up`,
+              duration: 1800,
+            },
+          );
+        }
+      }
     });
   };
 
@@ -641,10 +686,29 @@ export function LiveScoringView({
         `Picked off ${base === 1 ? "1st" : base === 2 ? "2nd" : "3rd"}`,
         { duration: 1500 },
       );
-      // Suppress unused (linter); next batter inherits inning state via
-      // the next event log.
-      void nextHalf;
-      void nextInning;
+      // PHASE 1 FIX — persist half/inning advancement when the pickoff
+      // produced the 3rd out. Same pattern as the at-bat path; without
+      // this the next event would log into the wrong half.
+      const halfChanged =
+        nextOuts === 0 &&
+        (nextHalf !== currentHalf || nextInning !== currentInning);
+      if (halfChanged) {
+        const ic = await recordInningChangeAction({
+          gameId,
+          newInning: nextInning,
+          newHalf: nextHalf,
+          homeScore: currentHomeScore,
+          awayScore: currentAwayScore,
+        });
+        if (ic.error) {
+          toast.warning("Half didn't advance", { description: ic.error });
+        } else {
+          toast.message(
+            `End of ${currentHalf === "top" ? "top" : "bottom"} ${currentInning}`,
+            { description: `${nextHalf === "top" ? "Top" : "Bot"} ${nextInning} up`, duration: 1800 },
+          );
+        }
+      }
     });
   };
 
@@ -726,8 +790,30 @@ export function LiveScoringView({
         return;
       }
       toast.success(result.description, { duration: 1500 });
-      void nextHalf;
-      void nextInning;
+      // PHASE 1 FIX — persist half/inning advancement when this
+      // mid-game event (CS only, since SB/WP/PB/BK don't add outs)
+      // produced the 3rd out. Same pattern as the at-bat path.
+      const halfChanged =
+        nextOuts === 0 &&
+        result.outsAdded > 0 &&
+        (nextHalf !== currentHalf || nextInning !== currentInning);
+      if (halfChanged) {
+        const ic = await recordInningChangeAction({
+          gameId,
+          newInning: nextInning,
+          newHalf: nextHalf,
+          homeScore,
+          awayScore,
+        });
+        if (ic.error) {
+          toast.warning("Half didn't advance", { description: ic.error });
+        } else {
+          toast.message(
+            `End of ${currentHalf === "top" ? "top" : "bottom"} ${currentInning}`,
+            { description: `${nextHalf === "top" ? "Top" : "Bot"} ${nextInning} up`, duration: 1800 },
+          );
+        }
+      }
     });
   };
 
@@ -1367,9 +1453,9 @@ export function LiveScoringView({
                         ),
                     ),
                   );
-                  // Roll back batter index too.
-                  if (weAreBatting) setOurBattingIndex((i) => Math.max(0, i - 1));
-                  else setTheirBattingIndex((i) => Math.max(0, i - 1));
+                  // Batter index auto-rolls back: derived from the
+                  // event log, and we just removed the last at-bat
+                  // optimistically (next render shows the previous batter).
                   toast.success("Undone", {
                     description: r.undone?.playerName
                       ? `${r.undone.playerName} · ${r.undone.outcome}`
