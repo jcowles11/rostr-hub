@@ -122,3 +122,81 @@ export async function verifyHighlightAction(
   }
   return { error: null };
 }
+
+/**
+ * unverifyHighlightAction — coach removes their (or another coach's)
+ * verification from a clip. Mirrors verifyHighlightAction's gates.
+ *
+ * Use case: a coach hit Verify on the wrong clip, or a clip is no
+ * longer accurate (player edited the caption misleadingly, etc.).
+ * After unverify the clip is back in player-reported land — the
+ * player can delete or replace it again.
+ *
+ * Note: the migration-36 trigger explicitly allows coaches in the
+ * player's program to UPDATE verified rows. This action runs as the
+ * coach (per-request anon-key client + RLS coach policy) so the
+ * trigger passes through.
+ *
+ * Idempotent: unverifying an already-unverified row is a no-op,
+ * which we report as success because the desired end state holds.
+ */
+export async function unverifyHighlightAction(
+  highlightId: string,
+): Promise<{ error: string | null }> {
+  if (!isFeatureEnabled("NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES")) {
+    return {
+      error: featureDisabledMessage(
+        "NEXT_PUBLIC_ENABLE_ADVANCED_PLAYER_PROFILES",
+      ),
+    };
+  }
+  if (isDemoRequest()) return { error: DEMO_GUARD_MESSAGE };
+  if (!highlightId || typeof highlightId !== "string") {
+    return { error: "Missing highlight id." };
+  }
+
+  const coach = await getCurrentCoach();
+  if (!coach) return { error: "You must be signed in as a coach." };
+
+  const supabase = createSupabaseServerClient();
+  const { data: row, error: fetchErr } = await supabase
+    .from("player_highlights")
+    .select(
+      "id, player_id, players!inner(id, program_id, profile_slug)",
+    )
+    .eq("id", highlightId)
+    .maybeSingle();
+  if (fetchErr || !row) return { error: "Highlight not found." };
+
+  const playersField = (row as unknown as { players?: unknown }).players;
+  const playerRow = (
+    Array.isArray(playersField)
+      ? (playersField[0] as
+          | { program_id?: string | null; profile_slug?: string | null }
+          | undefined)
+      : (playersField as
+          | { program_id?: string | null; profile_slug?: string | null }
+          | undefined)
+  ) ?? null;
+
+  if (!playerRow || playerRow.program_id !== coach.program_id) {
+    return { error: "Highlight not found." };
+  }
+
+  const { error: updErr } = await supabase
+    .from("player_highlights")
+    .update({
+      verified_by_coach: false,
+      verified_by: null,
+      verified_at: null,
+    })
+    .eq("id", highlightId);
+
+  if (updErr) return { error: updErr.message };
+
+  revalidatePath(`/app/roster/${row.player_id}/reported`);
+  if (playerRow.profile_slug) {
+    revalidatePath(`/p/${playerRow.profile_slug}`);
+  }
+  return { error: null };
+}

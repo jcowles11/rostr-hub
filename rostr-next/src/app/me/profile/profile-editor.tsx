@@ -22,6 +22,7 @@ import {
   Mail,
   Phone,
   Globe,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { tapHaptic, thumpHaptic, errorHaptic } from "@/lib/haptic";
@@ -327,6 +328,7 @@ export function ProfileEditor({
           verifiedByCoach: false,
           verifiedBy: null,
           verifiedAt: null,
+          verifiedByName: null,
         },
       ]);
       setNewHighlight({ url: "", caption: "" });
@@ -618,14 +620,20 @@ export function ProfileEditor({
             )}
             {highlights.map((h) => {
               const embed = resolveVideoEmbed(h.url);
+              const locked = h.verifiedByCoach;
               return (
                 <li
                   key={h.id}
-                  className="flex items-center gap-3 p-2 rounded-xl border border-hair bg-paper"
+                  className={cn(
+                    "flex items-center gap-3 p-2 rounded-xl border bg-paper",
+                    locked
+                      ? "border-grass/30 bg-grass-dim/30"
+                      : "border-hair",
+                  )}
                 >
                   <span
                     className={cn(
-                      "w-12 h-12 rounded-lg flex items-center justify-center shrink-0 overflow-hidden",
+                      "w-12 h-12 rounded-lg flex items-center justify-center shrink-0 overflow-hidden relative",
                       embed?.thumbnailUrl ? "bg-ink" : "bg-hair-2 text-ink-3",
                     )}
                   >
@@ -639,26 +647,67 @@ export function ProfileEditor({
                     ) : (
                       <ImageIcon className="w-5 h-5" />
                     )}
+                    {locked && (
+                      <span
+                        aria-hidden
+                        className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-grass text-white flex items-center justify-center ring-2 ring-paper"
+                      >
+                        <ShieldCheck className="w-3 h-3" strokeWidth={2.5} />
+                      </span>
+                    )}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[12.5px] font-semibold truncate">
-                      {h.caption ?? embed?.provider ?? "Highlight"}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[12.5px] font-semibold truncate">
+                        {h.caption ?? embed?.provider ?? "Highlight"}
+                      </span>
+                      {locked && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full font-bold uppercase tracking-[0.06em] bg-grass-dim text-grass border border-grass/20 px-1.5 py-0 text-[9.5px] shrink-0">
+                          <ShieldCheck className="w-2.5 h-2.5" strokeWidth={2.5} />
+                          Verified
+                        </span>
+                      )}
                     </div>
-                    <div className="text-[10.5px] text-ink-3 truncate">{h.url}</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeHighlight(h.id)}
-                    aria-label="Remove highlight"
-                    disabled={pending}
-                    className={cn(
-                      "w-9 h-9 rounded-full flex items-center justify-center text-ink-3",
-                      "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-                      "hover:bg-red-soft hover:text-red active:scale-[0.88]",
+                    {locked ? (
+                      <div className="text-[10.5px] text-grass/90 truncate font-medium">
+                        {h.verifiedByName
+                          ? `Verified by ${h.verifiedByName}`
+                          : "Coach-verified"}
+                        {h.verifiedAt &&
+                          ` · ${new Date(h.verifiedAt).toLocaleDateString()}`}
+                      </div>
+                    ) : (
+                      <div className="text-[10.5px] text-ink-3 truncate">
+                        {h.url}
+                      </div>
                     )}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  </div>
+                  {locked ? (
+                    <span
+                      title="Coach-verified — ask your coach to unverify before deleting"
+                      aria-label="Verified, delete disabled"
+                      className={cn(
+                        "w-9 h-9 rounded-full flex items-center justify-center text-grass shrink-0",
+                        "bg-grass-dim/60 cursor-not-allowed",
+                      )}
+                    >
+                      <Lock className="w-4 h-4" strokeWidth={2.25} />
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => removeHighlight(h.id)}
+                      aria-label="Remove highlight"
+                      disabled={pending}
+                      className={cn(
+                        "w-9 h-9 rounded-full flex items-center justify-center text-ink-3",
+                        "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                        "hover:bg-red-soft hover:text-red active:scale-[0.88]",
+                      )}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </li>
               );
             })}

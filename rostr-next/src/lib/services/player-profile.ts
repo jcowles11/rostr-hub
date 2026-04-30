@@ -119,9 +119,40 @@ export async function fetchPlayerHighlights(
       verifiedByCoach: false,
       verifiedBy: null,
       verifiedAt: null,
+      verifiedByName: null,
     }));
   }
   if (tryFull.error || !tryFull.data) return [];
+
+  // Resolve verifier names in a single follow-up query. We can't do
+  // this in the same select because verified_by points to auth.users,
+  // not coaches — Supabase's relationship hint only works on declared
+  // foreign keys to public-schema tables. So we batch-fetch coach
+  // names by user_id.
+  const verifierIds = Array.from(
+    new Set(
+      tryFull.data
+        .map((r) => r.verified_by)
+        .filter((v): v is string => Boolean(v)),
+    ),
+  );
+  const nameByUserId = new Map<string, string>();
+  if (verifierIds.length > 0) {
+    const { data: coachRows } = await supabase
+      .from("coaches")
+      .select("user_id, full_name")
+      .in("user_id", verifierIds);
+    for (const c of coachRows ?? []) {
+      // A coach may appear in multiple programs — keep the first non-
+      // empty full_name we see; deduped by user_id.
+      const uid = c.user_id as string | null;
+      const fn = c.full_name as string | null;
+      if (uid && fn && !nameByUserId.has(uid)) {
+        nameByUserId.set(uid, fn);
+      }
+    }
+  }
+
   return tryFull.data.map((r) => ({
     id: r.id,
     playerId: r.player_id,
@@ -133,6 +164,7 @@ export async function fetchPlayerHighlights(
     verifiedByCoach: Boolean(r.verified_by_coach),
     verifiedBy: r.verified_by ?? null,
     verifiedAt: r.verified_at ?? null,
+    verifiedByName: r.verified_by ? nameByUserId.get(r.verified_by) ?? null : null,
   }));
 }
 

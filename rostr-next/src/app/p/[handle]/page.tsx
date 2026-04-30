@@ -1997,7 +1997,10 @@ function RealHighlightsCard({
         </h3>
         {showSourceBadges &&
           (hero.verifiedByCoach ? (
-            <VerifiedBadge size="sm" source="Coach" />
+            <VerifiedBadge
+              size="sm"
+              source={hero.verifiedByName ?? "Coach Verified"}
+            />
           ) : (
             <PlayerReportedBadge size="sm" />
           ))}

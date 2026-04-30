@@ -82,12 +82,20 @@ export interface PlayerHighlight {
    * Coach-verified signal (migration 35). When true, a coach in the
    * player's program reviewed and vouched for this clip — the public
    * profile shows the VerifiedBadge atom; otherwise PlayerReportedBadge.
-   * Defaults false. The verification UI is not shipped in this build —
-   * column is read-only on the coach review surface.
+   * Defaults false.
    */
   verifiedByCoach: boolean;
   verifiedBy: string | null;
   verifiedAt: string | null;
+  /**
+   * Display name of the coach who verified this clip, resolved at
+   * fetch time via coaches.full_name. May be null when:
+   *   - clip is not verified
+   *   - the verifying coach has been removed from the program
+   *   - the coach record can't be found for any reason
+   * UI falls back to "Coach Verified" when null.
+   */
+  verifiedByName: string | null;
 }
 
 /**

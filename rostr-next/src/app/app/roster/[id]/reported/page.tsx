@@ -279,58 +279,11 @@ export default async function PlayerReportedReviewPage({
           </ReviewCard>
         )}
 
-        {/* Highlights */}
+        {/* Highlights — sorted unverified-first so the coach's review
+            queue is visually obvious. Verified clips collapse into
+            the bottom of the card with a subtle separator. */}
         {highlights.length > 0 && (
-          <ReviewCard
-            icon={<Trophy className="w-4 h-4 text-red" />}
-            title="Highlight links"
-          >
-            {highlights.map((h) => {
-              const embed = resolveVideoEmbed(h.url);
-              const provider = embed?.provider ?? "unknown";
-              return (
-                <div
-                  key={h.id}
-                  className="px-4 py-3 border-b border-hair-2 last:border-b-0"
-                >
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Video className="w-3.5 h-3.5 text-ink-3" />
-                    <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-ink-3">
-                      {provider}
-                    </span>
-                    {!h.verifiedByCoach && <PlayerReportedBadge size="sm" />}
-                    {/* Verify button is the primary action — when already
-                        verified the component renders a static Verified
-                        pill instead. */}
-                    <span className="ml-auto">
-                      <VerifyHighlightButton
-                        highlightId={h.id}
-                        caption={h.caption}
-                        url={h.url}
-                        alreadyVerified={h.verifiedByCoach}
-                      />
-                    </span>
-                  </div>
-                  {h.caption && (
-                    <div className="mt-1 text-[13px] font-semibold">{h.caption}</div>
-                  )}
-                  <a
-                    href={h.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1 block text-[11.5px] text-red truncate hover:underline"
-                  >
-                    {h.url}
-                  </a>
-                  {h.verifiedByCoach && h.verifiedAt && (
-                    <div className="mt-1 text-[10.5px] text-ink-3 font-mono">
-                      Verified {new Date(h.verifiedAt).toLocaleDateString()}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </ReviewCard>
+          <HighlightsReviewCard highlights={highlights} />
         )}
       </div>
     </div>
@@ -387,3 +340,139 @@ function VisRow({ label, on }: { label: string; on: boolean }) {
     </li>
   );
 }
+
+/**
+ * HighlightsReviewCard — Phase 4 layout.
+ *
+ * Splits clips into two visually-distinct buckets:
+ *   1. Needs review — unverified clips, listed first with a dashed
+ *      "needs review" pill in the section header so the coach sees
+ *      the queue size at a glance.
+ *   2. Verified — already-vouched clips, collapsed at the bottom
+ *      under a subtle divider with a count chip.
+ *
+ * Each section has its own header so an empty bucket gracefully
+ * disappears (e.g. all clips verified → only the "Verified" section
+ * renders). Counts are precomputed so we don't recount per render.
+ */
+function HighlightsReviewCard({
+  highlights,
+}: {
+  highlights: PlayerHighlightForReview[];
+}) {
+  const unverified = highlights.filter((h) => !h.verifiedByCoach);
+  const verified = highlights.filter((h) => h.verifiedByCoach);
+
+  return (
+    <section className="bg-card border border-hair rounded-2xl mb-4 overflow-hidden">
+      <header className="px-4 py-3 border-b border-hair-2 flex items-center gap-2 flex-wrap">
+        <Trophy className="w-4 h-4 text-red" />
+        <h2 className="font-display text-[14px] font-bold tracking-tight">
+          Highlight links
+        </h2>
+        <span className="ml-auto flex items-center gap-1.5">
+          {unverified.length > 0 && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full font-bold uppercase tracking-[0.06em] bg-amber-soft text-amber border border-amber/25 px-2 py-0.5 text-[10px]"
+              title={`${unverified.length} clip${unverified.length === 1 ? "" : "s"} waiting for coach review`}
+            >
+              {unverified.length} to review
+            </span>
+          )}
+          {verified.length > 0 && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full font-bold uppercase tracking-[0.06em] bg-grass-dim text-grass border border-grass/20 px-2 py-0.5 text-[10px]"
+              title={`${verified.length} clip${verified.length === 1 ? "" : "s"} verified`}
+            >
+              {verified.length} verified
+            </span>
+          )}
+        </span>
+      </header>
+
+      {unverified.length > 0 && (
+        <>
+          <div className="px-4 py-2 bg-amber-soft/40 border-b border-hair-2 text-[10.5px] font-bold uppercase tracking-[0.06em] text-amber">
+            Needs review · {unverified.length}
+          </div>
+          {unverified.map((h) => (
+            <HighlightRow key={h.id} h={h} />
+          ))}
+        </>
+      )}
+
+      {verified.length > 0 && (
+        <>
+          <div className="px-4 py-2 bg-grass-dim/40 border-b border-hair-2 text-[10.5px] font-bold uppercase tracking-[0.06em] text-grass">
+            Verified · {verified.length}
+          </div>
+          {verified.map((h) => (
+            <HighlightRow key={h.id} h={h} />
+          ))}
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Single clip row within HighlightsReviewCard. Layout shared between
+ * the unverified + verified sections — only the embedded VerifyHighlight-
+ * Button picks its own visual variant based on `alreadyVerified`.
+ */
+function HighlightRow({ h }: { h: PlayerHighlightForReview }) {
+  const embed = resolveVideoEmbed(h.url);
+  const provider = embed?.provider ?? "unknown";
+  return (
+    <div className="px-4 py-3 border-b border-hair-2 last:border-b-0">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Video className="w-3.5 h-3.5 text-ink-3" />
+        <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-ink-3">
+          {provider}
+        </span>
+        {!h.verifiedByCoach && <PlayerReportedBadge size="sm" />}
+        <span className="ml-auto">
+          <VerifyHighlightButton
+            highlightId={h.id}
+            caption={h.caption}
+            url={h.url}
+            alreadyVerified={h.verifiedByCoach}
+            verifiedByName={h.verifiedByName}
+            verifiedAt={h.verifiedAt}
+          />
+        </span>
+      </div>
+      {h.caption && (
+        <div className="mt-1 text-[13px] font-semibold">{h.caption}</div>
+      )}
+      <a
+        href={h.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-1 block text-[11.5px] text-red truncate hover:underline"
+      >
+        {h.url}
+      </a>
+      {h.verifiedByCoach && (h.verifiedAt || h.verifiedByName) && (
+        <div className="mt-1 text-[10.5px] text-grass/90 font-medium">
+          {h.verifiedByName ? `Verified by ${h.verifiedByName}` : "Coach-verified"}
+          {h.verifiedAt && ` · ${new Date(h.verifiedAt).toLocaleDateString()}`}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Local alias — sidesteps the cost of an extra import for what is
+ * effectively a re-statement of `PlayerHighlight` from
+ * @/lib/services/player-profile-types. Keeps this file self-contained.
+ */
+type PlayerHighlightForReview = {
+  id: string;
+  url: string;
+  caption: string | null;
+  verifiedByCoach: boolean;
+  verifiedByName: string | null;
+  verifiedAt: string | null;
+};
