@@ -35,6 +35,7 @@ import { AddPlayerModal } from "@/components/organisms/add-player-modal";
 import { ImportRosterModal } from "@/components/organisms/import-roster-modal";
 import { AddEventModal } from "@/components/organisms/add-event-modal";
 import { AICoachCard as LiveAICoachCard } from "@/components/organisms/ai-coach-card";
+import { ScrollReveal } from "@/components/atoms/scroll-reveal";
 import {
   PlayerSlideover,
   type PlayerSlideoverStats,
@@ -150,19 +151,19 @@ export function HubView({
           { kind: "primary", label: "Start practice", href: "/app/practice" },
         ]}
       />
-      <div className="flex-1 overflow-auto px-4 sm:px-6 lg:px-8 pt-5 sm:pt-7 pb-12">
+      <div className="flex-1 overflow-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-7 pb-24 lg:pb-12">
         <div className="max-w-layout-hub mx-auto">
           {/* ── Hub header ────────────────────────────────── */}
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between mb-[22px] gap-4 lg:gap-6">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between mb-4 lg:mb-[22px] gap-3 lg:gap-6">
             <div>
-              <span className="inline-flex items-center gap-2 px-[11px] py-1.5 bg-red-soft text-red rounded-full text-[11px] font-bold uppercase tracking-[0.04em]">
+              <span className="inline-flex items-center gap-2 px-[11px] py-1.5 bg-red-soft text-red rounded-full text-[10.5px] font-bold uppercase tracking-[0.04em]">
                 <span className="w-1.5 h-1.5 rounded-full bg-red" />
                 {todayLabel}
               </span>
-              <h1 className="mt-2.5 font-display text-display-md">
+              <h1 className="mt-2 font-display text-[28px] sm:text-display-md leading-[1.05] tracking-[-0.03em]">
                 {greeting()}, {greetingName.split(" ")[0] || "Coach"}.
               </h1>
-              <p className="mt-1 text-ink-3 text-[14px]">{subtitle}</p>
+              <p className="mt-1 text-ink-3 text-[13px] sm:text-[14px]">{subtitle}</p>
             </div>
             <div className="flex gap-2 shrink-0">
               <Button
@@ -188,9 +189,15 @@ export function HubView({
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-[22px]">
             {/* MAIN COLUMN */}
             <div className="flex flex-col gap-[22px] min-w-0">
-              <TodayHeroCard nextGame={nextGame} playerCount={playerCount} />
+              {/* The hero is above-the-fold, so it lands instantly
+                  (enabled={false}). Subsequent sections stagger in
+                  via ScrollReveal as the user scrolls past them. */}
+              <ScrollReveal enabled={false}>
+                <TodayHeroCard nextGame={nextGame} playerCount={playerCount} />
+              </ScrollReveal>
 
               {/* Stat row — honest counts derived from real program data. */}
+              <ScrollReveal delayMs={40}>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                 {record && record.gamesCompleted > 0 ? (
                   <StatTile
@@ -242,35 +249,50 @@ export function HubView({
                   delta={`${weekGameCount}g · ${weekPracticeCount}p`}
                 />
               </div>
+              </ScrollReveal>
 
               {/* Availability */}
-              <AvailabilityPanel
-                players={PLAYERS_FOR_AVAIL}
-                extraCount={extraCount}
-                onSelectPlayer={(p) => setSlideoverPlayer(p)}
-              />
+              <ScrollReveal delayMs={80}>
+                <AvailabilityPanel
+                  players={PLAYERS_FOR_AVAIL}
+                  extraCount={extraCount}
+                  onSelectPlayer={(p) => setSlideoverPlayer(p)}
+                />
+              </ScrollReveal>
 
               {/* Schedule + Plan row */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-[22px]">
-                <ThisWeekPanel items={MOCK_WEEK} />
-                <TodayPlanPanel />
-              </div>
+              <ScrollReveal delayMs={120}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-[22px]">
+                  <ThisWeekPanel items={MOCK_WEEK} />
+                  <TodayPlanPanel />
+                </div>
+              </ScrollReveal>
 
               {/* Activity feed */}
-              <ActivityFeedPanel events={activity} />
+              <ScrollReveal delayMs={140}>
+                <ActivityFeedPanel events={activity} />
+              </ScrollReveal>
             </div>
 
             {/* SIDE COLUMN */}
             <div className="flex flex-col gap-[18px]">
-              <LiveAICoachCard />
-              <QuickActionsPanel
-                onAddPlayer={() => setAddPlayerOpen(true)}
-                onImport={() => setImportOpen(true)}
-                onNewGame={() => setAddEventOpen("game")}
-                onNewPractice={() => setAddEventOpen("practice")}
-              />
-              <MessagesPanel threads={inboxThreads} />
-              <PlayerSpotlightPanel spotlight={spotlight} />
+              <ScrollReveal delayMs={60}>
+                <LiveAICoachCard />
+              </ScrollReveal>
+              <ScrollReveal delayMs={100}>
+                <QuickActionsPanel
+                  onAddPlayer={() => setAddPlayerOpen(true)}
+                  onImport={() => setImportOpen(true)}
+                  onNewGame={() => setAddEventOpen("game")}
+                  onNewPractice={() => setAddEventOpen("practice")}
+                />
+              </ScrollReveal>
+              <ScrollReveal delayMs={140}>
+                <MessagesPanel threads={inboxThreads} />
+              </ScrollReveal>
+              <ScrollReveal delayMs={180}>
+                <PlayerSpotlightPanel spotlight={spotlight} />
+              </ScrollReveal>
             </div>
           </div>
         </div>
@@ -330,49 +352,63 @@ function TodayHeroCard({
   const dateLabel = hasGame ? `${nextGame!.dateLabel}${nextGame!.timeLabel ? " · " + nextGame!.timeLabel : ""}` : "3:30 – 5:30 PM";
   const locationLabel = hasGame ? nextGame!.location : "Field A";
   return (
-    <div className="relative overflow-hidden rounded-lg p-6 bg-[linear-gradient(135deg,#0e1116_0%,#191d24_100%)] text-white">
+    <div className="relative overflow-hidden rounded-2xl p-5 sm:p-6 bg-[linear-gradient(135deg,#0e1116_0%,#191d24_100%)] text-white shadow-[0_18px_50px_-20px_rgba(14,17,22,0.55)]">
       <div
         aria-hidden
         className="absolute -top-16 -right-16 w-60 h-60 rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(200, 58, 58, 0.25), transparent 65%)",
+          background: "radial-gradient(circle, rgba(200, 58, 58, 0.3), transparent 65%)",
         }}
       />
       <div className="relative">
         <div className="type-label !text-white/55">{label}</div>
-        <div className="mt-1 font-display text-[26px] font-semibold tracking-tight leading-tight">
+        {/* Whoop-style "this matters" headline. Bigger on mobile so
+            the eye locks onto it the moment the page lands. */}
+        <div className="mt-1.5 font-display text-[30px] sm:text-[28px] font-semibold tracking-[-0.025em] leading-[1.05]">
           {title}
         </div>
-        <div className="mt-3.5 flex flex-wrap gap-[18px] text-[12.5px] text-white/70">
-          <span className="inline-flex items-center gap-1.5">
-            <Clock className="w-[15px] h-[15px]" />
+        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[13px] sm:text-[12.5px] text-white/75 tabular-nums">
+          <span className="inline-flex items-center gap-1.5 font-mono">
+            <Clock className="w-[15px] h-[15px]" strokeWidth={2.25} />
             {dateLabel}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <MapPin className="w-[15px] h-[15px]" />
+            <MapPin className="w-[15px] h-[15px]" strokeWidth={2.25} />
             {locationLabel}
           </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Users className="w-[15px] h-[15px]" />
+          <span className="inline-flex items-center gap-1.5 font-mono">
+            <Users className="w-[15px] h-[15px]" strokeWidth={2.25} />
             {playerCount} players
           </span>
         </div>
-        <div className="mt-4.5 flex gap-2 flex-wrap">
+        <div className="mt-4 flex gap-2 flex-wrap">
           <Link
             href="/app/practice"
-            className="inline-flex items-center bg-red hover:bg-red/90 text-white rounded-sm px-3.5 h-[34px] text-[12.5px] font-semibold"
+            className={cn(
+              "inline-flex items-center bg-red text-white rounded-full px-4 h-9 text-[12.5px] font-bold shadow-[0_4px_14px_-4px_rgba(200,58,58,0.6)]",
+              "transition-transform duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+              "active:scale-[0.94] hover:bg-red/90",
+            )}
           >
             Open practice plan →
           </Link>
           <Link
             href="/app/practice"
-            className="inline-flex items-center bg-white/[0.08] hover:bg-white/[0.14] text-white rounded-sm px-3.5 h-[34px] text-[12.5px] font-semibold"
+            className={cn(
+              "inline-flex items-center bg-white/[0.1] text-white rounded-full px-4 h-9 text-[12.5px] font-semibold",
+              "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+              "active:scale-[0.94] hover:bg-white/[0.16]",
+            )}
           >
             Field runner mode
           </Link>
           <Link
             href="/app/practice"
-            className="inline-flex items-center bg-white/[0.08] hover:bg-white/[0.14] text-white rounded-sm px-3.5 h-[34px] text-[12.5px] font-semibold"
+            className={cn(
+              "inline-flex items-center bg-white/[0.1] text-white rounded-full px-4 h-9 text-[12.5px] font-semibold",
+              "transition-all duration-[140ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+              "active:scale-[0.94] hover:bg-white/[0.16]",
+            )}
           >
             Edit
           </Link>

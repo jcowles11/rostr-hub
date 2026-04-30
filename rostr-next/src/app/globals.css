@@ -164,6 +164,39 @@
     -webkit-backdrop-filter: saturate(180%) blur(20px);
   }
 
+  /* Page-enter animation. Applied to top-level page wrappers so the
+     content fades + slides up on first paint instead of snapping in.
+     Cinematic curve = cubic-bezier(0.22, 1, 0.36, 1) — the same
+     "easeOutExpo"-ish curve Apple Photos / News use. */
+  @keyframes page-enter-keyframes {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-page-enter {
+    animation: page-enter-keyframes 360ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  /* Skip the animation when the user prefers reduced motion. */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-page-enter {
+      animation: none;
+    }
+  }
+
+  /* Hover styles only on devices that actually have hover. Touch
+     devices were getting "stuck" on hover state after taps because
+     mobile browsers fire :hover then never unset it. */
+  @media (hover: none) {
+    .no-touch-hover\:bg-transparent:hover {
+      background-color: transparent !important;
+    }
+  }
+
   /* Display / mono font helpers — shorthand for inline use where Tailwind’s
      fontFamily tokens would be verbose. */
   .font-display {
