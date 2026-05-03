@@ -297,11 +297,37 @@ function HeroShot() {
     // and the iPhone (tryout scoring) sits clearly tucked in the bottom-
     // right corner WITHOUT covering the laptop's screen content.
     <div className="relative min-h-[520px] hidden md:block">
-      {/* ── Laptop showing Team Home (/app) ─────────────────────── */}
+      {/* ── MacBook-style frame showing Team Home (/app) ─────────
+           Proportional MacBook silhouette: thicker top bezel with a
+           camera notch + dot, balanced side bezels, screen with
+           rounded corners flush to the bezel, then a hinge gradient
+           and a wedge-shaped base wider than the lid. The screen
+           content itself is unchanged — the chrome around it is what
+           reads as a Mac. */}
       <div className="absolute inset-0">
-        {/* Laptop bezel + screen */}
-        <div className="bg-ink rounded-t-lg p-2 shadow-elev">
-          <div className="bg-card rounded-md overflow-hidden border border-white/5">
+        {/* Lid + screen */}
+        <div
+          className="relative rounded-[14px] shadow-elev"
+          style={{
+            // Aluminum gradient — Space Black / graphite top, slightly
+            // lighter on the sides where light would catch the bezel.
+            background:
+              "linear-gradient(180deg, #1c2026 0%, #14181f 50%, #0f1218 100%)",
+            // Asymmetric padding mirrors a real MacBook: top bezel is
+            // ~1.4× the side bezels to leave room for the camera notch.
+            padding: "14px 10px 12px 10px",
+          }}
+        >
+          {/* Camera notch — small pill protruding from the top bezel
+              into the screen area. Real on Mn-series MacBook Pros. */}
+          <div
+            aria-hidden
+            className="absolute left-1/2 -translate-x-1/2 top-[3px] h-[10px] w-[80px] rounded-b-[6px] bg-black/95 z-10 flex items-center justify-center"
+          >
+            {/* Camera lens dot */}
+            <span className="block w-[5px] h-[5px] rounded-full bg-[#0a0a0a] ring-[1.5px] ring-[#1d2026]" />
+          </div>
+          <div className="bg-card rounded-[6px] overflow-hidden border border-white/5">
             {/* Browser chrome */}
             <div className="bg-paper-deep px-3 py-1.5 flex items-center gap-1.5 border-b border-hair-2">
               <span className="w-2 h-2 rounded-full bg-red/40" />
@@ -396,9 +422,38 @@ function HeroShot() {
             </div>
           </div>
         </div>
-        {/* Laptop base */}
-        <div className="h-2 bg-ink rounded-b-2xl mx-[-12px]" />
-        <div className="h-1 bg-ink/80 rounded-b mx-[-4px]" />
+        {/* ── Hinge + base ────────────────────────────────────
+             Real MacBook silhouette from the front: thin dark hinge
+             line directly under the lid, then a base that's slightly
+             WIDER than the lid (the keyboard deck sits behind a small
+             "lip"), with a subtle indent at the bottom-center for the
+             trackpad/grip cutout. Heights kept tight so the base
+             doesn't visually compete with the screen content. */}
+        {/* Hinge — sits flush under the lid */}
+        <div
+          aria-hidden
+          className="h-[3px] mx-[-2px] rounded-b-[2px]"
+          style={{
+            background:
+              "linear-gradient(180deg, #0a0d12 0%, #1a1e26 60%, #0a0d12 100%)",
+          }}
+        />
+        {/* Base / palm-rest — extends past the lid on each side */}
+        <div
+          aria-hidden
+          className="relative h-[10px] mx-[-14px] rounded-b-[10px] shadow-[0_8px_18px_-6px_rgba(0,0,0,0.45)]"
+          style={{
+            background:
+              "linear-gradient(180deg, #1a1e25 0%, #14181f 55%, #0c0f15 100%)",
+          }}
+        >
+          {/* Trackpad cutout indent — short pill centered along the
+              front lip, suggests where you'd grip to open the lid. */}
+          <span
+            aria-hidden
+            className="absolute left-1/2 -translate-x-1/2 bottom-[1.5px] w-[60px] h-[2px] rounded-full bg-black/70"
+          />
+        </div>
       </div>
 
       {/* ── iPhone (tryout scoring) ─────────────────────────────
