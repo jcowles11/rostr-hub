@@ -296,7 +296,9 @@ function HeroShot() {
     // Container sized so the laptop (Team Home) is the dominant visual
     // and the iPhone (tryout scoring) sits clearly tucked in the bottom-
     // right corner WITHOUT covering the laptop's screen content.
-    <div className="relative min-h-[520px] hidden md:block">
+    // Height set to clear a 16:10 lid + base + iPhone overlap, not the
+    // tall stacked Hub content (which gets cropped inside the screen).
+    <div className="relative min-h-[400px] hidden md:block">
       {/* ── MacBook-style frame showing Team Home (/app) ─────────
            Proportional MacBook silhouette: thicker top bezel with a
            camera notch + dot, balanced side bezels, screen with
@@ -327,9 +329,15 @@ function HeroShot() {
             {/* Camera lens dot */}
             <span className="block w-[5px] h-[5px] rounded-full bg-[#0a0a0a] ring-[1.5px] ring-[#1d2026]" />
           </div>
-          <div className="bg-card rounded-[6px] overflow-hidden border border-white/5">
+          {/* Screen — locked to 16:10 like a real Retina display so
+              the laptop reads as a Mac. The Hub content inside is
+              taller than 16:10; we crop it with overflow-hidden so
+              just the top portion (header + greeting + Today + part
+              of This week) shows. The cropped scroll position is
+              what a coach would actually see at the top of the page. */}
+          <div className="bg-card rounded-[6px] overflow-hidden border border-white/5 aspect-[16/10] flex flex-col">
             {/* Browser chrome */}
-            <div className="bg-paper-deep px-3 py-1.5 flex items-center gap-1.5 border-b border-hair-2">
+            <div className="bg-paper-deep px-3 py-1.5 flex items-center gap-1.5 border-b border-hair-2 shrink-0">
               <span className="w-2 h-2 rounded-full bg-red/40" />
               <span className="w-2 h-2 rounded-full bg-amber/50" />
               <span className="w-2 h-2 rounded-full bg-grass/50" />
@@ -337,8 +345,10 @@ function HeroShot() {
                 rostr.app/app
               </span>
             </div>
-            {/* Screen content — Team Home (Coach Hub at /app) */}
-            <div className="bg-paper">
+            {/* Screen content — Team Home (Coach Hub at /app). flex-1
+                lets the inner area expand to fill the 16:10 box; the
+                inner overflow-hidden clips anything past the viewport. */}
+            <div className="bg-paper flex-1 overflow-hidden">
               {/* Program header strip — shows the full program scale
                   (4 teams, ~64 players) instead of pretending it's a
                   single Varsity squad. Coaches need to recognize the
