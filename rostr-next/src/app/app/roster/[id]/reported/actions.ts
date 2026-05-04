@@ -8,6 +8,10 @@ import {
   isFeatureEnabled,
   featureDisabledMessage,
 } from "@/lib/feature-flags";
+import {
+  requirePermission,
+  PermissionDeniedError,
+} from "@/lib/permissions/server";
 
 /**
  * Server actions for the coach-side player-reported review surface
@@ -60,7 +64,18 @@ export async function verifyHighlightAction(
     return { error: "Missing highlight id." };
   }
 
-  // 4. Auth: the caller must be a coach with a program.
+  // 4. Auth + role gate: caller must be a coach with the
+  //    `verify_highlight` permission. Throws PermissionDeniedError
+  //    if missing — caught below and returned as a clean error string
+  //    so the client toast reads correctly.
+  try {
+    await requirePermission("verify_highlight");
+  } catch (e) {
+    if (e instanceof PermissionDeniedError) {
+      return { error: e.message };
+    }
+    throw e;
+  }
   const coach = await getCurrentCoach();
   if (!coach) return { error: "You must be signed in as a coach." };
 
@@ -155,6 +170,12 @@ export async function unverifyHighlightAction(
     return { error: "Missing highlight id." };
   }
 
+  try {
+    await requirePermission("unverify_highlight");
+  } catch (e) {
+    if (e instanceof PermissionDeniedError) return { error: e.message };
+    throw e;
+  }
   const coach = await getCurrentCoach();
   if (!coach) return { error: "You must be signed in as a coach." };
 
@@ -304,6 +325,12 @@ export async function verifyPriorStatAction(
     return { error: "Missing identifiers." };
   }
 
+  try {
+    await requirePermission("verify_prior_stat");
+  } catch (e) {
+    if (e instanceof PermissionDeniedError) return { error: e.message };
+    throw e;
+  }
   const coach = await getCurrentCoach();
   if (!coach) return { error: "You must be signed in as a coach." };
 
@@ -341,6 +368,12 @@ export async function unverifyPriorStatAction(
     return { error: "Missing identifiers." };
   }
 
+  try {
+    await requirePermission("unverify_prior_stat");
+  } catch (e) {
+    if (e instanceof PermissionDeniedError) return { error: e.message };
+    throw e;
+  }
   const coach = await getCurrentCoach();
   if (!coach) return { error: "You must be signed in as a coach." };
 

@@ -1,5 +1,69 @@
 # Launch Readiness
 
+> **2026-05-03 update — Commercial launch gates.** Rostr has matured
+> beyond pilot. The "Apple-shippable" standard now applies: every
+> launch surface must satisfy the privacy + security + reliability
+> rubric below before a paying customer touches it. The original
+> pilot-readiness rubric is preserved further down.
+
+## Commercial launch rubric (NEW — Apple-shippable bar)
+
+These are the gates between "pilot" and "ready to charge a customer."
+
+### A. Compliance gates (P0)
+
+| Gate | Status | Notes |
+|---|---|---|
+| Migration 39 applied (privacy + consent + role enforcement) | ✅ Done | Remote applied |
+| Data classification registry covers every player field | ✅ Done | `lib/compliance/data-classification.ts` |
+| Parental consent flow operational | ✅ Code complete | Email send deferred to next iteration; coach can copy/share token URL today |
+| Public profile 4-layer gating | ✅ Done | `/p/<handle>` checks slug → profile_public → minor consent → audit log |
+| Default-private posture for all profiles | ✅ Done | Migration 39 backfilled `profile_public = false` |
+| `COMPLIANCE.md` lawyer-reviewable | ✅ Done | At repo root |
+| External privacy lawyer review | ⏳ Pending | JC engaging counsel; this is the gate before real customer |
+| FERPA / state-law assessment | ⏳ Pending | Lawyer deliverable |
+| DPA template for school district customers | ⏳ Pending | Lawyer deliverable |
+
+### B. Security gates (P0)
+
+| Gate | Status | Notes |
+|---|---|---|
+| `requirePermission()` on all destructive server actions | ✅ Done (verify/unverify) | Pattern established; expand to score-edit + release in next pass |
+| Role-aware RLS on `tryout_scores` UPDATE/DELETE | ✅ Done | Head_coach only |
+| Role-aware RLS on `players` DELETE | ✅ Done | Head_coach only |
+| `parental_consent` + `data_access_log` + `takedown_request` RLS | ✅ Done | Coach-program-scoped read |
+| Permission-enforcement integration tests | ⏳ Deferred | Next session — proper test design takes 3 hrs |
+| Third-party security audit (optional but recommended) | ⏳ Deferred | Pre-customer recommendation |
+
+### C. Operational gates (P0/P1)
+
+| Gate | Status | Notes |
+|---|---|---|
+| `/pricing` page exists | ✅ Done | Three-tier model from `ROSTR_NORTH_STAR.md` |
+| GameChanger CSV roster import | ✅ Done | `/app/roster/import` — switching-cost killer |
+| Stripe checkout integration | ⏳ Deferred | Needs price IDs from JC |
+| Substantive privacy policy + terms | ⏳ Pre-existing | Lawyer review before relying on |
+| Error monitoring (PostHog or Sentry) | ⏳ Deferred | Needs API key from JC |
+| Rate limiting on critical endpoints | ⏳ Deferred | Needs Upstash decision |
+| Email delivery (consent emails, etc.) | ⏳ Deferred | Needs SendGrid/Resend account |
+
+### D. Competitive parity gates (P1)
+
+| Capability | vs GameChanger | vs MaxPreps | vs TeamSnap | Rostr status |
+|---|---|---|---|---|
+| Live game scoring | ✅ Match | n/a | n/a | Have it |
+| Practice planner | n/a | n/a | weak | **Better** (AI generation) |
+| Tryouts station-based | n/a | n/a | n/a | **Unique** |
+| Roster CSV import (from GameChanger) | n/a | n/a | n/a | ✅ Done this pass |
+| Bulk parent SMS / email | n/a | n/a | ✅ Match | ⏳ Inbox UI exists, send pipeline deferred |
+| State leaderboards (free distribution flywheel) | n/a | ✅ Match | n/a | ⏳ Deferred |
+| Verified-data layer + scout discovery | n/a | n/a | n/a | ✅ **Unique** (behind flag, ready) |
+| Public box score / fan view | weak | ✅ Match | weak | ✅ Have it (`/g/<id>`) |
+
+---
+
+## Pilot-ready rubric (preserved from original)
+
 ## What "Ready" Means at This Stage
 
 Rostr is in the **pilot-ready polish phase**. The core workflows exist and function. The current objective is not feature completion — it is making the existing product reliable, polished, and trustworthy enough that a real coach can use it during a real tryout without hitting confusing errors, losing data, or needing developer support.

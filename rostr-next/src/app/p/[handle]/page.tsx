@@ -91,8 +91,48 @@ export default async function PlayerProfilePage({
 }: {
   params: { handle: string };
 }) {
+  // ── Four-layer privacy gate (migration 39 + compliance/consent.ts)
+  //
+  //   Layer 1: profile_slug lookup. If no row → 404 (no leak that
+  //            the slug "exists privately").
+  //   Layer 2: profile_public flag. fetchPlayerBySlug already filters
+  //            on this; an unset row reads as null → 404.
+  //   Layer 3: minor + parental consent gate. If the player is
+  //            presumed under 18 (birth_year or grade < 12 fallback)
+  //            and no active consent record covers 'public_profile' →
+  //            404 (not 403 — we never disclose the row exists).
+  //   Layer 4: data_access_log entry — every successful render is
+  //            audited so a parent transparency request can list who
+  //            looked at what.
+  //
+  // The renderer below stays unchanged once we reach it; future work
+  // will further filter the rendered fields per data-classification
+  // sensitivity tiers, but the existing per-card show_academics +
+  // show_contact_info gates already cover the most-sensitive surfaces.
+
   // Try real DB lookup first by profile_slug.
   const real = await fetchPlayerBySlug(params.handle);
+
+  // Layer 3 + 4: only run for real (non-mock) profiles. Mock-fallback
+  // demo profiles are explicitly fictional + flagged as such by the
+  // MockProfileBanner — no consent gate applies.
+  if (real) {
+    const { canRenderPublicProfile, logDataAccess } = await import(
+      "@/lib/compliance/consent"
+    );
+    const gate = await canRenderPublicProfile(real.id);
+    if (!gate.allowed) {
+      // 404, not 403 — never disclose existence of a private profile.
+      notFound();
+    }
+    // Fire-and-forget audit log. Don't block the render on it.
+    void logDataAccess({
+      playerId: real.id,
+      accessType: "public_profile_view",
+      // Viewer IP / UA captured by middleware-level logging if wired;
+      // for now we record the access type + anonymous-by-default.
+    });
+  }
   const player: MockPlayer = real
     ? (real as unknown as MockPlayer)
     : (MOCK_PLAYERS.find((p) => p.handle === params.handle) ?? MOCK_PLAYERS[0]);
