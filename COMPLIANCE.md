@@ -12,12 +12,48 @@ geographic + age scoping. When the lawyer's redlines come back, they
 translate to specific code changes — this doc and the code stay in
 lockstep.
 
-> **Disclaimer.** This document and the implementation it describes
-> were drafted by Rostr engineering. Outside privacy counsel review
-> and a signed legal opinion are required before relying on any of it
-> in production with paying customers. Specific contractual items
-> (DPAs with subprocessors, school district DPA template, cyber
-> insurance) are tracked in §13 and require legal procurement.
+> **CRITICAL DISCLAIMER — Legal Review Status (2026-05-06).**
+>
+> This document and the implementation it describes were drafted by
+> Rostr engineering with AI-assisted analysis from Claude (Anthropic),
+> a language model with broad training on US privacy law including
+> COPPA, FERPA, CCPA/CPRA, SOPIPA, NY Education Law 2-d, and similar
+> regimes. **The AI-assisted analysis IS NOT a legal opinion and does
+> not constitute the practice of law.** It is research-grade analysis
+> intended to inform engineering decisions and to prepare the codebase
+> for eventual review by licensed counsel.
+>
+> **Outside privacy counsel review has NOT yet occurred** as of this
+> document's last-updated date. Rostr's founder is operating without
+> retained outside counsel during the pre-revenue phase. The compliance
+> posture documented here represents engineering's best effort applied
+> to AI-surfaced analysis. It is not a substitute for licensed legal
+> review and should not be represented to customers, partners,
+> investors, or regulators as having received such review.
+>
+> **Practical implications:**
+>
+> - Pilot launches with non-paying coaches in non-restricted states are
+>   acceptable risk at this stage given the geo-block (§6), age floor
+>   (§2), default-private posture (§4), and three-layer permission
+>   enforcement (§5). The compliance posture is materially stronger
+>   than typical pre-revenue ed-tech and the regulatory tail-risk at
+>   this scale is low.
+>
+> - **Paid customer onboarding, school district contracts, expansion
+>   into restricted states (CA/NY) for the scout tier, and any
+>   marketing claims that imply licensed legal sign-off all require
+>   actual outside counsel review first.**
+>
+> - Specific contractual items (DPAs with subprocessors, school district
+>   DPA template, cyber liability + E&O insurance) are tracked in §13
+>   and absolutely require legal procurement before the corresponding
+>   activity can ship.
+>
+> The plan is to retain outside counsel for a written review at the
+> earliest of (a) first paid customer, (b) $5k MRR, or (c) any state
+> regulator or school-district inquiry. Until then, engineering is
+> defensive-by-default per the principles in §15.
 
 ---
 
@@ -504,7 +540,119 @@ shipped from the codebase:
 
 ---
 
-## 15. Documents that go alongside this one
+## 15. Defensive-by-default operating principles (pre-counsel-review phase)
+
+While the founder operates without retained outside counsel, the
+following principles govern every product decision that touches user
+data. These are the policies that, in the event of a regulator
+inquiry, demonstrate "the founder acted reasonably." They are
+deliberately conservative.
+
+### 15a. Marketing-↔-consent alignment (the deceptive-practices guardrail)
+
+The single highest residual risk to Rostr while operating without
+counsel is a deceptive-practices claim under FTC Act §5 or state
+UDAP statutes. The trigger: marketing copy that promises something
+broader than what the consent flow actually authorizes.
+
+Concrete protections:
+
+- Every public-facing marketing claim about user data
+  (`/pricing`, marketing landing pages, app-store descriptions,
+  signup CTAs) must have a 1:1 mapping to an active consent scope.
+  If marketing says "verified profiles seen by recruiters", a
+  user must be able to see that exact representation in the
+  consent form.
+- The AI-assisted reviewer (Claude) does a marketing-vs-consent
+  diff before any new marketing copy ships.
+- When a marketing claim cannot be supported by an existing
+  consent scope, EITHER the scope is added (with proper
+  re-consent of existing users) OR the marketing copy is
+  softened. The default is to soften.
+
+### 15b. Default-private, opt-in for everything
+
+- Every new feature that surfaces player data publicly defaults
+  to OFF.
+- Every consent scope is independently grantable; bundling is
+  never the default.
+- Backfill migrations on visibility flags default to false.
+- When ambiguous, fail closed (return 404 / hide / require
+  consent), never fail open.
+
+### 15c. Geographic + age conservatism
+
+- Hard age floor at grade 9 (presumed age 14). Under-13
+  collection requires legal review first.
+- Geo-block at the EDGE for restrictive states (CA + NY for
+  scout features). Defense-in-depth: middleware + app + SQL.
+- New restrictive-state additions are a 1-line middleware
+  change. We will add states proactively if our knowledge of
+  their laws changes; we will NOT remove states without counsel.
+
+### 15d. Documentation-first decision making
+
+- Every privacy-touching decision gets a `DECISIONS.md` entry
+  with rationale. The decision record is engineering's audit
+  trail and counsel's onboarding material when retained.
+- COMPLIANCE.md stays current with code (drift detection on
+  quarterly review).
+- New `data-classification.ts` entries are required for any new
+  player field; absence = automatic exclusion from public
+  surfaces (fail-safe).
+
+### 15e. Retention-by-bound
+
+- No "indefinite" retention claims on minor data.
+- Every retention window is defensible against a deletion request.
+- Backups follow standard subprocessor windows (30-90 days for
+  Supabase, Vercel) and are documented in §10 + §11.
+
+### 15f. Incident response readiness
+
+- Breach detection: target 24h from event to internal decision.
+- Internal trigger: any unauthorized access OR confirmed data
+  exposure of any minor record requires §12 SLA review.
+- Incident commander = founder until security lead is hired.
+- First call after detection: outside counsel (engaged on
+  emergency retainer) AND cyber insurance carrier. No public
+  notification before counsel review.
+
+### 15g. Customer onboarding gates (no school districts yet)
+
+- Decline school district contracts until DPA template + Bill of
+  Rights + DPO designation are in place. Polite refusal: "We're
+  not yet licensed for district-level deployment; we'll re-engage
+  in [timeframe]."
+- Decline EU/UK customers (US-only at signup terms; rely on
+  click-through until geo-IP blocking lands).
+- Coach-as-individual onboarding is OK in all 47 non-restricted
+  states (NOT CA/NY for the scout tier specifically; team OS
+  fine in all 50).
+
+### 15h. AI-assisted compliance review workflow
+
+The AI reviewer (Claude / Anthropic) provides the following
+recurring work product, cited in this document and in
+DECISIONS.md when applied:
+
+1. **Marketing copy review** before any user-facing publication
+   that mentions data, recruiting, or visibility.
+2. **Pre-feature compliance gap analysis** for any feature
+   touching player data, before engineering ships.
+3. **Quarterly drift audit** between COMPLIANCE.md and code.
+4. **Privacy-policy & terms-of-service consistency check** when
+   either is updated.
+5. **Triage of regulator-inquiry-style scenarios** (helpful for
+   "what would I do if a parent emailed asking X").
+
+Output is research-grade analysis. It does not constitute legal
+advice. Its primary value is to surface issues for the founder
++ (eventually) counsel to evaluate.
+
+---
+
+## 16. Documents that go alongside this one
 
 - `/legal/privacy/page.tsx` — public-facing privacy policy (lawyer
   reviews the prose; this doc reviews the actual data practices)
