@@ -88,8 +88,14 @@ export default async function TodayPage() {
   );
 
   // PHASE 1 — first-run checklist signals. Cheap counts only;
-  // the checklist component renders nothing once all three are true.
-  const [futureGamesRes, futureRes, plansWithBlocksRes] = await Promise.all([
+  // the checklist component renders nothing once all five are true.
+  const [
+    futureGamesRes,
+    futureRes,
+    plansWithBlocksRes,
+    tryoutsRes,
+    scoredGamesRes,
+  ] = await Promise.all([
     supabase
       .from("games")
       .select("id", { count: "exact", head: true })
@@ -104,11 +110,25 @@ export default async function TodayPage() {
       .from("practice_blocks")
       .select("id", { count: "exact", head: true })
       .limit(1),
+    // Step 4 — has the program ever set up a tryout?
+    supabase
+      .from("tryouts")
+      .select("id", { count: "exact", head: true })
+      .eq("program_id", coach.program_id)
+      .limit(1),
+    // Step 5 — has any game been scored (game_events row exists for any game in this program)?
+    supabase
+      .from("game_events")
+      .select("id, games!inner(program_id)", { count: "exact", head: true })
+      .eq("games.program_id", coach.program_id)
+      .limit(1),
   ]);
   const hasPlayers = roster.length > 0;
   const hasUpcomingEvents =
     (futureGamesRes.count ?? 0) > 0 || (futureRes.count ?? 0) > 0;
   const hasAnyPractice = (plansWithBlocksRes.count ?? 0) > 0;
+  const hasAnyTryout = (tryoutsRes.count ?? 0) > 0;
+  const hasScoredGame = (scoredGamesRes.count ?? 0) > 0;
 
   const date = new Date();
   const dateLine = date.toLocaleDateString("en-US", {
@@ -147,6 +167,8 @@ export default async function TodayPage() {
             hasPlayers={hasPlayers}
             hasUpcomingEvents={hasUpcomingEvents}
             hasAnyPractice={hasAnyPractice}
+            hasAnyTryout={hasAnyTryout}
+            hasScoredGame={hasScoredGame}
           />
 
           {/* AI summary callout */}

@@ -1,4 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { emit } from "@/lib/notifications/dispatch";
+import { notify } from "@/lib/notifications/types";
 import type { ConsentScope } from "./data-classification";
 
 /**
@@ -159,7 +161,7 @@ export async function grantConsentByToken(args: {
   const supabase = createSupabaseServerClient();
   const { data: row, error: fetchErr } = await supabase
     .from("parental_consent")
-    .select("id, granted_at, revoked_at")
+    .select("id, player_id, granted_at, revoked_at")
     .eq("consent_token", args.token)
     .maybeSingle();
   if (fetchErr || !row) {
@@ -183,6 +185,38 @@ export async function grantConsentByToken(args: {
     })
     .eq("id", row.id);
   if (updErr) return { error: updErr.message };
+
+  // Fire-and-forget notification to the program coaches that consent
+  // was granted. Currently a no-op log via dispatch shim; will surface
+  // in /app/messages "System" tab when that lands. Don't await — the
+  // parent's redirect should NOT block on notification dispatch.
+  try {
+    const { data: playerRow } = await supabase
+      .from("players")
+      .select("id, program_id, first_name, last_name")
+      .eq(
+        "id",
+        // we have row.id (consent id) but need player_id; fetch via
+        // the consent row we already loaded
+        (row as { player_id?: string }).player_id ?? "",
+      )
+      .maybeSingle();
+    if (playerRow) {
+      emit(
+        notify.consentGranted({
+          programId: (playerRow as { program_id: string }).program_id,
+          playerId: (playerRow as { id: string }).id,
+          consentId: row.id,
+          playerName:
+            `${(playerRow as { first_name: string }).first_name} ${(playerRow as { last_name: string }).last_name}`.trim(),
+          scopes: args.scopes,
+        }),
+      );
+    }
+  } catch {
+    // Notification failure must never break the consent grant.
+    // Already swallowed by emit() but defense-in-depth.
+  }
   return { error: null };
 }
 

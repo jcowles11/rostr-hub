@@ -1,39 +1,69 @@
 import Link from "next/link";
-import { CheckCircle2, Circle, ArrowRight, Users, CalendarDays, ClipboardList } from "lucide-react";
+import {
+  CheckCircle2,
+  Circle,
+  ArrowRight,
+  Users,
+  CalendarDays,
+  ClipboardList,
+  Trophy,
+  Target,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
  * FirstRunChecklist — onboarding card shown to coaches who haven't
  * finished setting up their program yet.
  *
- * Renders a 3-step numbered list:
+ * Renders a 5-step numbered list:
  *   1. Add your players
  *   2. Add games + practices to your schedule
  *   3. Plan your first practice
+ *   4. Run a tryout (or skip if past tryout season)
+ *   5. Score your first game
  *
  * Each step shows a ✓ when its threshold is met. The card hides
- * itself once all three are complete (returns null) so a fully-set-up
+ * itself once all five are complete (returns null) so a fully-set-up
  * coach doesn't have a permanent "checklist" eating viewport. Pure
  * server component — no client JS, no state.
  *
  * Mounted at the top of /app/today (the daily standup view) so a
  * brand-new coach sees an unambiguous "What do I do first?" before
  * the rest of the page's empty states.
+ *
+ * Adding step 4 + 5 (tryouts + first game scored) extends the
+ * onboarding journey from "set up the team" to "use the team OS in
+ * a real coaching cycle". This is the difference between an empty
+ * Rostr account and a coach who has experienced what Rostr does.
  */
 export function FirstRunChecklist({
   hasPlayers,
   hasUpcomingEvents,
   hasAnyPractice,
+  hasAnyTryout,
+  hasScoredGame,
 }: {
   hasPlayers: boolean;
   /** Any game or practice scheduled in the future. */
   hasUpcomingEvents: boolean;
   /** Any practice plan with at least one block. */
   hasAnyPractice: boolean;
+  /** Any tryout has been created in the program. */
+  hasAnyTryout: boolean;
+  /** Any game has at least one logged event (i.e. live scoring used). */
+  hasScoredGame: boolean;
 }) {
   // Don't render the card when everything's done — coach is past
   // first-run; we don't need to keep nagging.
-  if (hasPlayers && hasUpcomingEvents && hasAnyPractice) return null;
+  if (
+    hasPlayers &&
+    hasUpcomingEvents &&
+    hasAnyPractice &&
+    hasAnyTryout &&
+    hasScoredGame
+  ) {
+    return null;
+  }
 
   const steps: Array<{
     n: number;
@@ -70,6 +100,24 @@ export function FirstRunChecklist({
       body: "Block out tonight (or tomorrow). The AI Coach can draft a starter plan if helpful.",
       cta: hasAnyPractice ? "Open planner" : "Plan practice",
       href: "/app/practice",
+    },
+    {
+      n: 4,
+      done: hasAnyTryout,
+      icon: <Target className="w-4 h-4" strokeWidth={2.25} />,
+      title: "Run a tryout",
+      body: "Set up stations, score on phones, see the live leaderboard. Skip if you're past tryout season.",
+      cta: hasAnyTryout ? "Manage tryouts" : "Set up tryout",
+      href: "/app/tryouts",
+    },
+    {
+      n: 5,
+      done: hasScoredGame,
+      icon: <Trophy className="w-4 h-4" strokeWidth={2.25} />,
+      title: "Score your first game",
+      body: "Live pitch-by-pitch tracking. Stats roll up automatically. Parents can follow along on the public viewer.",
+      cta: hasScoredGame ? "View games" : "Score a game",
+      href: "/app/games",
     },
   ];
 
