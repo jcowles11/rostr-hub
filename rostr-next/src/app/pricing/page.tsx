@@ -104,7 +104,7 @@ export default function PricingPage() {
             ctaLabel="Request access"
             ctaHref="/signup?plan=scout"
             features={SCOUT_FEATURES}
-            footnote="College programs only at launch. Independent recruiters and agencies on the waitlist."
+            footnote="College programs only at launch. Independent recruiters and agencies on the waitlist. Not currently available in California or New York while we complete state-specific compliance work."
           />
         </div>
 

@@ -134,15 +134,69 @@ export function computeSignalScore(
  *     first_name ASC. Caller can pass `verifiedOnly: true` to drop
  *     zero-score players entirely.
  */
+/**
+ * State codes whose programs are excluded from scout discovery. Mirrors
+ * the middleware-level scout signup gate. Underlying reasons:
+ *   CA — SOPIPA prohibits ed-tech profile creation for non-K-12 use
+ *   NY — Ed Law 2-d Bill of Rights / DPA / DPO infrastructure not built
+ * Migration 40 enforces the same restriction at the SQL view layer
+ * (scout_eligible_player_search); this app-layer filter is defense-
+ * in-depth.
+ */
+const SCOUT_GEO_BLOCKED_OPERATING_STATES = new Set(["CA", "NY"]);
+
 export async function searchPlayersForScout(
   filters: SearchFilters & { verifiedOnly?: boolean },
 ): Promise<{ players: RankedPlayer[]; total: number }> {
-  const { players, total } = await searchPlayers(filters);
-  if (players.length === 0) {
+  const { players: rawPlayers, total } = await searchPlayers(filters);
+  if (rawPlayers.length === 0) {
     return { players: [], total };
   }
 
   const supabase = createSupabaseServerClient();
+
+  // Geo gate: drop players whose program is in a restricted state.
+  // PlayerSearchResult doesn't currently expose program_id; we look it
+  // up via a single batched query on the players table — cheap because
+  // we already have the player ids in memory.
+  const playerIds = rawPlayers.map((p) => p.id);
+  const { data: programByPlayer } = await supabase
+    .from("players")
+    .select("id, program_id")
+    .in("id", playerIds);
+  const programIdByPlayer = new Map<string, string>(
+    (programByPlayer ?? []).map(
+      (r) =>
+        [
+          (r as { id: string }).id,
+          (r as { program_id: string }).program_id,
+        ] as [string, string],
+    ),
+  );
+  const programIds = Array.from(new Set(programIdByPlayer.values()));
+  let blockedProgramIds = new Set<string>();
+  if (programIds.length > 0) {
+    const { data: progRows } = await supabase
+      .from("programs")
+      .select("id, operating_state")
+      .in("id", programIds);
+    blockedProgramIds = new Set(
+      (progRows ?? [])
+        .filter((p) =>
+          SCOUT_GEO_BLOCKED_OPERATING_STATES.has(
+            String((p as { operating_state: string | null }).operating_state ?? ""),
+          ),
+        )
+        .map((p) => (p as { id: string }).id),
+    );
+  }
+  const players = rawPlayers.filter((p) => {
+    const pid = programIdByPlayer.get(p.id);
+    return pid != null && !blockedProgramIds.has(pid);
+  });
+  if (players.length === 0) {
+    return { players: [], total: 0 };
+  }
   const ids = players.map((p) => p.id);
   const { data: signals } = await supabase
     .from("player_scout_signal")

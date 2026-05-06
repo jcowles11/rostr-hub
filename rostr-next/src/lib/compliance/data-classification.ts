@@ -362,28 +362,11 @@ export const PLAYER_DATA_REGISTRY: Record<string, PlayerDataField> = {
     schoolFERPAImpact: true,
     retentionDaysAfterRelease: 730,
   },
-  medical_notes: {
-    key: "medical_notes",
-    displayName: "Medical notes",
-    sensitivity: "pii-restricted",
-    schoolFERPAImpact: true,
-    retentionDaysAfterRelease: 730,
-    notes: "HIPAA-adjacent if shared beyond coach. Treat as PII.",
-  },
-  emergency_contact_name: {
-    key: "emergency_contact_name",
-    displayName: "Emergency contact name",
-    sensitivity: "pii-restricted",
-    schoolFERPAImpact: true,
-    retentionDaysAfterRelease: 365,
-  },
-  emergency_contact_phone: {
-    key: "emergency_contact_phone",
-    displayName: "Emergency contact phone",
-    sensitivity: "pii-restricted",
-    schoolFERPAImpact: true,
-    retentionDaysAfterRelease: 365,
-  },
+
+  // NOTE: medical_notes, emergency_contact_name, emergency_contact_phone
+  // were dropped from the schema by migration 40 per privacy counsel
+  // review. Rostr does not collect health information or emergency
+  // contact data. Schools and coaches must use other channels for those.
 
   // ── Roster / operational (program-only) ──
   roster_assignment: {

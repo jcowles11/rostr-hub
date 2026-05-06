@@ -12,9 +12,60 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
  * Also refreshes the Supabase auth cookie on every request so sessions
  * stay alive across SSR + client navigations.
  */
+/**
+ * State codes where the scout / recruiter feature is geo-blocked at the
+ * edge until per-state compliance work is complete:
+ *
+ *   CA — SOPIPA (Cal. Bus. & Prof. Code §22584) restricts ed-tech
+ *        operators from amassing student profiles for non-K-12 purposes.
+ *        Our scout/recruiter feature falls under that restriction and
+ *        we don't yet have the carve-out infrastructure.
+ *   NY — Education Law 2-d / Part 121 imposes Bill of Rights, DPA,
+ *        Data Protection Officer, and 7-day breach notification
+ *        requirements that we don't yet meet.
+ *
+ * The block is at the edge so users in those states never reach the
+ * scout signup or discovery surfaces. Coach + player flows are
+ * unaffected — the team OS continues to work.
+ */
+const SCOUT_GEO_BLOCKED_REGIONS: ReadonlySet<string> = new Set(["CA", "NY"]);
+
+/**
+ * Read Vercel's edge geolocation header. Returns the two-letter US
+ * state code (e.g. "CA") or null when unavailable (local dev,
+ * non-Vercel deploys, IP couldn't be geolocated).
+ */
+function vercelRegion(req: NextRequest): string | null {
+  const r = req.headers.get("x-vercel-ip-country-region");
+  if (!r) return null;
+  return r.trim().toUpperCase();
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const res = NextResponse.next();
+
+  // Geo-block: scout signup + discovery in CA + NY. Routes covered:
+  //   /scout/setup       — scout/recruiter onboarding
+  //   /scout/discover    — flag-gated discovery search
+  //   /scout/discover/*  — any future sub-pages
+  //
+  // /scout/* OTHER than these routes (existing recruiter system: lists,
+  // outreach, searches) is NOT blocked — those are existing recruiter
+  // accounts that pre-date the geo-restriction. New recruiter setups in
+  // restricted states are blocked at /scout/setup.
+  const isGeoBlockedRoute =
+    pathname === "/scout/setup" ||
+    pathname.startsWith("/scout/discover");
+  if (isGeoBlockedRoute) {
+    const region = vercelRegion(req);
+    if (region && SCOUT_GEO_BLOCKED_REGIONS.has(region)) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/scout/unavailable";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+  }
 
   // Demo continuity: when a visitor inside /demo clicks something that
   // links to /app/* (Hub → "Open practice plan", roster row → game

@@ -12,6 +12,7 @@ import {
   type ParsedRow,
   type ParseResult,
 } from "@/lib/services/gamechanger-import";
+import { gradeMeetsAgeFloor } from "@/lib/compliance/age-gate";
 
 /**
  * Server action for /app/roster/import.
@@ -151,6 +152,18 @@ export async function commitImportAction(
   for (const row of input.rows) {
     if (!row.firstName.trim() || !row.lastName.trim()) {
       failed.push({ rowIndex: row.rowIndex, error: "Missing name." });
+      continue;
+    }
+    // COPPA hard floor: don't import under-13 players. Migration 40
+    // also enforces this at the DB layer; the app-layer check gives
+    // a friendlier per-row error message instead of a constraint
+    // violation toast.
+    if (!gradeMeetsAgeFloor(row.grade)) {
+      failed.push({
+        rowIndex: row.rowIndex,
+        error:
+          "Grade is below 9 (under 13 not supported). Drop this row or correct the grade.",
+      });
       continue;
     }
     const { error } = await supabase.from("players").insert({
